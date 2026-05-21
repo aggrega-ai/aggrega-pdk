@@ -1,0 +1,10 @@
+module github.com/aggrega-ai/aggrega-pdk-go
+
+go 1.26.0
+
+require (
+	github.com/extism/go-pdk v1.1.3
+	github.com/santhosh-tekuri/jsonschema/v6 v6.0.2
+)
+
+require golang.org/x/text v0.14.0 // indirect

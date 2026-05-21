@@ -1,0 +1,10 @@
+module github.com/aggrega-ai/aggrega-pdk-go/examples/mutator
+
+go 1.26.0
+
+require (
+	github.com/aggrega-ai/aggrega-pdk-go v0.0.0
+	github.com/extism/go-pdk v1.1.3
+)
+
+replace github.com/aggrega-ai/aggrega-pdk-go => ../../

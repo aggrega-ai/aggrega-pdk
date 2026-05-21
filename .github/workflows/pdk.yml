@@ -1,0 +1,51 @@
+name: PDK
+
+on:
+  pull_request:
+    paths:
+      - 'go/**'
+      - 'rust/**'
+      - 'typescript/**'
+      - '.github/workflows/pdk.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'go/**'
+      - 'rust/**'
+      - 'typescript/**'
+      - '.github/workflows/pdk.yml'
+
+jobs:
+  go-pdk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+
+      - name: Install TinyGo
+        run: |
+          TINYGO_VERSION="0.41.1"
+          TINYGO_URL="https://github.com/tinygo-org/tinygo/releases/download/v${TINYGO_VERSION}/tinygo${TINYGO_VERSION}.linux-amd64.tar.gz"
+          curl -fsSL -o /tmp/tinygo.tar.gz "${TINYGO_URL}"
+          sudo tar -C /usr/local -xzf /tmp/tinygo.tar.gz
+          echo "/usr/local/tinygo/bin" >> "$GITHUB_PATH"
+
+      - name: Build Go PDK
+        working-directory: go
+        run: go build ./...
+
+      - name: Test Go PDK
+        working-directory: go
+        run: go test ./...
+
+      - name: Build Go fixture — mutator
+        working-directory: go/examples/mutator
+        run: bash build.sh
+
+      - name: Build Go fixture — policy-validator
+        working-directory: go/examples/policy-validator
+        run: bash build.sh
