@@ -1,0 +1,18 @@
+{
+  "name": "@aggrega-ai/aggrega-pdk-typescript",
+  "version": "0.1.0-alpha.1",
+  "description": "Plugin Development Kit for authoring Aggrega Wasm plugins in TypeScript.",
+  "license": "Apache-2.0",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "node --test --experimental-strip-types tests/round_trip.test.ts"
+  },
+  "devDependencies": {
+    "@extism/js-pdk": "1.1.1",
+    "typescript": "^5.6.0",
+    "ajv": "^8.17.0",
+    "ajv-formats": "^3.0.0"
+  }
+}

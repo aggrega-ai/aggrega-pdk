@@ -100,3 +100,48 @@ jobs:
       - name: Build Rust fixture — policy-validator
         working-directory: rust/examples/policy-validator
         run: bash build.sh
+
+  typescript-pdk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install binaryen
+        run: |
+          BIN_VER="version_129"
+          curl -fsSL -o /tmp/binaryen.tar.gz \
+            "https://github.com/WebAssembly/binaryen/releases/download/${BIN_VER}/binaryen-${BIN_VER}-x86_64-linux.tar.gz"
+          sudo tar -C /usr/local --strip-components=1 -xzf /tmp/binaryen.tar.gz
+          wasm-merge --version
+          wasm-opt --version
+
+      - name: Install extism-js
+        run: |
+          EJS_VER="v1.6.0"
+          curl -fsSL -o /tmp/extism-js.gz \
+            "https://github.com/extism/js-pdk/releases/download/${EJS_VER}/extism-js-x86_64-linux-${EJS_VER}.gz"
+          gunzip -f /tmp/extism-js.gz
+          chmod +x /tmp/extism-js
+          sudo mv /tmp/extism-js /usr/local/bin/extism-js
+          extism-js --version
+
+      - name: Install TS PDK deps
+        working-directory: typescript
+        run: npm install
+
+      - name: Test TS PDK
+        working-directory: typescript
+        run: npm test
+
+      - name: Build TS fixture — mutator
+        working-directory: typescript/examples/mutator
+        run: bash build.sh
+
+      - name: Build TS fixture — policy-validator
+        working-directory: typescript/examples/policy-validator
+        run: bash build.sh
