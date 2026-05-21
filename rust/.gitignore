@@ -1,0 +1,5 @@
+# Cargo build directory — local-only, regenerated on every build.
+target/
+
+# Editor temporaries.
+**/*.rs.bk

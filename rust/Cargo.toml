@@ -1,0 +1,36 @@
+[package]
+name = "aggrega-pdk-rust"
+version = "0.1.0-alpha.1"
+edition = "2021"
+description = "Plugin Development Kit for authoring Aggrega Wasm plugins in Rust."
+license = "Apache-2.0"
+repository = "https://github.com/aggrega-ai/aggrega-pdk-rust"
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+extism-pdk = "1.4"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[dev-dependencies]
+# JSON Schema 2020-12 validator. Selected over the `jsonschema` crate
+# (whose 0.20+ line pulls in `icu_normalizer` >= 2.2 requiring Rust
+# 1.86) to keep the Rust 1.85 floor.
+#
+# Note: `boon` transitively pulls in `idna` -> `idna_adapter`, which
+# at >= 1.2 ALSO requires Rust 1.86. The `Cargo.lock` pins
+# `idna_adapter` to the 1.1.x line via `cargo update --precise`;
+# the PDK CI workflow at `.github/workflows/pdk.yml` runs a
+# verification step that fails the build if a future `cargo update`
+# bumps past that line before the Rust toolchain floor moves. See
+# the README's "Toolchain pin requirements" section.
+boon = "0.6"
+
+[workspace]
+members = [
+    ".",
+    "examples/mutator",
+    "examples/policy-validator",
+]

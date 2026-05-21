@@ -49,3 +49,54 @@ jobs:
       - name: Build Go fixture — policy-validator
         working-directory: go/examples/policy-validator
         run: bash build.sh
+
+  rust-pdk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: '1.85'
+          targets: wasm32-unknown-unknown
+
+      - name: Verify Rust-1.85-compatible transitive pins
+        working-directory: rust
+        run: |
+          # idna_adapter @ 1.2.x requires rustc 1.86 (pulls in
+          # icu_normalizer >= 2.2). The Rust PDK targets rustc 1.85
+          # per the umbrella's setup-workspace.sh; Cargo.lock pins
+          # idna_adapter to the 1.1.x line. Fail the build if a future
+          # cargo update bumps past that line before the toolchain
+          # floor moves.
+          resolved="$(grep -A 1 '^name = "idna_adapter"' Cargo.lock | awk -F\" '/version/ {print $2; exit}')"
+          if [ -z "$resolved" ]; then
+            echo "ERROR: idna_adapter not found in Cargo.lock; pin verification cannot run."
+            exit 1
+          fi
+          echo "idna_adapter resolved version: $resolved"
+          case "$resolved" in
+            1.0.*|1.1.*) ;;
+            *)
+              echo "ERROR: idna_adapter resolved to $resolved, which exceeds the Rust 1.85-compatible pin (<= 1.1.x)."
+              echo "Either pin back via 'cargo update idna_adapter --precise <1.1.x>' or bump the Rust toolchain floor."
+              exit 1
+              ;;
+          esac
+
+      - name: Build Rust PDK
+        working-directory: rust
+        run: cargo build --release
+
+      - name: Test Rust PDK
+        working-directory: rust
+        run: cargo test
+
+      - name: Build Rust fixture — mutator
+        working-directory: rust/examples/mutator
+        run: bash build.sh
+
+      - name: Build Rust fixture — policy-validator
+        working-directory: rust/examples/policy-validator
+        run: bash build.sh
