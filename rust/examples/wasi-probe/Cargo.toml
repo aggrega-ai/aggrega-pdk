@@ -1,0 +1,15 @@
+[package]
+name = "wasi-probe"
+version = "0.1.0-alpha.1"
+edition = "2021"
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+# Intentionally no dependencies on aggrega-pdk-rust or extism-pdk.
+# This fixture builds for wasm32-wasip1 (NOT wasm32-unknown-unknown)
+# precisely because it must emit real WASI imports the host-side
+# stubbed-subset firewall exercises end-to-end. The fixture's exported
+# function uses raw extern "C" declarations of the WASI imports it
+# probes, so the host sees them in the import section.

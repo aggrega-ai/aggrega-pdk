@@ -33,4 +33,5 @@ members = [
     ".",
     "examples/mutator",
     "examples/policy-validator",
+    "examples/wasi-probe",
 ]
