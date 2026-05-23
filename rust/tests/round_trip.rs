@@ -249,6 +249,7 @@ fn linter_input_round_trip_json_schema() {
             allow_id_overrides: false,
             allow_non_pascal_schema_names: false,
             allow_direct_x_aggrega_extensions: false,
+            allow_aggrega_ai_prefix: false,
             allow_nonstandard_names: false,
         }),
     };

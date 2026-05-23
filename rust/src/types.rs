@@ -241,6 +241,8 @@ pub struct Policies {
     #[serde(default)]
     pub allow_direct_x_aggrega_extensions: bool,
     #[serde(default)]
+    pub allow_aggrega_ai_prefix: bool,
+    #[serde(default)]
     pub allow_nonstandard_names: bool,
 }
 
