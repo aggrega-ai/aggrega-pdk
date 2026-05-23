@@ -237,6 +237,11 @@ fn linter_input_round_trip_json_schema() {
             "kind": "Component",
             "metadata": {"name": "core/api-server", "version": "0.9.0"},
         })),
+        parent: Some(serde_json::json!({
+            "apiVersion": "aggrega.ai/v1alpha1",
+            "kind": "Component",
+            "metadata": {"name": "core/base", "version": "1.0.0"},
+        })),
         policies: Some(Policies {
             enforce_monotonic_narrowing: true,
             enforce_immutability: true,
@@ -247,7 +252,6 @@ fn linter_input_round_trip_json_schema() {
             }],
             allow_dynamic_refs: false,
             allow_id_overrides: false,
-            allow_non_pascal_schema_names: false,
             allow_direct_x_aggrega_extensions: false,
             allow_aggrega_ai_prefix: false,
             allow_nonstandard_names: false,

@@ -169,8 +169,19 @@ pub struct LinterInput {
     pub rule_id: String,
     pub entity_kind: String,
     pub proposed: serde_json::Value,
+    /// Parsed structure of the previous-version entity, for rules
+    /// that perform pairwise comparison (schema-evolution). `None`
+    /// when the rule does not need a previous-version reference
+    /// (first publication; structural-only rules).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub previous: Option<serde_json::Value>,
+    /// Parsed structure of the resolved parent entity in the extends
+    /// chain, for rules that perform child-vs-parent comparison
+    /// (narrowing). The host caller resolves the entity's `spec.extends`
+    /// URI before invocation. `None` when no parent exists or the rule
+    /// does not need parent context.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub parent: Option<serde_json::Value>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub policies: Option<Policies>,
 }
@@ -236,8 +247,6 @@ pub struct Policies {
     pub allow_dynamic_refs: bool,
     #[serde(default)]
     pub allow_id_overrides: bool,
-    #[serde(default)]
-    pub allow_non_pascal_schema_names: bool,
     #[serde(default)]
     pub allow_direct_x_aggrega_extensions: bool,
     #[serde(default)]
