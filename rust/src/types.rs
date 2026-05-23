@@ -143,3 +143,115 @@ pub struct PolicyResult {
     pub pass: bool,
     pub message: String,
 }
+
+// ----- Linter socket -----
+//
+// The linter socket carries the publishing-linter Wasm plugin's
+// input + output. The PDK exposes the typed mirrors of the JSON
+// wire shapes documented in
+// `aggrega-schemas/json-schemas/wasm-linter-v1alpha1.schema.json`;
+// per-language round-trip tests catch drift between this mirror and
+// the schema.
+
+/// The JSON payload the host hands the publishing-linter plugin on
+/// each invocation. `rule_id` selects the rule the plugin dispatches
+/// to (`"schema-evolution"` is the only recognised value at plugin
+/// v0.1.0; subsequent rule WIs register more). `entity_kind`
+/// identifies the entity kind the structured values encode.
+/// `proposed` carries the parsed entity structure being classified
+/// (YAML → JSON conversion happens host-side; the plugin consumes
+/// the structured value via `serde_json`). `previous` is populated
+/// for pairwise comparison rules (schema-evolution); `None` otherwise.
+/// `policies` is the per-workspace publishing-discipline configuration
+/// the rule consults.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct LinterInput {
+    pub rule_id: String,
+    pub entity_kind: String,
+    pub proposed: serde_json::Value,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub previous: Option<serde_json::Value>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub policies: Option<Policies>,
+}
+
+/// The response shape the publishing-linter plugin emits. `findings`
+/// carries one entry per rule invocation that produced a result.
+/// The schema-evolution rule emits exactly one finding (the
+/// classification verdict); structural rules added in later WIs may
+/// emit zero or many findings.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct LinterOutput {
+    pub findings: Vec<LinterFinding>,
+}
+
+/// One rule's verdict. `rule_id` names the rule that produced the
+/// finding. `severity` distinguishes errors (publish-time halt) from
+/// warnings (informational). `classification` carries the
+/// PATCH/MINOR/MAJOR verdict from the schema-evolution rule; omitted
+/// for rules that do not carry a classification. `message` is the
+/// human-readable diagnostic surfaced in CLI output.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct LinterFinding {
+    pub rule_id: String,
+    pub severity: LinterSeverity,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub classification: Option<LinterClassification>,
+    pub message: String,
+}
+
+/// PATCH / MINOR / MAJOR verdict from the schema-evolution rule.
+/// Variants serialise to the upper-case wire names matching VS §2.13.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "UPPERCASE")]
+pub enum LinterClassification {
+    Patch,
+    Minor,
+    Major,
+}
+
+/// Diagnostic severity. `Error` halts the publish-time gate;
+/// `Warning` is informational and does not affect the gate.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum LinterSeverity {
+    Error,
+    Warning,
+}
+
+/// Per-workspace publishing-discipline configuration the rule set
+/// consults. Mirrors `workspaceconfig.PublishingDisciplineConfig`
+/// in the Go host field-for-field; the schema's `Policies` $def
+/// in `wasm-linter-v1alpha1.schema.json` is the cross-language
+/// contract. A host-side round-trip test pins the symmetry.
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+pub struct Policies {
+    #[serde(default)]
+    pub enforce_monotonic_narrowing: bool,
+    #[serde(default)]
+    pub enforce_immutability: bool,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub narrowing_exemptions: Vec<NarrowingExemption>,
+    #[serde(default)]
+    pub allow_dynamic_refs: bool,
+    #[serde(default)]
+    pub allow_id_overrides: bool,
+    #[serde(default)]
+    pub allow_non_pascal_schema_names: bool,
+    #[serde(default)]
+    pub allow_direct_x_aggrega_extensions: bool,
+    #[serde(default)]
+    pub allow_nonstandard_names: bool,
+}
+
+/// One per-entity exemption from the narrowing-violation rule.
+/// `entity` names the catalog entity; `paths` enumerates the schema
+/// paths that may legitimately widen; `reason` is the human-readable
+/// justification surfaced to reviewers.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct NarrowingExemption {
+    pub entity: String,
+    pub paths: Vec<String>,
+    pub reason: String,
+}
+

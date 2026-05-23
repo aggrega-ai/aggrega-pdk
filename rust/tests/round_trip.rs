@@ -34,9 +34,10 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 
 use aggrega_pdk_rust::{
-    CompilationContext, MutatorGraph, MutatorInput, MutatorNode, MutatorOutput, PolicyEdge,
-    PolicyFeatureEntry, PolicyGraph, PolicyNode, PolicyResult, PolicyValidatorInput,
-    PolicyValidatorOutput, PrecalculatedPath, API_VERSION,
+    CompilationContext, LinterClassification, LinterFinding, LinterInput, LinterOutput,
+    LinterSeverity, MutatorGraph, MutatorInput, MutatorNode, MutatorOutput, NarrowingExemption,
+    Policies, PolicyEdge, PolicyFeatureEntry, PolicyGraph, PolicyNode, PolicyResult,
+    PolicyValidatorInput, PolicyValidatorOutput, PrecalculatedPath, API_VERSION,
 };
 
 /// schema_path resolves the absolute path to a JSON Schema file in the
@@ -216,5 +217,76 @@ fn policy_validator_output_round_trip_json_schema() {
 
     let round: PolicyValidatorOutput =
         serde_json::from_value(serialised).expect("deserialize PolicyValidatorOutput");
+    assert_eq!(fixture, round);
+}
+
+#[test]
+fn linter_input_round_trip_json_schema() {
+    let schema = schema_path("wasm-linter-v1alpha1.schema.json");
+
+    let fixture = LinterInput {
+        rule_id: "schema-evolution".to_string(),
+        entity_kind: "Component".to_string(),
+        proposed: serde_json::json!({
+            "apiVersion": "aggrega.ai/v1alpha1",
+            "kind": "Component",
+            "metadata": {"name": "core/api-server", "version": "1.0.0"},
+        }),
+        previous: Some(serde_json::json!({
+            "apiVersion": "aggrega.ai/v1alpha1",
+            "kind": "Component",
+            "metadata": {"name": "core/api-server", "version": "0.9.0"},
+        })),
+        policies: Some(Policies {
+            enforce_monotonic_narrowing: true,
+            enforce_immutability: true,
+            narrowing_exemptions: vec![NarrowingExemption {
+                entity: "core/legacy-api".to_string(),
+                paths: vec!["spec.schema.values.timeout".to_string()],
+                reason: "documented exemption pending refactor".to_string(),
+            }],
+            allow_dynamic_refs: false,
+            allow_id_overrides: false,
+            allow_non_pascal_schema_names: false,
+            allow_direct_x_aggrega_extensions: false,
+            allow_nonstandard_names: false,
+        }),
+    };
+
+    let serialised = serde_json::to_value(&fixture).expect("serialize LinterInput");
+    validate(&schema, &serialised).expect("schema validation");
+
+    let round: LinterInput =
+        serde_json::from_value(serialised).expect("deserialize LinterInput");
+    assert_eq!(fixture, round);
+}
+
+#[test]
+fn linter_output_round_trip_json_schema() {
+    let schema = schema_path("wasm-linter-v1alpha1.schema.json");
+
+    let fixture = LinterOutput {
+        findings: vec![
+            LinterFinding {
+                rule_id: "schema-evolution".to_string(),
+                severity: LinterSeverity::Error,
+                classification: Some(LinterClassification::Major),
+                message: "field spec.schema.values.port removed".to_string(),
+            },
+            LinterFinding {
+                rule_id: "unknown_rule".to_string(),
+                severity: LinterSeverity::Error,
+                classification: None,
+                message: "rule_id \"not-implemented\" not implemented at this plugin version"
+                    .to_string(),
+            },
+        ],
+    };
+
+    let serialised = serde_json::to_value(&fixture).expect("serialize LinterOutput");
+    validate(&schema, &serialised).expect("schema validation");
+
+    let round: LinterOutput =
+        serde_json::from_value(serialised).expect("deserialize LinterOutput");
     assert_eq!(fixture, round);
 }

@@ -23,8 +23,9 @@ pub mod version;
 
 pub use host_funcs::{emit_warning, log};
 pub use types::{
-    CompilationContext, MutatorGraph, MutatorInput, MutatorNode, MutatorOutput, PolicyEdge,
-    PolicyFeatureEntry, PolicyGraph, PolicyNode, PolicyResult, PolicyValidatorInput,
-    PolicyValidatorOutput, PrecalculatedPath,
+    CompilationContext, LinterClassification, LinterFinding, LinterInput, LinterOutput,
+    LinterSeverity, MutatorGraph, MutatorInput, MutatorNode, MutatorOutput, NarrowingExemption,
+    Policies, PolicyEdge, PolicyFeatureEntry, PolicyGraph, PolicyNode, PolicyResult,
+    PolicyValidatorInput, PolicyValidatorOutput, PrecalculatedPath,
 };
 pub use version::API_VERSION;
