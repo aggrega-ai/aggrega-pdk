@@ -182,6 +182,12 @@ pub struct LinterInput {
     /// does not need parent context.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub parent: Option<serde_json::Value>,
+    /// Filesystem path the entity was loaded from. Populated by host
+    /// callers walking the catalog filesystem; consumed by path-aware
+    /// rules (e.g., category-matches-directory). `None` when the
+    /// caller has no path context.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_path: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub policies: Option<Policies>,
 }
@@ -253,6 +259,8 @@ pub struct Policies {
     pub allow_aggrega_ai_prefix: bool,
     #[serde(default)]
     pub allow_nonstandard_names: bool,
+    #[serde(default)]
+    pub allow_category_mismatches: bool,
 }
 
 /// One per-entity exemption from the narrowing-violation rule.

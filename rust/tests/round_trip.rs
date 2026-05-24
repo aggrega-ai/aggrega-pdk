@@ -242,6 +242,10 @@ fn linter_input_round_trip_json_schema() {
             "kind": "Component",
             "metadata": {"name": "core/base", "version": "1.0.0"},
         })),
+        source_path: Some(
+            "aggrega-hub/aggrega-catalog/component/core/compute/api-server/api-server.yaml"
+                .to_string(),
+        ),
         policies: Some(Policies {
             enforce_monotonic_narrowing: true,
             enforce_immutability: true,
@@ -255,6 +259,49 @@ fn linter_input_round_trip_json_schema() {
             allow_direct_x_aggrega_extensions: false,
             allow_aggrega_ai_prefix: false,
             allow_nonstandard_names: false,
+            allow_category_mismatches: false,
+        }),
+    };
+
+    let serialised = serde_json::to_value(&fixture).expect("serialize LinterInput");
+    validate(&schema, &serialised).expect("schema validation");
+
+    let round: LinterInput =
+        serde_json::from_value(serialised).expect("deserialize LinterInput");
+    assert_eq!(fixture, round);
+}
+
+#[test]
+fn linter_input_policies_all_flags_set_round_trip() {
+    // Pins the wire-shape of the override case: every Policies flag
+    // populated, including the new allow_category_mismatches. Future
+    // Policies field additions update this fixture in lockstep.
+    let schema = schema_path("wasm-linter-v1alpha1.schema.json");
+
+    let fixture = LinterInput {
+        rule_id: "category-matches-directory".to_string(),
+        entity_kind: "Component".to_string(),
+        proposed: serde_json::json!({
+            "apiVersion": "aggrega.ai/v1alpha1",
+            "kind": "Component",
+            "metadata": {"name": "core/api-server", "version": "1.0.0"},
+        }),
+        previous: None,
+        parent: None,
+        source_path: Some(
+            "aggrega-hub/aggrega-catalog/component/core/compute/api-server/api-server.yaml"
+                .to_string(),
+        ),
+        policies: Some(Policies {
+            enforce_monotonic_narrowing: true,
+            enforce_immutability: true,
+            narrowing_exemptions: vec![],
+            allow_dynamic_refs: true,
+            allow_id_overrides: true,
+            allow_direct_x_aggrega_extensions: true,
+            allow_aggrega_ai_prefix: true,
+            allow_nonstandard_names: true,
+            allow_category_mismatches: true,
         }),
     };
 
