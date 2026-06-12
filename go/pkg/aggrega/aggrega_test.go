@@ -22,7 +22,7 @@ import (
 // consumer checkouts that do not vendor the schemas alongside.
 func loadSchema(t *testing.T, schemaFile string) *jsonschema.Schema {
 	t.Helper()
-	schemaPath := filepath.Join("..", "..", "..", "..", "aggrega-schemas", "json-schemas", schemaFile)
+	schemaPath := filepath.Join("..", "..", "..", "..", "aggrega-schemas", "json", schemaFile)
 	schemaBytes, err := os.ReadFile(schemaPath)
 	if err != nil {
 		t.Skipf("schema not reachable at %s: %v", schemaPath, err)

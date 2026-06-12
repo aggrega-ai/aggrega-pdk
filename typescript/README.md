@@ -84,7 +84,7 @@ pointers in the build.sh diagnostics.
 ## Standalone reuse
 
 The PDK's tests reference the JSON Schemas at relative path
-`../../aggrega-schemas/json-schemas/` (relative to this package
+`../../aggrega-schemas/json/` (relative to this package
 root). This assumes the umbrella workspace layout. Standalone
 consumption (after publication to npm) bundles the schemas in the
 release artifact; the file-relative reference becomes

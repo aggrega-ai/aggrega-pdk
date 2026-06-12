@@ -48,7 +48,7 @@ rust/
 ## Standalone reuse
 
 The Rust PDK's tests reference the JSON Schemas at relative path
-`../../aggrega-schemas/json-schemas/` (relative to this crate root).
+`../../aggrega-schemas/json/` (relative to this crate root).
 This assumes the umbrella workspace layout. Standalone consumption
 (after publication to `crates.io`) bundles the schemas in the release
 artifact; the file-relative reference becomes publication-bundled.

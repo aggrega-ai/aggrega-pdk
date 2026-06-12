@@ -12,7 +12,7 @@
  *  4. Deserialises back via JSON.parse and asserts deep equality.
  *
  * Schemas live alongside the umbrella checkout at
- * `../../aggrega-schemas/json-schemas/` relative to this crate root.
+ * `../../aggrega-schemas/json/` relative to this crate root.
  * Tests fail when the schema is unreachable rather than silently
  * passing; disconnected dev opts out via `node --test --test-skip-pattern=round_trip`.
  */
@@ -42,7 +42,7 @@ function loadSchema(name: string): object {
     "..",
     "..",
     "aggrega-schemas",
-    "json-schemas",
+    "json",
     name,
   );
   if (!existsSync(schemaPath)) {

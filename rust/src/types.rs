@@ -149,7 +149,7 @@ pub struct PolicyResult {
 // The linter socket carries the publishing-linter Wasm plugin's
 // input + output. The PDK exposes the typed mirrors of the JSON
 // wire shapes documented in
-// `aggrega-schemas/json-schemas/wasm-linter-v1alpha1.schema.json`;
+// `aggrega-schemas/json/wasm-linter-v1alpha1.schema.json`;
 // per-language round-trip tests catch drift between this mirror and
 // the schema.
 

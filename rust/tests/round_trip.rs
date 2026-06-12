@@ -12,7 +12,7 @@
 //!  5. Asserts equality.
 //!
 //! Schemas live alongside the umbrella checkout at
-//! `../../aggrega-schemas/json-schemas/` relative to this crate root.
+//! `../../aggrega-schemas/json/` relative to this crate root.
 //! Tests **panic** with a clear diagnostic when the schema file is
 //! unreachable rather than silently returning: Rust's stable test
 //! framework has no dynamic-skip analog to Go's `t.Skipf`, and an
@@ -50,7 +50,7 @@ fn schema_path(name: &str) -> PathBuf {
         .join("..")
         .join("..")
         .join("aggrega-schemas")
-        .join("json-schemas")
+        .join("json")
         .join(name);
     assert!(
         path.exists(),

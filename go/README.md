@@ -47,7 +47,7 @@ go/
 ## Standalone reuse
 
 The Go PDK's tests reference the JSON Schemas at relative path
-`../../../aggrega-schemas/json-schemas/` (relative to `pkg/aggrega/`).
+`../../../aggrega-schemas/json/` (relative to `pkg/aggrega/`).
 This assumes the umbrella workspace layout. Standalone consumption
 (after publication to `pkg.go.dev`) bundles the schemas in the
 release artifact; the file-relative reference becomes

@@ -8,7 +8,7 @@ import "encoding/json"
 // MutatorInput is the JSON payload the host hands a mutator plugin on
 // each invocation: release-level compilation context plus a labels-only
 // projection of the topology graph. Field names mirror the JSON Schema
-// at aggrega-schemas/json-schemas/wasm-mutator-v1alpha1.schema.json
+// at aggrega-schemas/json/wasm-mutator-v1alpha1.schema.json
 // exactly.
 type MutatorInput struct {
 	CompilationContext CompilationContext `json:"compilation_context"`
@@ -50,7 +50,7 @@ type MutatorOutput struct {
 // policy-validator socket: a per-node policy projection of the IR
 // graph plus the precalculated routing paths the analyzer enumerates
 // alongside. Field names mirror the JSON Schema at
-// aggrega-schemas/json-schemas/wasm-policy-validator-v1alpha1.schema.json.
+// aggrega-schemas/json/wasm-policy-validator-v1alpha1.schema.json.
 type PolicyValidatorInput struct {
 	Graph              PolicyGraph         `json:"graph"`
 	PrecalculatedPaths []PrecalculatedPath `json:"precalculated_paths"`
