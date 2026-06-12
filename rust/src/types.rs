@@ -156,7 +156,7 @@ pub struct PolicyResult {
 /// The JSON payload the host hands the publishing-linter plugin on
 /// each invocation. `rule_id` selects the rule the plugin dispatches
 /// to (`"schema-evolution"` is the only recognised value at plugin
-/// v0.1.0; subsequent rule WIs register more). `entity_kind`
+/// v0.1.0; the recognised set expands as further rules ship). `entity_kind`
 /// identifies the entity kind the structured values encode.
 /// `proposed` carries the parsed entity structure being classified
 /// (YAML → JSON conversion happens host-side; the plugin consumes
@@ -195,8 +195,8 @@ pub struct LinterInput {
 /// The response shape the publishing-linter plugin emits. `findings`
 /// carries one entry per rule invocation that produced a result.
 /// The schema-evolution rule emits exactly one finding (the
-/// classification verdict); structural rules added in later WIs may
-/// emit zero or many findings.
+/// classification verdict); structural rules may emit zero or many
+/// findings.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct LinterOutput {
     pub findings: Vec<LinterFinding>,
