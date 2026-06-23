@@ -11,6 +11,12 @@
 
 set -eo pipefail
 
+# This example is a standalone module (its own go.mod + replace), not a
+# member of the umbrella go.work. Disable the workspace so the build
+# resolves dependencies through this module rather than failing the
+# go.work membership check when invoked from inside the umbrella tree.
+export GOWORK=off
+
 if [ -n "${AGGREGA_PDK_WASM_OUT:-}" ]; then
     OUT_DIR="${AGGREGA_PDK_WASM_OUT}"
 else
