@@ -31,6 +31,7 @@ boon = "0.6"
 [workspace]
 members = [
     ".",
+    "examples/frp-step-patch",
     "examples/mutator",
     "examples/policy-validator",
     "examples/wasi-probe",

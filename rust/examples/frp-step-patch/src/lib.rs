@@ -1,0 +1,156 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 Cognitio S.r.l.
+
+//! Reference feature-recipe-pipeline step plugin for the Aggrega Wasm
+//! runtime.
+//!
+//! Unlike the no-op `frp-step` fixture, this plugin exercises the real
+//! pipeline contract end-to-end:
+//!
+//!  - It content-selects a workload from the keyed document set (a
+//!    document whose `kind` is `Deployment`), learns that document's key
+//!    at runtime, and roots an own-scope PATCH at it — adding an
+//!    annotation.
+//!  - It EMITs a new own-scope ConfigMap document (a pipeline side
+//!    effect).
+//!  - It EMITs a new host-scope marker document (an additive cross-entity
+//!    side effect that runs per-node for every provider).
+//!
+//! It self-describes via `describe()` as an `frp_step` plugin whose
+//! `step` export declares `operates=patch`, `scope=own`, and a helm
+//! compatible provider. The host reads `describe()` once at load,
+//! validates the descriptor, then dispatches `step` with the keyed
+//! document set as input.
+
+use extism_pdk::{plugin_fn, FnResult};
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
+use std::collections::BTreeMap;
+
+/// The static `describe()` self-report: a v1alpha1 `frp_step` plugin
+/// whose `step` export patches own-scope workloads and is
+/// tested-compatible with the helm provider.
+const PLUGIN_DESCRIPTOR: &str = r#"{"abi_version":"v1alpha1","plugin_type":"frp_step","compatible_providers":["helm"],"exports":[{"name":"step","operates":"patch","scope":"own","selector":"workloads carrying a pod template"}],"metadata":{"author":"aggrega","license":"Apache-2.0"}}"#;
+
+/// The keyed, scope-rooted document set the host hands the guest. Each
+/// document is an opaque JSON value; the guest reads content to select,
+/// never a filename. The host root is present only for a component-scope
+/// FeatureRecipe attached to a host; the guest checks it before emitting a
+/// host-scope side effect.
+#[derive(Deserialize)]
+struct DocumentSet {
+    #[serde(default)]
+    own: BTreeMap<String, Value>,
+    #[serde(default)]
+    host: BTreeMap<String, Value>,
+}
+
+/// The subset of the host's FRPStepInput this plugin reads. The step
+/// input, render context, and preceding steps ride on the wire but are
+/// unused here.
+#[derive(Deserialize)]
+struct StepInput {
+    documents: DocumentSet,
+}
+
+/// One RFC 6902 patch addressed to a document by scope and key.
+#[derive(Serialize)]
+struct JsonPatchOp {
+    scope: String,
+    key: String,
+    op: String,
+    path: String,
+    value: Value,
+}
+
+/// The file an `emit_file` side effect writes.
+#[derive(Serialize)]
+struct SideEffectFile {
+    path: String,
+    content: String,
+}
+
+/// One pipeline side effect (an additive EMIT).
+#[derive(Serialize)]
+struct SideEffect {
+    kind: String,
+    #[serde(skip_serializing_if = "String::is_empty")]
+    scope: String,
+    file: SideEffectFile,
+}
+
+/// The host's FRPStepOutput wire shape: key-addressed patches plus
+/// additive side effects.
+#[derive(Serialize, Default)]
+struct StepOutput {
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    patches: Vec<JsonPatchOp>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    side_effects: Vec<SideEffect>,
+}
+
+/// The host calls `describe()` once at load to read the plugin's
+/// self-declaration before dispatching `step`.
+#[plugin_fn]
+pub fn describe() -> FnResult<String> {
+    Ok(PLUGIN_DESCRIPTOR.to_string())
+}
+
+/// `step` runs one pipeline step over the keyed document set: it
+/// content-selects a Deployment, PATCHes it (own-scope annotation), and
+/// EMITs an own-scope ConfigMap plus a host-scope marker.
+#[plugin_fn]
+pub fn step(input: String) -> FnResult<String> {
+    let parsed: StepInput = serde_json::from_str(&input)?;
+
+    let mut out = StepOutput::default();
+
+    // Content-select a Deployment in the own set and annotate it. The
+    // guest learns the document's key at runtime — it never knows emitted
+    // filenames ahead of time — and roots its patch at that key. Iterate
+    // a BTreeMap so selection is deterministic across runs.
+    for (key, doc) in parsed.documents.own.iter() {
+        if doc.get("kind").and_then(Value::as_str) == Some("Deployment") {
+            out.patches.push(JsonPatchOp {
+                scope: "own".to_string(),
+                key: key.clone(),
+                op: "add".to_string(),
+                // RFC 6901 escapes `/` in the annotation key as `~1`.
+                path: "/metadata/annotations/aggrega.ai~1pipeline-patched".to_string(),
+                value: Value::String("true".to_string()),
+            });
+        }
+    }
+
+    // Own-scope EMIT: a new ConfigMap document the pipeline contributes.
+    out.side_effects.push(SideEffect {
+        kind: "emit_file".to_string(),
+        scope: "own".to_string(),
+        file: SideEffectFile {
+            path: "pipeline-configmap.yaml".to_string(),
+            content:
+                "apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: pipeline-emitted\ndata:\n  source: frp-step-patch\n"
+                    .to_string(),
+        },
+    });
+
+    // Host-scope EMIT: an additive marker the pipeline contributes to the
+    // host component's set — only when a host set is present (a component-
+    // scope FeatureRecipe attached to a host). A Recipe step has no host
+    // scope, so the guest does not emit one. Additive emits run per-node for
+    // every provider.
+    if !parsed.documents.host.is_empty() {
+        out.side_effects.push(SideEffect {
+            kind: "emit_file".to_string(),
+            scope: "host".to_string(),
+            file: SideEffectFile {
+                path: "pipeline-host-marker.yaml".to_string(),
+                content:
+                    "apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: pipeline-host-marker\ndata:\n  injected-by: frp-step-patch\n"
+                        .to_string(),
+            },
+        });
+    }
+
+    Ok(serde_json::to_string(&out)?)
+}
