@@ -32,6 +32,7 @@ boon = "0.6"
 members = [
     ".",
     "examples/frp-step-patch",
+    "examples/frp-step-host-patch",
     "examples/mutator",
     "examples/policy-validator",
     "examples/wasi-probe",
