@@ -30,5 +30,9 @@ else
 fi
 
 mkdir -p "${OUT_DIR}"
-tinygo build -target=wasm-unknown -o "${OUT_DIR}/frp-step-go.wasm" ./
+# A non-leaking GC is required: the wasm-unknown target's default leaking
+# collector breaks encoding/json's reflective decode (Unmarshal reports a
+# nil destination pointer for a valid &value). The conservative collector
+# decodes the keyed document set correctly.
+tinygo build -target=wasm-unknown -gc=conservative -o "${OUT_DIR}/frp-step-go.wasm" ./
 echo "Wrote ${OUT_DIR}/frp-step-go.wasm"
