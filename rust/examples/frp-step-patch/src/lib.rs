@@ -32,17 +32,28 @@ use std::collections::BTreeMap;
 /// tested-compatible with the helm provider.
 const PLUGIN_DESCRIPTOR: &str = r#"{"abi_version":"v1alpha1","plugin_type":"frp_step","compatible_providers":["helm"],"exports":[{"name":"step","operates":"patch","scope":"own","selector":"workloads carrying a pod template"}],"metadata":{"author":"aggrega","license":"Apache-2.0"}}"#;
 
-/// The keyed, scope-rooted document set the host hands the guest. Each
-/// document is an opaque JSON value; the guest reads content to select,
-/// never a filename. The host root is present only for a component-scope
-/// FeatureRecipe attached to a host; the guest checks it before emitting a
-/// host-scope side effect.
+/// One addressable unit the host hands the guest: the codec's hybrid view of
+/// one piece of output. A structured unit carries a `tree` (the
+/// RFC-6902-addressable view the guest content-selects and patches); an
+/// opaque unit carries only its `media_type` and bytes and no `tree`, so it
+/// is a SELECT/EMIT target the guest never patches. The token and bytes ride
+/// the wire but this plugin reads only the tree.
+#[derive(Deserialize)]
+struct Unit {
+    #[serde(default)]
+    tree: Option<Value>,
+}
+
+/// The keyed, scope-rooted unit set the host hands the guest. The guest reads
+/// each unit's content to select, never a filename. The host root is present
+/// only for a component-scope FeatureRecipe attached to a host; the guest
+/// checks it before emitting a host-scope side effect.
 #[derive(Deserialize)]
 struct DocumentSet {
     #[serde(default)]
-    own: BTreeMap<String, Value>,
+    own: BTreeMap<String, Unit>,
     #[serde(default)]
-    host: BTreeMap<String, Value>,
+    host: BTreeMap<String, Unit>,
 }
 
 /// The subset of the host's FRPStepInput this plugin reads. The step
@@ -105,12 +116,18 @@ pub fn step(input: String) -> FnResult<String> {
 
     let mut out = StepOutput::default();
 
-    // Content-select a Deployment in the own set and annotate it. The
-    // guest learns the document's key at runtime — it never knows emitted
-    // filenames ahead of time — and roots its patch at that key. Iterate
-    // a BTreeMap so selection is deterministic across runs.
-    for (key, doc) in parsed.documents.own.iter() {
-        if doc.get("kind").and_then(Value::as_str) == Some("Deployment") {
+    // Content-select a Deployment in the own set and annotate it. The guest
+    // learns the unit's key at runtime — it never knows emitted filenames
+    // ahead of time — and roots its patch at that key. It reads the unit's
+    // tree (skipping opaque units that carry none) and inspects content.
+    // Iterate a BTreeMap so selection is deterministic across runs.
+    for (key, unit) in parsed.documents.own.iter() {
+        let kind = unit
+            .tree
+            .as_ref()
+            .and_then(|t| t.get("kind"))
+            .and_then(Value::as_str);
+        if kind == Some("Deployment") {
             out.patches.push(JsonPatchOp {
                 scope: "own".to_string(),
                 key: key.clone(),
