@@ -30,11 +30,11 @@ else
 fi
 
 mkdir -p "${OUT_DIR}"
-# A non-leaking GC is required. The guest decodes the keyed document set through
-# the generated ABI codec, which is dispatch-free on the typed path (no
-# json.Decoder.Decode, no reflective struct-walk) — but the residual
-# encoding/json.Decoder tokenizer it reads with still routes through reflection
-# under TinyGo, and the wasm-unknown default leaking collector breaks that path.
-# The conservative collector decodes the keyed document set correctly.
-tinygo build -target=wasm-unknown -gc=conservative -o "${OUT_DIR}/frp-step-go.wasm" ./
+# Built with the standard Go toolchain targeting GOOS=wasip1. The guest is a
+# WASI reactor whose runtime bootstraps under the host's deterministic,
+# capability-denied WASI configuration; -buildmode=c-shared produces a reactor
+# (no main entry, the //go:wasmexport functions are the exports). The standard
+# toolchain's full GC and runtime decode the keyed document set through the
+# generated ABI codec without the collector caveats the bare-Wasm targets carry.
+GOOS=wasip1 GOARCH=wasm go build -buildmode=c-shared -o "${OUT_DIR}/frp-step-go.wasm" ./
 echo "Wrote ${OUT_DIR}/frp-step-go.wasm"

@@ -2,8 +2,8 @@
 // Copyright 2026 Cognitio S.r.l.
 
 // Reference feature-recipe-pipeline step plugin for the Aggrega Wasm
-// runtime, authored with the Go PDK and built with TinyGo
-// (-target=wasm-unknown).
+// runtime, authored with the Go PDK and built with the standard Go
+// toolchain for GOOS=wasip1.
 //
 // Unlike a no-op fixture, this plugin exercises the real pipeline
 // contract end-to-end:
@@ -30,12 +30,7 @@
 // and writes leaves by hand, with no reflective struct-walk), so the wire
 // shape stays single-sourced from the schema.
 //
-// A non-leaking GC is still required: the codec reads the JSON with the
-// standard-library streaming tokenizer, which routes through reflection
-// under TinyGo, and the wasm-unknown default leaking collector breaks that
-// path.
-//
-// Build: tinygo build -target=wasm-unknown -gc=conservative -o frp-step-go.wasm ./
+// Build: GOOS=wasip1 GOARCH=wasm go build -buildmode=c-shared -o frp-step-go.wasm ./
 package main
 
 import (
@@ -69,13 +64,13 @@ func treeKind(u abi.Unit) string {
 	return doc.Kind
 }
 
-//export describe
+//go:wasmexport describe
 func describe() int32 {
 	pdk.Output([]byte(pluginDescriptor))
 	return 0
 }
 
-//export step
+//go:wasmexport step
 func step() int32 {
 	// Decode the real FRPStepInput through the generated codec's
 	// UnmarshalJSON — a streaming token walk into the typed value, no

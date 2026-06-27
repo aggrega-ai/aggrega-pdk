@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 Cognitio S.r.l.
 
-//go:build tinygo
+//go:build wasip1
 
 package aggrega
 
@@ -13,7 +13,7 @@ import (
 // severity (0=trace, 1=debug, 2=info, 3=warn, 4=error per the project's
 // log-level integer convention). Message is the log line.
 //
-// This is the TinyGo build of the binding. The standard-host build at
+// This is the wasip1 build of the binding. The off-Wasm build at
 // host_funcs_stub.go provides a no-op so unit tests on the host can
 // import the PDK without a Wasm runtime.
 func Log(level int, message string) {
@@ -28,7 +28,7 @@ func Log(level int, message string) {
 // text; path is an optional JSON-Pointer-style location into the
 // authored entity (e.g., "components.payments-api.values.memory").
 //
-// This is the TinyGo build of the binding.
+// This is the wasip1 build of the binding.
 func EmitWarning(code, message, path string) {
 	codeMem := pdk.AllocateString(code)
 	defer codeMem.Free()
