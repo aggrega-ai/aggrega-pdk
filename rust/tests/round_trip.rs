@@ -7,12 +7,12 @@
 //! serialised value against the corresponding JSON Schema in the sibling
 //! `aggrega-schemas` repository, and deserialises it back.
 //!
-//! The mutator and linter socket types are generated into the portable
-//! `aggrega-abi` crate (re-exported by this PDK) and their cross-language
-//! wire parity is pinned by the parity tests in `aggrega-abi`. The tests
-//! here cover the policy-validator socket types, which remain hand-authored
-//! in this PDK, plus a schema-validation smoke over the re-exported
-//! mutator/linter types so a PDK-authored value is confirmed to validate.
+//! The mutator, linter, and policy-validator socket types are all generated
+//! into the portable `aggrega-abi` crate (re-exported by this PDK) and their
+//! cross-language wire parity is pinned by the parity tests in `aggrega-abi`.
+//! The tests here are a schema-validation smoke over the re-exported socket
+//! types so a PDK-authored value is confirmed to validate against the
+//! published JSON Schemas.
 //!
 //! Schemas live alongside the umbrella checkout at
 //! `../../aggrega-schemas/json/` relative to this crate root. Tests
@@ -23,7 +23,6 @@
 //! cargo test --workspace -- --skip round_trip
 //! ```
 
-use std::collections::HashMap;
 use std::path::PathBuf;
 
 use aggrega_pdk_rust::{
