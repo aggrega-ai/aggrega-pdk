@@ -1,8 +1,9 @@
 # frp-step reference plugin (Go)
 
 A reference feature-recipe-pipeline step plugin authored with the Go PDK
-and built with TinyGo. It self-describes as an `frp_step` plugin via
-`describe()` and implements a real `step` export.
+and built with the standard Go toolchain for `GOOS=wasip1`. It
+self-describes as an `frp_step` plugin via `describe()` and implements a
+real `step` export.
 
 The plugin exercises the pipeline contract end-to-end:
 
@@ -30,9 +31,11 @@ pipeline contract.
 
 Builds `frp-step-go.wasm` into the umbrella's
 `aggrega-cli/internal/wasm/testdata/` (or the PDK's own `testdata/` for a
-standalone checkout). Requires TinyGo on `PATH`.
+standalone checkout) with
+`GOOS=wasip1 GOARCH=wasm go build -buildmode=c-shared`. Requires the
+standard Go toolchain.
 
-The build selects a non-leaking garbage collector
-(`-gc=conservative`). The `wasm-unknown` target's default leaking
-collector breaks `encoding/json`'s reflective decode of the keyed
-document set, so a real-decode plugin must override it.
+The plugin is a WASI reactor: its Go runtime bootstraps under the Aggrega
+loader's deterministic, capability-denied WASI configuration, then
+`step` decodes the keyed document set and emits its patches and side
+effects.

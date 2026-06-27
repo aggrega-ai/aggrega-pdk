@@ -26,14 +26,6 @@ jobs:
         with:
           go-version: '1.26'
 
-      - name: Install TinyGo
-        run: |
-          TINYGO_VERSION="0.41.1"
-          TINYGO_URL="https://github.com/tinygo-org/tinygo/releases/download/v${TINYGO_VERSION}/tinygo${TINYGO_VERSION}.linux-amd64.tar.gz"
-          curl -fsSL -o /tmp/tinygo.tar.gz "${TINYGO_URL}"
-          sudo tar -C /usr/local -xzf /tmp/tinygo.tar.gz
-          echo "/usr/local/tinygo/bin" >> "$GITHUB_PATH"
-
       - name: Build Go PDK
         working-directory: go
         run: go build ./...

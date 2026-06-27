@@ -10,18 +10,21 @@ A plugin is a small Go module that imports `pkg/aggrega` for the typed
 socket payloads and the Aggrega host-function bindings, plus
 `github.com/extism/go-pdk` for the input/output byte plumbing.
 
-Build the plugin to a `.wasm` artifact with TinyGo's `wasm-unknown`
-target:
+Build the plugin to a `.wasm` artifact with the standard Go toolchain
+targeting `GOOS=wasip1`:
 
 ```sh
-tinygo build -target=wasm-unknown -o <plugin>.wasm ./
+GOOS=wasip1 GOARCH=wasm go build -buildmode=c-shared -o <plugin>.wasm ./
 ```
 
-The `wasm-unknown` target produces a binary with zero WASI imports.
-The Aggrega Wasm loader disables WASI; `wasm-unknown` is the matched
-fit. TinyGo's `-target=wasi` would unconditionally import WASI host
-functions (the loader would reject the resulting plugin); standard
-Go's `GOOS=wasip1 GOARCH=wasm` has the same constraint.
+The result is a WASI reactor. The Aggrega Wasm loader runs it under a
+deterministic, capability-denied WASI configuration: the plugin's Go
+runtime bootstraps against real WASI, but every value it can observe is
+a deterministic function of the build input — observable wall time is
+frozen, the entropy source yields zeros, stdio is discarded, and there
+is no filesystem, argument, or environment access. The loader's static
+import allowlist additionally rejects the filesystem-traversal and
+socket WASI imports a plugin would need to reach outside this sandbox.
 
 See `examples/mutator/` and `examples/policy-validator/` for working
 plugin sources.
@@ -36,7 +39,7 @@ go/
 │   ├── doc.go        (package doc)
 │   ├── version.go    (APIVersion constant)
 │   ├── types.go      (socket payload types — mirror the JSON Schemas)
-│   ├── host_funcs.go (TinyGo-build-tagged host function bindings)
+│   ├── host_funcs.go (wasip1-build-tagged host function bindings)
 │   ├── host_funcs_stub.go (host-build stubs for non-wasm targets)
 │   └── aggrega_test.go (round-trip mirroring tests against the schemas)
 └── examples/

@@ -6,7 +6,8 @@ one pass, one fail — for end-to-end loader exercises.
 
 ## Build
 
-TinyGo required. Run from this directory:
+Standard Go required (the build targets `GOOS=wasip1`). Run from this
+directory:
 
 ```sh
 bash build.sh

@@ -29,5 +29,5 @@ else
 fi
 
 mkdir -p "${OUT_DIR}"
-tinygo build -target=wasm-unknown -o "${OUT_DIR}/mutator-go.wasm" ./
+GOOS=wasip1 GOARCH=wasm go build -buildmode=c-shared -o "${OUT_DIR}/mutator-go.wasm" ./
 echo "Wrote ${OUT_DIR}/mutator-go.wasm"

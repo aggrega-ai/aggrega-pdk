@@ -6,7 +6,8 @@ node, and emits a `MutatorOutput` with one JSON Patch per node.
 
 ## Build
 
-TinyGo required. Run from this directory:
+Standard Go required (the build targets `GOOS=wasip1`). Run from this
+directory:
 
 ```sh
 bash build.sh

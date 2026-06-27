@@ -14,7 +14,7 @@
 //   - Output JSON serialises to a MutatorOutput valid against the
 //     wasm-mutator JSON Schema.
 //
-// Build: tinygo build -target=wasm-unknown -o mutator-go.wasm ./
+// Build: GOOS=wasip1 GOARCH=wasm go build -buildmode=c-shared -o mutator-go.wasm ./
 package main
 
 import (
@@ -39,7 +39,7 @@ const fixtureLabelKey = "fixture.aggrega-pdk/touched"
 // outputs when multiple PDKs ship.
 const fixtureLabelValue = "mutator-go"
 
-//export mutate
+//go:wasmexport mutate
 func mutate() int32 {
 	inputBytes := pdk.Input()
 

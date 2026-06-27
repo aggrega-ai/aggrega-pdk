@@ -8,7 +8,7 @@
 // inspect the input graph; the outputs are constants so end-to-end
 // tests can assert exact equality of the emitted shape.
 //
-// Build: tinygo build -target=wasm-unknown -o policy-validator-go.wasm ./
+// Build: GOOS=wasip1 GOARCH=wasm go build -buildmode=c-shared -o policy-validator-go.wasm ./
 package main
 
 import (
@@ -16,20 +16,17 @@ import (
 )
 
 // The fixture emits a constant two-result PolicyValidatorOutput. The
-// output is hand-formatted rather than marshalled through
-// encoding/json: TinyGo's wasm-unknown runtime has incomplete
-// reflection support, which causes encoding/json to trap on struct
-// marshalling. Hand-formatting keeps the fixture working under the
-// current TinyGo target and produces the exact wire shape the
-// wasm-policy-validator JSON Schema describes. The PDK's own
-// round-trip tests run under the host's standard Go toolchain and
-// exercise the full encoding/json path against the same schema.
+// output is a hand-formatted literal — the fixture's wire shape is
+// fixed, so a constant string is the simplest faithful encoding and
+// matches the exact wire shape the wasm-policy-validator JSON Schema
+// describes. The PDK's own round-trip tests exercise the full
+// encoding/json path against the same schema.
 const fixtureOutput = `{"results":[` +
 	`{"pass":true,"message":"fixture rule A: ok"},` +
 	`{"pass":false,"message":"fixture rule B: deliberate fail for end-to-end coverage"}` +
 	`]}`
 
-//export validate
+//go:wasmexport validate
 func validate() int32 {
 	pdk.OutputString(fixtureOutput)
 	return 0
