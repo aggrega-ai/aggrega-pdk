@@ -23,15 +23,26 @@
 // the descriptor, then dispatches step with the keyed document set as
 // input.
 //
+// The step payload is decoded and re-encoded through the generated ABI
+// codec (github.com/aggrega-ai/aggrega-abi-go/pkg/abi) rather than
+// hand-declared wire types. The codec is dispatch-free on the typed path
+// (it decodes each nested type by a direct call to its own UnmarshalJSON
+// and writes leaves by hand, with no reflective struct-walk), so the wire
+// shape stays single-sourced from the schema.
+//
+// A non-leaking GC is still required: the codec reads the JSON with the
+// standard-library streaming tokenizer, which routes through reflection
+// under TinyGo, and the wasm-unknown default leaking collector breaks that
+// path.
+//
 // Build: tinygo build -target=wasm-unknown -gc=conservative -o frp-step-go.wasm ./
-// A non-leaking GC is required — the wasm-unknown default leaking collector
-// breaks encoding/json's reflective decode of the keyed document set.
 package main
 
 import (
 	"encoding/json"
 	"sort"
 
+	abi "github.com/aggrega-ai/aggrega-abi-go/pkg/abi"
 	pdk "github.com/extism/go-pdk"
 )
 
@@ -43,63 +54,9 @@ import (
 // before invoking step.
 const pluginDescriptor = `{"abi_version":"v1alpha1","plugin_type":"frp_step","compatible_providers":["helm","helm-chart"],"exports":[{"name":"step","operates":"patch","scope":"own","selector":"workloads carrying a pod template"}],"metadata":{"author":"aggrega","license":"Apache-2.0"}}`
 
-// unit is the subset of one keyed document the guest reads: the
-// RFC-6902-addressable tree view. The token, bytes, and media type ride
-// the wire too, but this plugin selects and patches by the tree alone. An
-// opaque unit carries no tree and is skipped.
-type unit struct {
-	Tree json.RawMessage `json:"tree"`
-}
-
-// documentSet is the keyed, scope-rooted unit set the host hands the
-// guest. The guest reads each unit's content to select, never a filename.
-// host is present only for a component-scope FeatureRecipe attached to a
-// host; the guest checks it before emitting a host-scope side effect.
-type documentSet struct {
-	Own  map[string]unit `json:"own"`
-	Host map[string]unit `json:"host"`
-}
-
-// stepInput is the subset of the host's FRPStepInput this plugin reads.
-// The step input, render context, and preceding steps ride on the wire
-// but are unused here.
-type stepInput struct {
-	Documents documentSet `json:"documents"`
-}
-
-// jsonPatchOp is one RFC 6902 patch addressed to a document by scope and
-// key.
-type jsonPatchOp struct {
-	Scope string `json:"scope"`
-	Key   string `json:"key"`
-	Op    string `json:"op"`
-	Path  string `json:"path"`
-	Value string `json:"value"`
-}
-
-// sideEffectFile is the file an emit_file side effect writes.
-type sideEffectFile struct {
-	Path    string `json:"path"`
-	Content string `json:"content"`
-}
-
-// sideEffect is one pipeline side effect (an additive EMIT).
-type sideEffect struct {
-	Kind  string         `json:"kind"`
-	Scope string         `json:"scope,omitempty"`
-	File  sideEffectFile `json:"file"`
-}
-
-// stepOutput is the host's FRPStepOutput wire shape: key-addressed
-// patches plus additive side effects.
-type stepOutput struct {
-	Patches     []jsonPatchOp `json:"patches,omitempty"`
-	SideEffects []sideEffect  `json:"side_effects,omitempty"`
-}
-
 // treeKind reports the kind field of a unit's tree, or "" when the unit
 // is opaque (no tree) or carries no kind.
-func treeKind(u unit) string {
+func treeKind(u abi.Unit) string {
 	if u.Tree == nil {
 		return ""
 	}
@@ -120,16 +77,16 @@ func describe() int32 {
 
 //export step
 func step() int32 {
-	// Decode the real FRPStepInput. The decode targets a value plus its
-	// address (&in), never a nil typed pointer — json.Unmarshal into a
-	// nil pointer fails.
-	var in stepInput
-	if err := json.Unmarshal(pdk.Input(), &in); err != nil {
+	// Decode the real FRPStepInput through the generated codec's
+	// UnmarshalJSON — a streaming token walk into the typed value, no
+	// reflective struct-walk.
+	var in abi.FRPStepInput
+	if err := in.UnmarshalJSON(pdk.Input()); err != nil {
 		pdk.SetError(err)
 		return 1
 	}
 
-	var out stepOutput
+	var out abi.FRPStepOutput
 
 	// Content-select a Deployment in the own set and annotate it. The
 	// guest learns the unit's key at runtime — it never knows emitted
@@ -144,7 +101,7 @@ func step() int32 {
 	sort.Strings(ownKeys)
 	for _, key := range ownKeys {
 		if treeKind(in.Documents.Own[key]) == "Deployment" {
-			out.Patches = append(out.Patches, jsonPatchOp{
+			out.Patches = append(out.Patches, abi.JSONPatchOp{
 				Scope: "own",
 				Key:   key,
 				Op:    "add",
@@ -156,10 +113,10 @@ func step() int32 {
 	}
 
 	// Own-scope EMIT: a new ConfigMap document the pipeline contributes.
-	out.SideEffects = append(out.SideEffects, sideEffect{
+	out.SideEffects = append(out.SideEffects, abi.SideEffect{
 		Kind:  "emit_file",
 		Scope: "own",
-		File: sideEffectFile{
+		File: &abi.SideEffectFile{
 			Path:    "pipeline-configmap.yaml",
 			Content: "apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: pipeline-emitted\ndata:\n  source: frp-step-go\n",
 		},
@@ -171,17 +128,20 @@ func step() int32 {
 	// scope, so the guest does not emit one. Additive emits run per-node
 	// for every provider.
 	if len(in.Documents.Host) > 0 {
-		out.SideEffects = append(out.SideEffects, sideEffect{
+		out.SideEffects = append(out.SideEffects, abi.SideEffect{
 			Kind:  "emit_file",
 			Scope: "host",
-			File: sideEffectFile{
+			File: &abi.SideEffectFile{
 				Path:    "pipeline-host-marker.yaml",
 				Content: "apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: pipeline-host-marker\ndata:\n  injected-by: frp-step-go\n",
 			},
 		})
 	}
 
-	raw, err := json.Marshal(out)
+	// Encode the output through the generated codec's MarshalJSON — a
+	// manual field-ordered build, no reflective struct-walk. The patch
+	// Value is an any-typed JSON fragment the codec marshals as-is.
+	raw, err := out.MarshalJSON()
 	if err != nil {
 		pdk.SetError(err)
 		return 1
