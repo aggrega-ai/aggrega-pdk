@@ -23,19 +23,15 @@ pub mod version;
 
 pub use host_funcs::{emit_warning, log};
 
-// The mutator and linter socket types are generated from the canonical schemas
-// into the portable aggrega-abi crate and re-exported here, so plugin authors
-// keep the flat `aggrega_pdk_rust::<Type>` spelling while the wire shape stays
-// single-sourced in aggrega-abi.
+// Every socket type is generated from the canonical schemas into the portable
+// aggrega-abi crate and re-exported here, so plugin authors keep the flat
+// `aggrega_pdk_rust::<Type>` spelling while the wire shape stays single-sourced
+// in aggrega-abi. The policy-validator socket's graph is the full IR graph, so
+// the IR types are re-exported alongside the policy envelope.
 pub use aggrega_abi::{
-    CompilationContext, LinterFinding, LinterInput, LinterOutput, MutatorGraph, MutatorInput,
-    MutatorNode, MutatorOutput, NarrowingExemption, Policies,
-};
-
-// The policy-validator socket types remain hand-authored pending their own
-// schema-derived collapse.
-pub use types::{
-    PolicyEdge, PolicyFeatureEntry, PolicyGraph, PolicyNode, PolicyResult, PolicyValidatorInput,
-    PolicyValidatorOutput, PrecalculatedPath,
+    CatalogMetadata, CompilationContext, FieldProvenance, IRBoundaryFeature, IREdge, IRFeatureEntry,
+    IRGraph, IRMetadata, IRNode, IRProvenance, IRSpec, LinterFinding, LinterInput, LinterOutput,
+    Maintainer, MutatorGraph, MutatorInput, MutatorNode, MutatorOutput, NarrowingExemption,
+    Policies, PolicyResult, PolicyValidatorInput, PolicyValidatorOutput, PrecalculatedPath,
 };
 pub use version::API_VERSION;

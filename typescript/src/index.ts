@@ -9,14 +9,13 @@
  * API_VERSION contract floor constant, and the safe wrappers around the
  * Aggrega host functions.
  *
- * The mutator and linter socket types and their encode/decode codecs are
- * generated from the canonical schemas into @aggrega-ai/aggrega-abi and
- * re-exported here, single-sourcing the wire shape. The policy-validator
- * socket types remain hand-authored in ./types.ts pending their own
- * schema-derived collapse.
+ * Every socket type and its encode/decode codec is generated from the
+ * canonical schemas into @aggrega-ai/aggrega-abi and re-exported here,
+ * single-sourcing the wire shape. The policy-validator socket's graph is the
+ * full target-agnostic IR graph (generated from ir-v1alpha1), re-exported
+ * alongside the policy envelope.
  */
 
 export * from "@aggrega-ai/aggrega-abi";
-export * from "./types.ts";
 export { API_VERSION } from "./version.ts";
 export { log, emitWarning } from "./host_funcs.ts";

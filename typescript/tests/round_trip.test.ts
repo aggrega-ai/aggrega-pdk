@@ -61,6 +61,17 @@ function makeValidator(schemaName: string) {
   return ajv.compile(schema);
 }
 
+// makeValidatorWithRefs compiles the primary schema with the referenced schemas
+// registered (Ajv keys them by their $id), so a cross-file $ref (the policy
+// schema's graph referencing ir-v1alpha1) resolves without a network loader.
+function makeValidatorWithRefs(schemaName: string, ...refNames: string[]) {
+  const ajv = new Ajv({ strict: false });
+  for (const r of refNames) {
+    ajv.addSchema(loadSchema(r) as object);
+  }
+  return ajv.compile(loadSchema(schemaName));
+}
+
 test("API_VERSION is the v1alpha1 contract floor", () => {
   assert.equal(API_VERSION, "v1alpha1");
 });
@@ -114,32 +125,43 @@ test("MutatorOutput round-trips through wasm-mutator schema", () => {
 });
 
 test("PolicyValidatorInput round-trips through wasm-policy-validator schema", () => {
-  const validate = makeValidator("wasm-policy-validator-v1alpha1.schema.json");
+  // Under b-full the policy input carries the full IR graph; the schema
+  // references ir-v1alpha1 for the graph field, so both schemas are registered.
+  const validate = makeValidatorWithRefs(
+    "wasm-policy-validator-v1alpha1.schema.json",
+    "ir-v1alpha1.schema.json",
+  );
 
   const fixture: PolicyValidatorInput = {
     graph: {
-      nodes: {
-        "payments-api": {
-          component: "core/web-service",
-          resolved_version: "1.4.2",
-          labels: { team: "payments" },
-          features: {
-            observability: {
-              type: "feature/observability",
-              resolved_version: "2.0.1",
-              values: { tracing_enabled: true },
-              origin: "explicit",
-            },
+      apiVersion: "aggrega.ai/v1alpha1",
+      kind: "IR",
+      metadata: { aggregate_name: "payments" },
+      spec: {
+        nodes: {
+          "payments-api": {
+            component: "core/web-service",
+            resolved_version: "1.4.2",
+            labels: { team: "payments" },
           },
         },
-      },
-      edges: [
-        {
-          source: "payments-api",
-          target: "payments-db",
-          socket: "databases",
+        edges: [
+          { source: "payments-api", target: "payments-db", socket: "databases" },
+        ],
+        feature_markers: [],
+        values_mapping: {},
+        infra_mapping: {},
+        feature_values_mapping: {},
+        secrets: {},
+        provenance: {
+          schema_version: "v1alpha1",
+          compiler_version: "test",
+          aggregate_version: "1.0.0",
+          manifest_version: "1.0.0",
+          release_version: "1.0.0",
+          source_identifiers: ["x"],
         },
-      ],
+      },
     },
     precalculated_paths: [
       {
@@ -159,7 +181,10 @@ test("PolicyValidatorInput round-trips through wasm-policy-validator schema", ()
 });
 
 test("PolicyValidatorOutput round-trips through wasm-policy-validator schema", () => {
-  const validate = makeValidator("wasm-policy-validator-v1alpha1.schema.json");
+  const validate = makeValidatorWithRefs(
+    "wasm-policy-validator-v1alpha1.schema.json",
+    "ir-v1alpha1.schema.json",
+  );
 
   const fixture: PolicyValidatorOutput = {
     results: [

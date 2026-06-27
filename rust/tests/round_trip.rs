@@ -27,11 +27,12 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 
 use aggrega_pdk_rust::{
-    CompilationContext, LinterFinding, LinterInput, LinterOutput, MutatorGraph, MutatorInput,
-    MutatorNode, MutatorOutput, NarrowingExemption, Policies, PolicyEdge, PolicyFeatureEntry,
-    PolicyGraph, PolicyNode, PolicyResult, PolicyValidatorInput, PolicyValidatorOutput,
+    CompilationContext, IREdge, IRGraph, IRMetadata, IRNode, IRProvenance, IRSpec, LinterFinding,
+    LinterInput, LinterOutput, MutatorGraph, MutatorInput, MutatorNode, MutatorOutput,
+    NarrowingExemption, Policies, PolicyResult, PolicyValidatorInput, PolicyValidatorOutput,
     PrecalculatedPath, API_VERSION,
 };
+use std::collections::BTreeMap;
 
 /// schema_path resolves the absolute path to a JSON Schema file in the
 /// sibling aggrega-schemas repository. Panics if the file is unreachable —
@@ -72,6 +73,46 @@ fn validate(path: &PathBuf, instance: &serde_json::Value) -> Result<(), String> 
 
     schemas
         .validate(instance, schema_idx)
+        .map_err(|e| format!("validation failed: {e}"))
+}
+
+/// validate_with_ref validates an instance against `path`, registering the
+/// referenced schema at `ref_path` under its $id so a cross-file $ref (the
+/// policy schema's graph referencing ir-v1alpha1) resolves without a network
+/// loader.
+fn validate_with_ref(path: &PathBuf, ref_path: &PathBuf, instance: &serde_json::Value) -> Result<(), String> {
+    let main_value: serde_json::Value = serde_json::from_slice(
+        &std::fs::read(path).map_err(|e| format!("read schema: {e}"))?,
+    )
+    .map_err(|e| format!("parse schema: {e}"))?;
+    let ref_value: serde_json::Value = serde_json::from_slice(
+        &std::fs::read(ref_path).map_err(|e| format!("read ref schema: {e}"))?,
+    )
+    .map_err(|e| format!("parse ref schema: {e}"))?;
+    let ref_id = ref_value
+        .get("$id")
+        .and_then(|v| v.as_str())
+        .ok_or("ref schema missing $id")?
+        .to_string();
+    let main_id = main_value
+        .get("$id")
+        .and_then(|v| v.as_str())
+        .ok_or("main schema missing $id")?
+        .to_string();
+
+    let mut compiler = boon::Compiler::new();
+    compiler
+        .add_resource(&ref_id, ref_value)
+        .map_err(|e| format!("add ref schema: {e}"))?;
+    compiler
+        .add_resource(&main_id, main_value)
+        .map_err(|e| format!("add schema: {e}"))?;
+    let mut schemas = boon::Schemas::new();
+    let idx = compiler
+        .compile(&main_id, &mut schemas)
+        .map_err(|e| format!("compile schema: {e}"))?;
+    schemas
+        .validate(instance, idx)
         .map_err(|e| format!("validation failed: {e}"))
 }
 
@@ -128,40 +169,52 @@ fn mutator_output_round_trip_json_schema() {
 
 #[test]
 fn policy_validator_input_round_trip_json_schema() {
+    // Under b-full the policy input carries the full IR graph; the schema
+    // references ir-v1alpha1 for the graph field, so both schemas are registered.
     let schema = schema_path("wasm-policy-validator-v1alpha1.schema.json");
+    let ir_schema = schema_path("ir-v1alpha1.schema.json");
 
-    let mut labels = HashMap::new();
+    let mut labels = BTreeMap::new();
     labels.insert("team".to_string(), "payments".to_string());
 
-    let mut feature_values = HashMap::new();
-    feature_values.insert("tracing_enabled".to_string(), serde_json::Value::Bool(true));
-
     let fixture = PolicyValidatorInput {
-        graph: PolicyGraph {
-            nodes: HashMap::from([(
-                "payments-api".to_string(),
-                PolicyNode {
-                    component: "core/web-service".to_string(),
-                    resolved_version: "1.4.2".to_string(),
-                    labels,
-                    features: HashMap::from([(
-                        "observability".to_string(),
-                        PolicyFeatureEntry {
-                            r#type: "feature/observability".to_string(),
-                            resolved_version: "2.0.1".to_string(),
-                            values: feature_values,
-                            infra: HashMap::new(),
-                            origin: "explicit".to_string(),
-                        },
-                    )]),
+        graph: IRGraph {
+            api_version: "aggrega.ai/v1alpha1".to_string(),
+            kind: "IR".to_string(),
+            metadata: IRMetadata {
+                aggregate_name: "payments".to_string(),
+            },
+            spec: IRSpec {
+                nodes: BTreeMap::from([(
+                    "payments-api".to_string(),
+                    IRNode {
+                        component: "core/web-service".to_string(),
+                        resolved_version: "1.4.2".to_string(),
+                        labels,
+                        ..Default::default()
+                    },
+                )]),
+                edges: vec![IREdge {
+                    source: "payments-api".to_string(),
+                    target: "payments-db".to_string(),
+                    socket: "databases".to_string(),
+                    ..Default::default()
+                }],
+                feature_markers: vec![],
+                values_mapping: BTreeMap::new(),
+                infra_mapping: BTreeMap::new(),
+                feature_values_mapping: BTreeMap::new(),
+                secrets: BTreeMap::new(),
+                boundary_features: BTreeMap::new(),
+                provenance: IRProvenance {
+                    schema_version: "v1alpha1".to_string(),
+                    compiler_version: "test".to_string(),
+                    aggregate_version: "1.0.0".to_string(),
+                    manifest_version: "1.0.0".to_string(),
+                    release_version: "1.0.0".to_string(),
+                    source_identifiers: vec!["x".to_string()],
                 },
-            )]),
-            edges: vec![PolicyEdge {
-                source: "payments-api".to_string(),
-                target: "payments-db".to_string(),
-                socket: "databases".to_string(),
-                origin_feature: String::new(),
-            }],
+            },
         },
         precalculated_paths: vec![PrecalculatedPath {
             path_id: "path-0001".to_string(),
@@ -171,16 +224,22 @@ fn policy_validator_input_round_trip_json_schema() {
     };
 
     let serialised = serde_json::to_value(&fixture).expect("serialize PolicyValidatorInput");
-    validate(&schema, &serialised).expect("schema validation");
+    validate_with_ref(&schema, &ir_schema, &serialised).expect("schema validation");
 
+    // The abi types do not derive PartialEq (RawValue lacks it); compare the
+    // re-serialized wire instead.
     let round: PolicyValidatorInput =
-        serde_json::from_value(serialised).expect("deserialize PolicyValidatorInput");
-    assert_eq!(fixture, round);
+        serde_json::from_value(serialised.clone()).expect("deserialize PolicyValidatorInput");
+    assert_eq!(
+        serde_json::to_string(&fixture).unwrap(),
+        serde_json::to_string(&round).unwrap()
+    );
 }
 
 #[test]
 fn policy_validator_output_round_trip_json_schema() {
     let schema = schema_path("wasm-policy-validator-v1alpha1.schema.json");
+    let ir_schema = schema_path("ir-v1alpha1.schema.json");
 
     let fixture = PolicyValidatorOutput {
         results: vec![
@@ -196,11 +255,14 @@ fn policy_validator_output_round_trip_json_schema() {
     };
 
     let serialised = serde_json::to_value(&fixture).expect("serialize PolicyValidatorOutput");
-    validate(&schema, &serialised).expect("schema validation");
+    validate_with_ref(&schema, &ir_schema, &serialised).expect("schema validation");
 
     let round: PolicyValidatorOutput =
         serde_json::from_value(serialised).expect("deserialize PolicyValidatorOutput");
-    assert_eq!(fixture, round);
+    assert_eq!(
+        serde_json::to_string(&fixture).unwrap(),
+        serde_json::to_string(&round).unwrap()
+    );
 }
 
 #[test]
