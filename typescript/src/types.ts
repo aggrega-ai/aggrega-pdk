@@ -2,40 +2,15 @@
 // Copyright 2026 Cognitio S.r.l.
 
 /**
- * Socket payload types — hand-authored mirrors of the JSON wire shape
- * the Aggrega Wasm Mutator and Policy Validator JSON Schemas describe.
+ * Policy-validator socket payload types — hand-authored mirrors of the
+ * JSON wire shape the Aggrega Policy Validator JSON Schema describes.
  *
- * The types are independent re-implementations of the wire shape that
- * the Go and Rust PDKs also mirror. Field names match the JSON Schema
- * property names exactly (snake_case wire format). Drift between any
- * mirror and the JSON Schema is caught by the round-trip mirroring
- * tests in `tests/`.
+ * The mutator and linter socket types are generated from the canonical
+ * schemas into the portable @aggrega-ai/aggrega-abi package and
+ * re-exported from index.ts, single-sourcing the wire shape. The policy
+ * types below remain hand-authored pending their own schema-derived
+ * collapse. Field names match the JSON Schema property names exactly.
  */
-
-export interface CompilationContext {
-  release_destination: string;
-  release_name: string;
-  environment: string;
-}
-
-export interface MutatorNode {
-  component: string;
-  resolved_version: string;
-  labels: Record<string, string>;
-}
-
-export interface MutatorGraph {
-  nodes: Record<string, MutatorNode>;
-}
-
-export interface MutatorInput {
-  compilation_context: CompilationContext;
-  graph: MutatorGraph;
-}
-
-export interface MutatorOutput {
-  patches: unknown[];
-}
 
 export interface PolicyFeatureEntry {
   type: string;

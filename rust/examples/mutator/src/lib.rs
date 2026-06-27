@@ -16,7 +16,7 @@
 
 use aggrega_pdk_rust::{MutatorInput, MutatorOutput};
 use extism_pdk::{plugin_fn, FnResult};
-use serde_json::json;
+use serde_json::{json, value::RawValue};
 
 /// Label key the fixture appends to every node. The key identifies
 /// the source of the label as a fixture plugin so end-to-end tests on
@@ -39,14 +39,18 @@ pub fn mutate(input: String) -> FnResult<String> {
     let mut node_ids: Vec<&String> = parsed.graph.nodes.keys().collect();
     node_ids.sort();
 
-    let patches: Vec<serde_json::Value> = node_ids
+    // The mutator socket's patches are opaque JSON Patch documents; the abi
+    // MutatorOutput carries them as verbatim RawValue, so each json! value is
+    // converted to a RawValue.
+    let patches: Vec<Box<RawValue>> = node_ids
         .into_iter()
         .map(|node_id| {
-            json!([{
+            let doc = json!([{
                 "op": "add",
                 "path": format!("/nodes/{}/labels/{}", node_id, FIXTURE_LABEL_KEY),
                 "value": FIXTURE_LABEL_VALUE,
-            }])
+            }]);
+            serde_json::value::to_raw_value(&doc).expect("encode patch")
         })
         .collect();
 

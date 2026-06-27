@@ -3,9 +3,18 @@
 version = 4
 
 [[package]]
+name = "aggrega-abi"
+version = "0.1.0-alpha.1"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "aggrega-pdk-rust"
 version = "0.1.0-alpha.1"
 dependencies = [
+ "aggrega-abi",
  "boon",
  "extism-pdk",
  "serde",

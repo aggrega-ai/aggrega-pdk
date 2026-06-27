@@ -1,49 +1,42 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 Cognitio S.r.l.
 
-//! Round-trip mirroring tests for the Aggrega PDK socket types.
+//! Schema-validation round-trip tests for the Aggrega Rust PDK.
 //!
-//! Each test:
-//!  1. Constructs a fixture value of the PDK type.
-//!  2. Serialises via `serde_json::to_value` to a `serde_json::Value`.
-//!  3. Validates against the corresponding JSON Schema in the sibling
-//!     `aggrega-schemas` repository.
-//!  4. Deserialises back to a Rust value via `serde_json::from_value`.
-//!  5. Asserts equality.
+//! Each test constructs a fixture value, serialises it, validates the
+//! serialised value against the corresponding JSON Schema in the sibling
+//! `aggrega-schemas` repository, and deserialises it back.
+//!
+//! The mutator and linter socket types are generated into the portable
+//! `aggrega-abi` crate (re-exported by this PDK) and their cross-language
+//! wire parity is pinned by the parity tests in `aggrega-abi`. The tests
+//! here cover the policy-validator socket types, which remain hand-authored
+//! in this PDK, plus a schema-validation smoke over the re-exported
+//! mutator/linter types so a PDK-authored value is confirmed to validate.
 //!
 //! Schemas live alongside the umbrella checkout at
-//! `../../aggrega-schemas/json/` relative to this crate root.
-//! Tests **panic** with a clear diagnostic when the schema file is
-//! unreachable rather than silently returning: Rust's stable test
-//! framework has no dynamic-skip analog to Go's `t.Skipf`, and an
-//! early `return` would mark the test PASSED in cargo's report,
-//! masking a setup error. The panic surfaces FAILED instead.
-//!
-//! Disconnected dev (the PDK checked out without the umbrella) opts
-//! out of the schema-dependent tests via:
+//! `../../aggrega-schemas/json/` relative to this crate root. Tests
+//! **panic** with a clear diagnostic when the schema file is unreachable
+//! rather than silently returning. Disconnected dev opts out via:
 //!
 //! ```text
 //! cargo test --workspace -- --skip round_trip
 //! ```
-//!
-//! The umbrella's compiler CI always runs from an umbrella checkout
-//! with the schemas present alongside; the panic path does not fire
-//! there.
 
 use std::collections::HashMap;
 use std::path::PathBuf;
 
 use aggrega_pdk_rust::{
-    CompilationContext, LinterClassification, LinterFinding, LinterInput, LinterOutput,
-    LinterSeverity, MutatorGraph, MutatorInput, MutatorNode, MutatorOutput, NarrowingExemption,
-    Policies, PolicyEdge, PolicyFeatureEntry, PolicyGraph, PolicyNode, PolicyResult,
-    PolicyValidatorInput, PolicyValidatorOutput, PrecalculatedPath, API_VERSION,
+    CompilationContext, LinterFinding, LinterInput, LinterOutput, MutatorGraph, MutatorInput,
+    MutatorNode, MutatorOutput, NarrowingExemption, Policies, PolicyEdge, PolicyFeatureEntry,
+    PolicyGraph, PolicyNode, PolicyResult, PolicyValidatorInput, PolicyValidatorOutput,
+    PrecalculatedPath, API_VERSION,
 };
 
 /// schema_path resolves the absolute path to a JSON Schema file in the
-/// sibling aggrega-schemas repository. Panics if the file is
-/// unreachable — see the file-level comment for the rationale and the
-/// disconnected-dev opt-out via `cargo test -- --skip round_trip`.
+/// sibling aggrega-schemas repository. Panics if the file is unreachable —
+/// see the file-level comment for the rationale and the disconnected-dev
+/// opt-out via `cargo test -- --skip round_trip`.
 fn schema_path(name: &str) -> PathBuf {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let path = manifest_dir
@@ -62,10 +55,7 @@ fn schema_path(name: &str) -> PathBuf {
     path
 }
 
-/// validate validates `instance` against the JSON Schema at `path` and
-/// returns the validation outcome as a Result. Loads the schema once
-/// per call (the test count is small enough that schema-compile cost
-/// is negligible).
+/// validate validates `instance` against the JSON Schema at `path`.
 fn validate(path: &PathBuf, instance: &serde_json::Value) -> Result<(), String> {
     let schema_bytes = std::fs::read(path).map_err(|e| format!("read schema: {e}"))?;
     let schema_value: serde_json::Value =
@@ -94,7 +84,7 @@ fn api_version_v1alpha1_contract_floor() {
 fn mutator_input_round_trip_json_schema() {
     let schema = schema_path("wasm-mutator-v1alpha1.schema.json");
 
-    let mut labels = HashMap::new();
+    let mut labels = std::collections::BTreeMap::new();
     labels.insert("team".to_string(), "payments".to_string());
 
     let fixture = MutatorInput {
@@ -104,7 +94,7 @@ fn mutator_input_round_trip_json_schema() {
             environment: "prod".to_string(),
         },
         graph: MutatorGraph {
-            nodes: HashMap::from([(
+            nodes: std::collections::BTreeMap::from([(
                 "payments-api".to_string(),
                 MutatorNode {
                     component: "core/web-service".to_string(),
@@ -117,21 +107,17 @@ fn mutator_input_round_trip_json_schema() {
 
     let serialised = serde_json::to_value(&fixture).expect("serialize MutatorInput");
     validate(&schema, &serialised).expect("schema validation");
-
-    let round: MutatorInput =
+    let _round: MutatorInput =
         serde_json::from_value(serialised).expect("deserialize MutatorInput");
-    assert_eq!(fixture, round);
 }
 
 #[test]
 fn mutator_output_round_trip_json_schema() {
     let schema = schema_path("wasm-mutator-v1alpha1.schema.json");
 
-    let patch: serde_json::Value = serde_json::from_str(
-        r#"[{"op":"add","path":"/nodes/payments-api/labels/compliance","value":"soc2"}]"#,
-    )
-    .unwrap();
-
+    let patch =
+        serde_json::value::RawValue::from_string(r#"{"op":"add","path":"/x","value":"y"}"#.into())
+            .unwrap();
     let fixture = MutatorOutput {
         patches: vec![patch],
     };
@@ -148,10 +134,7 @@ fn policy_validator_input_round_trip_json_schema() {
     labels.insert("team".to_string(), "payments".to_string());
 
     let mut feature_values = HashMap::new();
-    feature_values.insert(
-        "tracing_enabled".to_string(),
-        serde_json::Value::Bool(true),
-    );
+    feature_values.insert("tracing_enabled".to_string(), serde_json::Value::Bool(true));
 
     let fixture = PolicyValidatorInput {
         graph: PolicyGraph {
@@ -227,26 +210,16 @@ fn linter_input_round_trip_json_schema() {
     let fixture = LinterInput {
         rule_id: "schema-evolution".to_string(),
         entity_kind: "Component".to_string(),
-        proposed: serde_json::json!({
-            "apiVersion": "aggrega.ai/v1alpha1",
-            "kind": "Component",
-            "metadata": {"name": "core/api-server", "version": "1.0.0"},
-        }),
-        previous: Some(serde_json::json!({
-            "apiVersion": "aggrega.ai/v1alpha1",
-            "kind": "Component",
-            "metadata": {"name": "core/api-server", "version": "0.9.0"},
-        })),
-        parent: Some(serde_json::json!({
-            "apiVersion": "aggrega.ai/v1alpha1",
-            "kind": "Component",
-            "metadata": {"name": "core/base", "version": "1.0.0"},
-        })),
-        source_path: Some(
-            "aggrega-hub/aggrega-catalog/component/core/compute/api-server/api-server.yaml"
-                .to_string(),
+        proposed: serde_json::value::RawValue::from_string(
+            r#"{"apiVersion":"aggrega.ai/v1alpha1","kind":"Component"}"#.into(),
+        )
+        .unwrap(),
+        previous: Some(
+            serde_json::value::RawValue::from_string(r#"{"kind":"Component"}"#.into()).unwrap(),
         ),
-        policies: Some(Policies {
+        parent: None,
+        source_path: "core/compute/api-server/api-server.yaml".to_string(),
+        policies: Policies {
             enforce_monotonic_narrowing: true,
             enforce_immutability: true,
             narrowing_exemptions: vec![NarrowingExemption {
@@ -260,57 +233,12 @@ fn linter_input_round_trip_json_schema() {
             allow_aggrega_ai_prefix: false,
             allow_nonstandard_names: false,
             allow_category_mismatches: false,
-        }),
+        },
     };
 
     let serialised = serde_json::to_value(&fixture).expect("serialize LinterInput");
     validate(&schema, &serialised).expect("schema validation");
-
-    let round: LinterInput =
-        serde_json::from_value(serialised).expect("deserialize LinterInput");
-    assert_eq!(fixture, round);
-}
-
-#[test]
-fn linter_input_policies_all_flags_set_round_trip() {
-    // Pins the wire-shape of the override case: every Policies flag
-    // populated, including the new allow_category_mismatches. Future
-    // Policies field additions update this fixture in lockstep.
-    let schema = schema_path("wasm-linter-v1alpha1.schema.json");
-
-    let fixture = LinterInput {
-        rule_id: "category-matches-directory".to_string(),
-        entity_kind: "Component".to_string(),
-        proposed: serde_json::json!({
-            "apiVersion": "aggrega.ai/v1alpha1",
-            "kind": "Component",
-            "metadata": {"name": "core/api-server", "version": "1.0.0"},
-        }),
-        previous: None,
-        parent: None,
-        source_path: Some(
-            "aggrega-hub/aggrega-catalog/component/core/compute/api-server/api-server.yaml"
-                .to_string(),
-        ),
-        policies: Some(Policies {
-            enforce_monotonic_narrowing: true,
-            enforce_immutability: true,
-            narrowing_exemptions: vec![],
-            allow_dynamic_refs: true,
-            allow_id_overrides: true,
-            allow_direct_x_aggrega_extensions: true,
-            allow_aggrega_ai_prefix: true,
-            allow_nonstandard_names: true,
-            allow_category_mismatches: true,
-        }),
-    };
-
-    let serialised = serde_json::to_value(&fixture).expect("serialize LinterInput");
-    validate(&schema, &serialised).expect("schema validation");
-
-    let round: LinterInput =
-        serde_json::from_value(serialised).expect("deserialize LinterInput");
-    assert_eq!(fixture, round);
+    let _round: LinterInput = serde_json::from_value(serialised).expect("deserialize LinterInput");
 }
 
 #[test]
@@ -321,24 +249,21 @@ fn linter_output_round_trip_json_schema() {
         findings: vec![
             LinterFinding {
                 rule_id: "schema-evolution".to_string(),
-                severity: LinterSeverity::Error,
-                classification: Some(LinterClassification::Major),
+                severity: "error".to_string(),
+                classification: "MAJOR".to_string(),
                 message: "field spec.schema.values.port removed".to_string(),
             },
             LinterFinding {
                 rule_id: "unknown_rule".to_string(),
-                severity: LinterSeverity::Error,
-                classification: None,
-                message: "rule_id \"not-implemented\" not implemented at this plugin version"
-                    .to_string(),
+                severity: "error".to_string(),
+                classification: String::new(),
+                message: "rule_id not implemented".to_string(),
             },
         ],
     };
 
     let serialised = serde_json::to_value(&fixture).expect("serialize LinterOutput");
     validate(&schema, &serialised).expect("schema validation");
-
-    let round: LinterOutput =
+    let _round: LinterOutput =
         serde_json::from_value(serialised).expect("deserialize LinterOutput");
-    assert_eq!(fixture, round);
 }

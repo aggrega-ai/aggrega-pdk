@@ -3,48 +3,11 @@
 
 package aggrega
 
-import "encoding/json"
-
-// MutatorInput is the JSON payload the host hands a mutator plugin on
-// each invocation: release-level compilation context plus a labels-only
-// projection of the topology graph. Field names mirror the JSON Schema
-// at aggrega-schemas/json/wasm-mutator-v1alpha1.schema.json
-// exactly.
-type MutatorInput struct {
-	CompilationContext CompilationContext `json:"compilation_context"`
-	Graph              MutatorGraph       `json:"graph"`
-}
-
-// CompilationContext carries release-level metadata the mutator reads
-// when deciding which compliance, FinOps, or governance rules apply.
-type CompilationContext struct {
-	ReleaseDestination string `json:"release_destination"`
-	ReleaseName        string `json:"release_name"`
-	Environment        string `json:"environment"`
-}
-
-// MutatorGraph is the labels-only projection of the topology graph
-// exposed to the mutator plugin.
-type MutatorGraph struct {
-	Nodes map[string]MutatorNode `json:"nodes"`
-}
-
-// MutatorNode is the per-node projection the mutator plugin evaluates
-// compliance rules against: which Component the node implements, which
-// version resolved, and the node's label set.
-type MutatorNode struct {
-	Component       string            `json:"component"`
-	ResolvedVersion string            `json:"resolved_version"`
-	Labels          map[string]string `json:"labels"`
-}
-
-// MutatorOutput is the response shape the mutator plugin emits: a list
-// of opaque JSON Patch documents the host applies to the topology
-// graph. Patches stay opaque at the PDK type layer; plugin authors
-// build them as json.RawMessage values.
-type MutatorOutput struct {
-	Patches []json.RawMessage `json:"patches"`
-}
+// The mutator and linter wire types are no longer hand-authored here. They are
+// generated from the canonical schemas into the portable aggrega-abi module and
+// re-exported from abi_reexport.go, single-sourcing the wire shape. The policy
+// wire types below remain hand-authored pending their own schema-derived
+// collapse.
 
 // PolicyValidatorInput is the JSON payload Step 4 hands to the
 // policy-validator socket: a per-node policy projection of the IR

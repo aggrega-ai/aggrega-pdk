@@ -13,6 +13,9 @@ path = "src/lib.rs"
 extism-pdk = "1.4"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+# Portable ABI codec — sibling submodule in the umbrella. The crate name is its
+# publication identity (crates.io: aggrega-abi); the local path serves the build.
+aggrega-abi = { path = "../../aggrega-abi/rust" }
 
 [dev-dependencies]
 # JSON Schema 2020-12 validator. Selected over the `jsonschema` crate

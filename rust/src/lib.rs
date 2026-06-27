@@ -22,10 +22,20 @@ pub mod types;
 pub mod version;
 
 pub use host_funcs::{emit_warning, log};
+
+// The mutator and linter socket types are generated from the canonical schemas
+// into the portable aggrega-abi crate and re-exported here, so plugin authors
+// keep the flat `aggrega_pdk_rust::<Type>` spelling while the wire shape stays
+// single-sourced in aggrega-abi.
+pub use aggrega_abi::{
+    CompilationContext, LinterFinding, LinterInput, LinterOutput, MutatorGraph, MutatorInput,
+    MutatorNode, MutatorOutput, NarrowingExemption, Policies,
+};
+
+// The policy-validator socket types remain hand-authored pending their own
+// schema-derived collapse.
 pub use types::{
-    CompilationContext, LinterClassification, LinterFinding, LinterInput, LinterOutput,
-    LinterSeverity, MutatorGraph, MutatorInput, MutatorNode, MutatorOutput, NarrowingExemption,
-    Policies, PolicyEdge, PolicyFeatureEntry, PolicyGraph, PolicyNode, PolicyResult,
-    PolicyValidatorInput, PolicyValidatorOutput, PrecalculatedPath,
+    PolicyEdge, PolicyFeatureEntry, PolicyGraph, PolicyNode, PolicyResult, PolicyValidatorInput,
+    PolicyValidatorOutput, PrecalculatedPath,
 };
 pub use version::API_VERSION;

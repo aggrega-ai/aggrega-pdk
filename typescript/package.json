@@ -9,6 +9,9 @@
     "build": "tsc",
     "test": "node --test --experimental-strip-types tests/round_trip.test.ts"
   },
+  "dependencies": {
+    "@aggrega-ai/aggrega-abi": "file:../../aggrega-abi/typescript"
+  },
   "devDependencies": {
     "@extism/js-pdk": "1.1.1",
     "typescript": "^5.6.0",
