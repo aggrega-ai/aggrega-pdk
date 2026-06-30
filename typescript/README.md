@@ -4,6 +4,13 @@ TypeScript PDK for authoring Aggrega Wasm plugins.
 
 Package name: `@aggrega-ai/aggrega-pdk-typescript`.
 
+The canonical reference for the plugin author's contract — what a plugin is,
+the `describe()` self-report, exports and capability claims, runtime limits and
+host functions, the `Plugin` entity, referencing a plugin, and the
+publish → pull → build lifecycle — is the Wasm plugin developer guide in the
+Aggrega documentation at [aggrega.ai](https://aggrega.ai). This README is the
+TypeScript-specific quickstart; the guide is the single home for the concepts.
+
 ## Authoring a plugin
 
 A plugin is a small TypeScript project that depends on

@@ -4,6 +4,13 @@ Go PDK for authoring Aggrega Wasm plugins.
 
 Import path: `github.com/aggrega-ai/aggrega-pdk-go/pkg/aggrega`.
 
+The canonical reference for the plugin author's contract — what a plugin is,
+the `describe()` self-report, exports and capability claims, runtime limits and
+host functions, the `Plugin` entity, referencing a plugin, and the
+publish → pull → build lifecycle — is the Wasm plugin developer guide in the
+Aggrega documentation at [aggrega.ai](https://aggrega.ai). This README is the
+Go-specific quickstart; the guide is the single home for the concepts.
+
 ## Authoring a plugin
 
 A plugin is a small Go module that imports `pkg/aggrega` for the typed
@@ -18,13 +25,8 @@ GOOS=wasip1 GOARCH=wasm go build -buildmode=c-shared -o <plugin>.wasm ./
 ```
 
 The result is a WASI reactor. The Aggrega Wasm loader runs it under a
-deterministic, capability-denied WASI configuration: the plugin's Go
-runtime bootstraps against real WASI, but every value it can observe is
-a deterministic function of the build input — observable wall time is
-frozen, the entropy source yields zeros, stdio is discarded, and there
-is no filesystem, argument, or environment access. The loader's static
-import allowlist additionally rejects the filesystem-traversal and
-socket WASI imports a plugin would need to reach outside this sandbox.
+deterministic, capability-denied WASI configuration — the
+ahead-of-time-purity firewall the developer guide describes in full.
 
 See `examples/mutator/` and `examples/policy-validator/` for working
 plugin sources.
