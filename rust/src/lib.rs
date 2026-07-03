@@ -37,6 +37,7 @@ pub use aggrega_abi::{
     MutatorInput, MutatorNode, MutatorOutput, NarrowingExemption, NodeProvenance, Policies,
     PolicyResult,
     PolicyValidatorInput, PolicyValidatorOutput, PrecalculatedPath, RenderEdge, RenderNodeInput,
-    RenderNodeOutput, RenderedFile, RenderedNode, SourceFile, SourceProjection, WorkloadProjection,
+    RenderNodeOutput, RenderedFile, RenderedNode, SourceFile, SourceProjection, SubChart,
+    WorkloadProjection,
 };
 pub use version::API_VERSION;

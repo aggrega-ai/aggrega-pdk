@@ -76,4 +76,5 @@ type (
 	AssembleBoundaryOutput = abi.AssembleBoundaryOutput
 	RenderedNode           = abi.RenderedNode
 	RenderEdge             = abi.RenderEdge
+	SubChart               = abi.SubChart
 )
