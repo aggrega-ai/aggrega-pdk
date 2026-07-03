@@ -15,6 +15,7 @@ name = "aggrega-pdk-rust"
 version = "0.1.0-alpha.1"
 dependencies = [
  "aggrega-abi",
+ "base64",
  "boon",
  "extism-pdk",
  "serde",

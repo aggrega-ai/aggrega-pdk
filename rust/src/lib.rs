@@ -6,7 +6,8 @@
 //! Plugin authors targeting the Aggrega Wasm plugin ABI consume this
 //! crate to obtain typed socket payloads, the [`APIVersion`] contract
 //! floor constant, and bindings to the Aggrega host functions
-//! (`aggrega_log`, `aggrega_emit_warning`).
+//! (`aggrega_log`, `aggrega_emit_warning`,
+//! `aggrega_fetch_external_input`).
 //!
 //! Build a plugin to a `.wasm` artifact via:
 //!
@@ -21,7 +22,7 @@ pub mod host_funcs;
 pub mod types;
 pub mod version;
 
-pub use host_funcs::{emit_warning, log};
+pub use host_funcs::{emit_warning, fetch_external_input, log};
 
 // Every socket type is generated from the canonical schemas into the portable
 // aggrega-abi crate and re-exported here, so plugin authors keep the flat

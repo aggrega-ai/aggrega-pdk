@@ -21,6 +21,7 @@ declare module "extism:host" {
   interface user {
     aggrega_log(level: I64, message_ptr: I64): void;
     aggrega_emit_warning(code_ptr: I64, message_ptr: I64, path_ptr: I64): void;
+    aggrega_fetch_external_input(url_ptr: I64): I64;
   }
 }
 
@@ -57,4 +58,39 @@ export function emitWarning(code: string, message: string, path: string): void {
   const msgMem = Memory.fromString(message);
   const pathMem = Memory.fromString(path);
   aggrega_emit_warning(codeMem.offset, msgMem.offset, pathMem.offset);
+}
+
+/**
+ * Fetch the bytes of an external-input URL through the Aggrega host's
+ * acquisition channel. The host serves the URL under its
+ * external-input pin discipline: an already-pinned URL is served from
+ * the content-addressed store; an unpinned URL is fetched and pinned
+ * when acquisition is enabled, and refused with a clear message when
+ * the closure is frozen.
+ *
+ * Failure is in-band: the host returns a JSON envelope carrying either
+ * a base64 `content` field or an `error` field naming the URL and the
+ * remedy; this wrapper throws an Error carrying that message. Plugin
+ * code should treat a fetch error as a render failure to report, not a
+ * condition to mask.
+ */
+export function fetchExternalInput(url: string): ArrayBuffer {
+  const { aggrega_fetch_external_input } = Host.getFunctions();
+  const urlMem = Memory.fromString(url);
+  const offset = aggrega_fetch_external_input(urlMem.offset);
+  if (offset === BigInt(0)) {
+    throw new Error("aggrega_fetch_external_input: host returned no envelope");
+  }
+  const envelope: { content?: string; error?: string } = JSON.parse(
+    Memory.find(offset).readString(),
+  );
+  if (envelope.error) {
+    throw new Error(envelope.error);
+  }
+  if (envelope.content === undefined) {
+    throw new Error(
+      "aggrega_fetch_external_input: envelope carries neither content nor error",
+    );
+  }
+  return Host.base64ToArrayBuffer(envelope.content);
 }

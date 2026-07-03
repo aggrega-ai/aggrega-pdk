@@ -18,4 +18,4 @@
 
 export * from "@aggrega-ai/aggrega-abi";
 export { API_VERSION } from "./version.ts";
-export { log, emitWarning } from "./host_funcs.ts";
+export { log, emitWarning, fetchExternalInput } from "./host_funcs.ts";
