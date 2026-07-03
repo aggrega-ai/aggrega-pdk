@@ -35,6 +35,6 @@ pub use aggrega_abi::{
     IRProvenance, IRSpec, LinterFinding, LinterInput, LinterOutput, Maintainer, MutatorGraph,
     MutatorInput, MutatorNode, MutatorOutput, NarrowingExemption, Policies, PolicyResult,
     PolicyValidatorInput, PolicyValidatorOutput, PrecalculatedPath, RenderNodeInput,
-    RenderNodeOutput, RenderedFile, RenderedNode, SourceFile, SourceProjection,
+    RenderNodeOutput, RenderedFile, RenderedNode, SourceFile, SourceProjection, WorkloadProjection,
 };
 pub use version::API_VERSION;

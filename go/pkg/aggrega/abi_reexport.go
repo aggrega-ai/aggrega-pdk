@@ -67,6 +67,7 @@ type (
 	IRNodeProjection      = abi.IRNodeProjection
 	CatalogProjection     = abi.CatalogProjection
 	SourceProjection      = abi.SourceProjection
+	WorkloadProjection    = abi.WorkloadProjection
 	SourceFile            = abi.SourceFile
 	RenderedFile          = abi.RenderedFile
 	AssembleBoundaryInput = abi.AssembleBoundaryInput
