@@ -30,12 +30,13 @@ pub use host_funcs::{emit_warning, fetch_external_input, log};
 // in aggrega-abi. The policy-validator socket's graph is the full IR graph, so
 // the IR types are re-exported alongside the policy envelope.
 pub use aggrega_abi::{
-    AssembleBoundaryInput, CatalogMetadata, CatalogProjection, CompilationContext, FieldProvenance,
+    AssembleBoundaryInput, AssembleBoundaryOutput, CatalogMetadata, CatalogProjection,
+    CompilationContext, FieldProvenance,
     IRBoundaryFeature, IREdge, IRFeatureEntry, IRGraph, IRMetadata, IRNode, IRNodeProjection,
     IRProvenance, IRSpec, LinterFinding, LinterInput, LinterOutput, Maintainer, MutatorGraph,
     MutatorInput, MutatorNode, MutatorOutput, NarrowingExemption, NodeProvenance, Policies,
     PolicyResult,
-    PolicyValidatorInput, PolicyValidatorOutput, PrecalculatedPath, RenderNodeInput,
+    PolicyValidatorInput, PolicyValidatorOutput, PrecalculatedPath, RenderEdge, RenderNodeInput,
     RenderNodeOutput, RenderedFile, RenderedNode, SourceFile, SourceProjection, WorkloadProjection,
 };
 pub use version::API_VERSION;

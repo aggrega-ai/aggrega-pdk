@@ -56,21 +56,24 @@ type (
 )
 
 // Provider render socket. A guest renders one IR node into output files on
-// render_node (RenderNodeInput to RenderNodeOutput) and optionally assembles the
-// per-node outputs at one boundary (AssembleBoundaryInput). A sourced provider
-// reconstructs its source in memory from the input's SourceProjection. The guest
-// returns each file's serialized bytes (RenderedFile.Content); the host writes
-// them verbatim and runs no serializer.
+// render_node (RenderNodeInput to RenderNodeOutput) and optionally merges the
+// per-node outputs at one dispatch group (AssembleBoundaryInput to
+// AssembleBoundaryOutput). A sourced provider reconstructs its source in memory
+// from the input's SourceProjection. The guest returns each file's serialized
+// bytes (RenderedFile.Content); the host writes them verbatim and runs no
+// serializer.
 type (
-	RenderNodeInput       = abi.RenderNodeInput
-	RenderNodeOutput      = abi.RenderNodeOutput
-	IRNodeProjection      = abi.IRNodeProjection
-	NodeProvenance        = abi.NodeProvenance
-	CatalogProjection     = abi.CatalogProjection
-	SourceProjection      = abi.SourceProjection
-	WorkloadProjection    = abi.WorkloadProjection
-	SourceFile            = abi.SourceFile
-	RenderedFile          = abi.RenderedFile
-	AssembleBoundaryInput = abi.AssembleBoundaryInput
-	RenderedNode          = abi.RenderedNode
+	RenderNodeInput        = abi.RenderNodeInput
+	RenderNodeOutput       = abi.RenderNodeOutput
+	IRNodeProjection       = abi.IRNodeProjection
+	NodeProvenance         = abi.NodeProvenance
+	CatalogProjection      = abi.CatalogProjection
+	SourceProjection       = abi.SourceProjection
+	WorkloadProjection     = abi.WorkloadProjection
+	SourceFile             = abi.SourceFile
+	RenderedFile           = abi.RenderedFile
+	AssembleBoundaryInput  = abi.AssembleBoundaryInput
+	AssembleBoundaryOutput = abi.AssembleBoundaryOutput
+	RenderedNode           = abi.RenderedNode
+	RenderEdge             = abi.RenderEdge
 )
