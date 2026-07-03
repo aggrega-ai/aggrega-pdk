@@ -33,7 +33,8 @@ pub use aggrega_abi::{
     AssembleBoundaryInput, CatalogMetadata, CatalogProjection, CompilationContext, FieldProvenance,
     IRBoundaryFeature, IREdge, IRFeatureEntry, IRGraph, IRMetadata, IRNode, IRNodeProjection,
     IRProvenance, IRSpec, LinterFinding, LinterInput, LinterOutput, Maintainer, MutatorGraph,
-    MutatorInput, MutatorNode, MutatorOutput, NarrowingExemption, Policies, PolicyResult,
+    MutatorInput, MutatorNode, MutatorOutput, NarrowingExemption, NodeProvenance, Policies,
+    PolicyResult,
     PolicyValidatorInput, PolicyValidatorOutput, PrecalculatedPath, RenderNodeInput,
     RenderNodeOutput, RenderedFile, RenderedNode, SourceFile, SourceProjection, WorkloadProjection,
 };

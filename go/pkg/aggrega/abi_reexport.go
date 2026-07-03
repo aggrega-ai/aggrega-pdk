@@ -65,6 +65,7 @@ type (
 	RenderNodeInput       = abi.RenderNodeInput
 	RenderNodeOutput      = abi.RenderNodeOutput
 	IRNodeProjection      = abi.IRNodeProjection
+	NodeProvenance        = abi.NodeProvenance
 	CatalogProjection     = abi.CatalogProjection
 	SourceProjection      = abi.SourceProjection
 	WorkloadProjection    = abi.WorkloadProjection
