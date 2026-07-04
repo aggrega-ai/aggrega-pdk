@@ -1,0 +1,26 @@
+# policy-validator-allow (Go fixture)
+
+A Go plugin that drives the Aggrega policy-validator socket's success
+path. It emits a constant `PolicyValidatorOutput` whose single verdict
+passes, so a host-side test can prove the socket lets a build succeed
+when every rule passes — the counterpart to the minimal
+`policy-validator` fixture, whose deliberate failing verdict proves the
+build-halt path.
+
+## Build
+
+Standard Go required (the build targets `GOOS=wasip1`). Run from this
+directory:
+
+```sh
+bash build.sh
+```
+
+Destination resolution:
+
+1. `$AGGREGA_PDK_WASM_OUT` if set — explicit override (the umbrella's
+   integration test driver uses this when staging into a temporary
+   directory).
+2. The umbrella's `aggrega-cli/internal/wasm/testdata/` directory when
+   this PDK is checked out as a submodule of the umbrella.
+3. The PDK's own `testdata/` directory for standalone checkouts.

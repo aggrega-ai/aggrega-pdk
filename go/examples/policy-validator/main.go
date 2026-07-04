@@ -26,6 +26,17 @@ const fixtureOutput = `{"results":[` +
 	`{"pass":false,"message":"fixture rule B: deliberate fail for end-to-end coverage"}` +
 	`]}`
 
+// pluginDescriptor is the static describe() self-report: a v1alpha1
+// policy-validator plugin whose validate export the host validates before
+// dispatch. The host reads this once at load through the shared describe() gate.
+const pluginDescriptor = `{"abi_version":"v1alpha1","plugin_type":"policy-validator","exports":[{"name":"validate"}],"metadata":{"author":"aggrega","license":"Apache-2.0"}}`
+
+//go:wasmexport describe
+func describe() int32 {
+	pdk.Output([]byte(pluginDescriptor))
+	return 0
+}
+
 //go:wasmexport validate
 func validate() int32 {
 	pdk.OutputString(fixtureOutput)
