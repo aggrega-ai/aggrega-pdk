@@ -9,4 +9,5 @@ declare module "extism:host" {
 
 declare module "main" {
   export function validate(): I32;
+  export function describe(): I32;
 }

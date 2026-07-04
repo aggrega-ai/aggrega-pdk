@@ -84,9 +84,10 @@ The PDK and its fixture builds need three external tools beyond Node
 The fixture `build.sh` scripts run a precondition check and fail fast
 with install pointers if any of the three are missing.
 
-The umbrella's `scripts/setup-workspace.sh` should grow `extism-js` +
-binaryen install steps; until that lands, install manually per the
-pointers in the build.sh diagnostics.
+The umbrella's `scripts/setup-workspace.sh` provisions `extism-js`,
+binaryen, and Node, so a workspace set up through that script has the
+fixture-build toolchain ready. For standalone checkouts, install the
+tools manually per the pointers in the build.sh diagnostics.
 
 ## Standalone reuse
 

@@ -12,4 +12,5 @@ declare module "extism:host" {
 
 declare module "main" {
   export function mutate(): I32;
+  export function describe(): I32;
 }
