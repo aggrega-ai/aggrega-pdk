@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"strings"
 
 	pdk "github.com/extism/go-pdk"
 
@@ -43,6 +44,17 @@ const fixtureLabelValue = "mutator-go"
 // mutator plugin whose mutate export the host validates before dispatch.
 // The host reads this once at load through the shared describe() gate.
 const pluginDescriptor = `{"abi_version":"v1alpha1","plugin_type":"mutator","exports":[{"name":"mutate"}],"metadata":{"author":"aggrega","license":"Apache-2.0"}}`
+
+// escapePointerToken escapes a JSON Pointer reference token per RFC 6901:
+// "~" becomes "~0" and "/" becomes "~1". The order matters — "~" is
+// escaped first so a "/" rewritten to "~1" is not re-escaped. The label
+// key carries a "/", so escaping is required for the emitted patch path
+// to address a single label entry rather than a non-existent nested path.
+func escapePointerToken(tok string) string {
+	tok = strings.ReplaceAll(tok, "~", "~0")
+	tok = strings.ReplaceAll(tok, "/", "~1")
+	return tok
+}
 
 //go:wasmexport describe
 func describe() int32 {
@@ -73,8 +85,9 @@ func mutate() int32 {
 
 	patches := make([]json.RawMessage, 0, len(nodeIDs))
 	for _, nodeID := range nodeIDs {
-		patch := fmt.Sprintf(`[{"op":"add","path":"/nodes/%s/labels/%s","value":%q}]`,
-			nodeID, fixtureLabelKey, fixtureLabelValue)
+		path := fmt.Sprintf("/nodes/%s/labels/%s",
+			escapePointerToken(nodeID), escapePointerToken(fixtureLabelKey))
+		patch := fmt.Sprintf(`[{"op":"add","path":%q,"value":%q}]`, path, fixtureLabelValue)
 		patches = append(patches, json.RawMessage(patch))
 	}
 

@@ -28,6 +28,26 @@ const FIXTURE_LABEL_KEY: &str = "fixture.aggrega-pdk/touched";
 /// outputs.
 const FIXTURE_LABEL_VALUE: &str = "mutator-rust";
 
+/// The static `describe()` self-report: a v1alpha1 `mutator` plugin
+/// whose `mutate` export the host validates before dispatch.
+const PLUGIN_DESCRIPTOR: &str = r#"{"abi_version":"v1alpha1","plugin_type":"mutator","exports":[{"name":"mutate"}],"metadata":{"author":"aggrega","license":"Apache-2.0"}}"#;
+
+/// Escapes a JSON Pointer reference token per RFC 6901: `~` becomes `~0`
+/// and `/` becomes `~1`. The order matters — `~` is escaped first so a
+/// `/` rewritten to `~1` is not re-escaped. The label key carries a `/`,
+/// so escaping is required for the emitted patch path to address a single
+/// label entry rather than a non-existent nested path.
+fn escape_pointer_token(tok: &str) -> String {
+    tok.replace('~', "~0").replace('/', "~1")
+}
+
+/// The host calls `describe()` once at load to read the plugin's static
+/// self-report before dispatching `mutate`.
+#[plugin_fn]
+pub fn describe() -> FnResult<String> {
+    Ok(PLUGIN_DESCRIPTOR.to_string())
+}
+
 #[plugin_fn]
 pub fn mutate(input: String) -> FnResult<String> {
     let parsed: MutatorInput = serde_json::from_str(&input)?;
@@ -47,7 +67,11 @@ pub fn mutate(input: String) -> FnResult<String> {
         .map(|node_id| {
             let doc = json!([{
                 "op": "add",
-                "path": format!("/nodes/{}/labels/{}", node_id, FIXTURE_LABEL_KEY),
+                "path": format!(
+                    "/nodes/{}/labels/{}",
+                    escape_pointer_token(node_id),
+                    escape_pointer_token(FIXTURE_LABEL_KEY)
+                ),
                 "value": FIXTURE_LABEL_VALUE,
             }]);
             serde_json::value::to_raw_value(&doc).expect("encode patch")
@@ -56,4 +80,28 @@ pub fn mutate(input: String) -> FnResult<String> {
 
     let out = MutatorOutput { patches };
     Ok(serde_json::to_string(&out)?)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::escape_pointer_token;
+
+    #[test]
+    fn escapes_slash_to_tilde_one() {
+        assert_eq!(
+            escape_pointer_token("fixture.aggrega-pdk/touched"),
+            "fixture.aggrega-pdk~1touched"
+        );
+    }
+
+    #[test]
+    fn escapes_tilde_to_tilde_zero() {
+        assert_eq!(escape_pointer_token("a~b"), "a~0b");
+    }
+
+    #[test]
+    fn escapes_tilde_before_slash() {
+        // "~" is escaped first, so a "/" rewritten to "~1" is not re-escaped.
+        assert_eq!(escape_pointer_token("~/"), "~0~1");
+    }
 }

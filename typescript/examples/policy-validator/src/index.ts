@@ -20,6 +20,17 @@ interface PolicyValidatorOutput {
   results: PolicyResult[];
 }
 
+// The static describe() self-report: a v1alpha1 policy-validator plugin
+// whose validate export the host validates before dispatch.
+const PLUGIN_DESCRIPTOR =
+  '{"abi_version":"v1alpha1","plugin_type":"policy-validator","exports":[{"name":"validate"}],"metadata":{"author":"aggrega","license":"Apache-2.0"}}';
+
+// The host calls describe() once at load to read the plugin's static
+// self-report before dispatching validate.
+function describe(): void {
+  Host.outputString(PLUGIN_DESCRIPTOR);
+}
+
 function validate(): void {
   // Read input for runtime parity with the other fixtures' shape;
   // the policy-validator fixture's contract is constant output, so
@@ -35,4 +46,4 @@ function validate(): void {
   Host.outputString(JSON.stringify(out));
 }
 
-module.exports = { validate };
+module.exports = { validate, describe };

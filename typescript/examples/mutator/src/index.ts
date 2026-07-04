@@ -46,6 +46,26 @@ interface MutatorOutput {
 const FIXTURE_LABEL_KEY = "fixture.aggrega-pdk/touched";
 const FIXTURE_LABEL_VALUE = "mutator-typescript";
 
+// The static describe() self-report: a v1alpha1 mutator plugin whose
+// mutate export the host validates before dispatch.
+const PLUGIN_DESCRIPTOR =
+  '{"abi_version":"v1alpha1","plugin_type":"mutator","exports":[{"name":"mutate"}],"metadata":{"author":"aggrega","license":"Apache-2.0"}}';
+
+// Escapes a JSON Pointer reference token per RFC 6901: "~" becomes "~0"
+// and "/" becomes "~1". The order matters — "~" is escaped first so a
+// "/" rewritten to "~1" is not re-escaped. The label key carries a "/",
+// so escaping is required for the emitted patch path to address a single
+// label entry rather than a non-existent nested path.
+function escapePointerToken(tok: string): string {
+  return tok.replace(/~/g, "~0").replace(/\//g, "~1");
+}
+
+// The host calls describe() once at load to read the plugin's static
+// self-report before dispatching mutate.
+function describe(): void {
+  Host.outputString(PLUGIN_DESCRIPTOR);
+}
+
 function mutate(): void {
   const input: MutatorInput = JSON.parse(Host.inputString());
 
@@ -58,7 +78,9 @@ function mutate(): void {
   const patches: JsonPatchOp[][] = nodeIds.map((nodeId) => [
     {
       op: "add",
-      path: `/nodes/${nodeId}/labels/${FIXTURE_LABEL_KEY}`,
+      path: `/nodes/${escapePointerToken(nodeId)}/labels/${escapePointerToken(
+        FIXTURE_LABEL_KEY,
+      )}`,
       value: FIXTURE_LABEL_VALUE,
     },
   ]);
@@ -67,4 +89,4 @@ function mutate(): void {
   Host.outputString(JSON.stringify(out));
 }
 
-module.exports = { mutate };
+module.exports = { mutate, describe };
