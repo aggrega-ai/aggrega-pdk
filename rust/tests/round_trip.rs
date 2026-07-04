@@ -129,7 +129,6 @@ fn mutator_input_round_trip_json_schema() {
 
     let fixture = MutatorInput {
         compilation_context: CompilationContext {
-            release_destination: "aws-prod/eks-main".to_string(),
             release_name: "payments".to_string(),
             environment: "prod".to_string(),
         },

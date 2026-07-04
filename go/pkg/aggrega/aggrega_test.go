@@ -113,9 +113,8 @@ func TestMutatorInput_RoundTripJSONSchema(t *testing.T) {
 
 	fixture := aggrega.MutatorInput{
 		CompilationContext: aggrega.CompilationContext{
-			ReleaseDestination: "aws-prod/eks-main",
-			ReleaseName:        "payments",
-			Environment:        "prod",
+			ReleaseName: "payments",
+			Environment: "prod",
 		},
 		Graph: aggrega.MutatorGraph{
 			Nodes: map[string]aggrega.MutatorNode{

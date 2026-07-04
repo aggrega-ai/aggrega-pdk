@@ -81,7 +81,6 @@ test("MutatorInput round-trips through wasm-mutator schema", () => {
 
   const fixture: MutatorInput = {
     compilation_context: {
-      release_destination: "aws-prod/eks-main",
       release_name: "payments",
       environment: "prod",
     },

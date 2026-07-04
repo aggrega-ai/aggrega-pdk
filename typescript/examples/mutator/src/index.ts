@@ -25,7 +25,6 @@ interface MutatorNode {
 
 interface MutatorInput {
   compilation_context: {
-    release_destination: string;
     release_name: string;
     environment: string;
   };
