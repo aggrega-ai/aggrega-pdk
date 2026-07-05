@@ -44,5 +44,6 @@ members = [
     "examples/frp-step-own-patch-compose",
     "examples/mutator",
     "examples/policy-validator",
+    "examples/render-node",
     "examples/wasi-probe",
 ]
