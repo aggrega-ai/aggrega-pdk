@@ -71,6 +71,12 @@ type (
 	SourceProjection       = abi.SourceProjection
 	WorkloadProjection     = abi.WorkloadProjection
 	SourceFile             = abi.SourceFile
+	SourceListing          = abi.SourceListing
+	SourceEntry            = abi.SourceEntry
+	SourcePackRequest      = abi.SourcePackRequest
+	SourcePackResponse     = abi.SourcePackResponse
+	SourceFileRequest      = abi.SourceFileRequest
+	SourceFileResponse     = abi.SourceFileResponse
 	RenderedFile           = abi.RenderedFile
 	AssembleBoundaryInput  = abi.AssembleBoundaryInput
 	AssembleBoundaryOutput = abi.AssembleBoundaryOutput

@@ -90,12 +90,116 @@ func FetchExternalInput(url string) ([]byte, error) {
 	return payload, nil
 }
 
+// PackSource asks the Aggrega host to pack a selection from the acquired
+// source and returns the packed files. Op names the shape of the selection
+// ("file", "dir", or "tree") and path names it relative to the source root
+// (the empty string names the root itself). The host resolves the selection
+// under the source root, refusing any path that escapes above it, and returns
+// the packed bytes as a source projection.
+//
+// This is the guest side of the host-listing source model: the host hands the
+// guest a name-only listing, the guest applies its own resolution logic, and
+// this call is the guest's request that the host read and pack the chosen
+// selection — the only point at which source bytes cross into the guest.
+//
+// Failure is in-band: the host returns an error envelope rather than trapping,
+// and this wrapper surfaces it as the returned error. A guest should treat a
+// pack failure as a render failure to report, not a condition to mask.
+//
+// This is the wasip1 build of the binding; the off-Wasm build at
+// host_funcs_stub.go returns a not-available error.
+func PackSource(op, path string) (*SourceProjection, error) {
+	reqBytes, err := SourcePackRequest{Op: op, Path: path}.MarshalJSON()
+	if err != nil {
+		return nil, fmt.Errorf("aggrega_pack_source: encode request: %w", err)
+	}
+	mem := pdk.AllocateString(string(reqBytes))
+	defer mem.Free()
+	offset := aggregaPackSource(uint64(mem.Offset()))
+	if offset == 0 {
+		return nil, errors.New("aggrega_pack_source: host returned no envelope")
+	}
+	respMem := pdk.FindMemory(offset)
+	respBytes := respMem.ReadBytes()
+	respMem.Free()
+
+	var resp SourcePackResponse
+	if err := resp.UnmarshalJSON(respBytes); err != nil {
+		return nil, fmt.Errorf("aggrega_pack_source: decode response: %w", err)
+	}
+	if resp.Error != "" {
+		return nil, errors.New(resp.Error)
+	}
+	if resp.SourceProjection == nil {
+		return nil, errors.New("aggrega_pack_source: response carries neither a source projection nor an error")
+	}
+	return resp.SourceProjection, nil
+}
+
+// ReadSourceFile asks the Aggrega host to read a single file from the acquired
+// source and returns its bytes. Path names the file relative to the source root.
+// The host resolves the path under the source root, refusing any path that
+// escapes above it, and returns the file's raw bytes.
+//
+// It is the content-based-selection primitive: a guest whose resolution logic
+// must inspect a file's content before choosing what to pack reads that file
+// through this call, then issues its PackSource request. No production guest
+// uses it yet — the production guests resolve from the name-only listing alone —
+// so it is exercised by the test-fixture guest rather than a shipped one.
+//
+// Failure is in-band, matching PackSource: the host returns an error envelope
+// rather than trapping. This is the wasip1 build; the off-Wasm build at
+// host_funcs_stub.go returns a not-available error.
+func ReadSourceFile(path string) ([]byte, error) {
+	reqBytes, err := SourceFileRequest{Path: path}.MarshalJSON()
+	if err != nil {
+		return nil, fmt.Errorf("aggrega_read_source_file: encode request: %w", err)
+	}
+	mem := pdk.AllocateString(string(reqBytes))
+	defer mem.Free()
+	offset := aggregaReadSourceFile(uint64(mem.Offset()))
+	if offset == 0 {
+		return nil, errors.New("aggrega_read_source_file: host returned no envelope")
+	}
+	respMem := pdk.FindMemory(offset)
+	respBytes := respMem.ReadBytes()
+	respMem.Free()
+
+	var resp SourceFileResponse
+	if err := resp.UnmarshalJSON(respBytes); err != nil {
+		return nil, fmt.Errorf("aggrega_read_source_file: decode response: %w", err)
+	}
+	if resp.Error != "" {
+		return nil, errors.New(resp.Error)
+	}
+	return resp.Content, nil
+}
+
 // aggregaLog is the host-imported binding for the Aggrega log host
 // function. Signature matches the host-side declaration at
 // aggrega-cli/internal/wasm/hostfuncs.go: (level i64, message_ptr i64).
 //
 //go:wasmimport extism:host/user aggrega_log
 func aggregaLog(level uint64, messagePtr uint64)
+
+// aggregaPackSource is the host-imported binding for the Aggrega pack-source
+// host function. Signature: (request_ptr i64) -> envelope_ptr i64; the argument
+// addresses a SourcePackRequest JSON document in plugin memory and the returned
+// offset addresses a SourcePackResponse JSON envelope carrying either a packed
+// source projection or an error. Offset 0 means no envelope was delivered.
+//
+//go:wasmimport extism:host/user aggrega_pack_source
+func aggregaPackSource(requestPtr uint64) uint64
+
+// aggregaReadSourceFile is the host-imported binding for the Aggrega
+// read-source-file host function. Signature: (request_ptr i64) -> envelope_ptr
+// i64; the argument addresses a SourceFileRequest JSON document in plugin memory
+// and the returned offset addresses a SourceFileResponse JSON envelope carrying
+// either the file's base64 content or an error. Offset 0 means no envelope was
+// delivered.
+//
+//go:wasmimport extism:host/user aggrega_read_source_file
+func aggregaReadSourceFile(requestPtr uint64) uint64
 
 // aggregaEmitWarning is the host-imported binding for the Aggrega
 // warning-emit host function. Signature: (code_ptr i64, message_ptr i64,
