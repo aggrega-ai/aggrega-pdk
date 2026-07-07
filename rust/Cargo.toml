@@ -45,5 +45,6 @@ members = [
     "examples/mutator",
     "examples/policy-validator",
     "examples/render-node",
+    "examples/render-node-nondeterministic",
     "examples/wasi-probe",
 ]
