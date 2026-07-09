@@ -84,3 +84,19 @@ type (
 	RenderEdge             = abi.RenderEdge
 	SubChart               = abi.SubChart
 )
+
+// Cross-boundary edge linking. A guest that wires uses edges whose ends
+// assemble into different dispatch groups implements the link_publish and
+// link_resolve exports, reading the host-assembled LinkEdge and returning the
+// producer-side and consumer-side artifact wiring as LinkPatch lists. The patch
+// ops carry the shared pipeline patch-operation shape opaquely, so a guest
+// authors each op's raw JSON directly rather than through a typed op value.
+type (
+	LinkEndpoint      = abi.LinkEndpoint
+	LinkEdge          = abi.LinkEdge
+	LinkPatch         = abi.LinkPatch
+	LinkPublishInput  = abi.LinkPublishInput
+	LinkPublishOutput = abi.LinkPublishOutput
+	LinkResolveInput  = abi.LinkResolveInput
+	LinkResolveOutput = abi.LinkResolveOutput
+)

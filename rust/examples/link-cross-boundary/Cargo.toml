@@ -1,0 +1,16 @@
+[package]
+name = "link-cross-boundary-rust"
+version = "0.1.0-alpha.1"
+edition = "2021"
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+path = "src/lib.rs"
+
+[dependencies]
+aggrega-pdk-rust = { path = "../.." }
+extism-pdk = "1.4"
+# raw_value carries each structural patch operation as opaque JSON the guest
+# authors and the host applies verbatim.
+serde_json = { version = "1", features = ["raw_value"] }
