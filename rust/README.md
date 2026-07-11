@@ -33,6 +33,35 @@ host's integration tests consume.
 See `examples/mutator/` and `examples/policy-validator/` for working
 plugin sources.
 
+## Build provenance
+
+A plugin can stamp its version and commit into its `describe()`
+descriptor. Inject the values at build time through the `AGGREGA_VERSION`
+and `AGGREGA_COMMIT` compile-time environment variables:
+
+```sh
+AGGREGA_VERSION=1.2.3 AGGREGA_COMMIT=abc1234 \
+  cargo build --release --target wasm32-wasip1
+```
+
+Compose the descriptor by appending `provenance_metadata!()` inside the
+`"metadata"` object, after the fixed members:
+
+```rust
+use aggrega_pdk_rust::provenance_metadata;
+let head = r#"{"abi_version":"v1alpha1","metadata":{"author":"me""#;
+let descriptor = format!("{head}{}}}}}", provenance_metadata!());
+```
+
+`provenance_metadata!` is a macro, not a function, on purpose. It reads
+the variables via `option_env!`, which is evaluated where the macro
+expands — the plugin's own crate — so the values track *your* build. A
+plain PDK library function would instead capture the environment at the
+PDK's own (cached) compile and report a stale value. A plain build
+(neither variable set) leaves the provenance empty, and the fragment
+contributes nothing — the unstamped descriptor is byte-identical to the
+stamped one minus the `version` / `commit` members.
+
 ## Layout
 
 ```text

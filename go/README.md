@@ -31,6 +31,31 @@ ahead-of-time-purity firewall the developer guide describes in full.
 See `examples/mutator/` and `examples/policy-validator/` for working
 plugin sources.
 
+## Build provenance
+
+A plugin can stamp its version and commit into its `describe()`
+descriptor. Inject the values at build time with the Go linker,
+targeting the PDK's package-qualified symbols:
+
+```sh
+GOOS=wasip1 GOARCH=wasm go build -buildmode=c-shared -o plugin.wasm \
+  -ldflags "-X github.com/aggrega-ai/aggrega-pdk-go/pkg/aggrega.Version=1.2.3 \
+            -X github.com/aggrega-ai/aggrega-pdk-go/pkg/aggrega.Commit=abc1234" \
+  ./
+```
+
+Compose the descriptor by appending `aggrega.ProvenanceMetadata()` inside
+the `"metadata"` object, after the fixed members:
+
+```go
+head := `{"abi_version":"v1alpha1",...,"metadata":{"author":"me"`
+descriptor := head + aggrega.ProvenanceMetadata() + `}}`
+```
+
+A plain build (no `-ldflags`) leaves the provenance empty, and the
+fragment contributes nothing — the unstamped descriptor is byte-identical
+to the stamped one minus the `version` / `commit` members.
+
 ## Layout
 
 ```text

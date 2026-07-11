@@ -107,6 +107,33 @@ func TestAPIVersion_v1alpha1ContractFloor(t *testing.T) {
 	}
 }
 
+func TestProvenanceMetadata(t *testing.T) {
+	// Version and Commit are package-level vars mutated here, so this test
+	// does not run in parallel with the others that read the descriptor surface.
+	origVersion, origCommit := aggrega.Version, aggrega.Commit
+	t.Cleanup(func() { aggrega.Version, aggrega.Commit = origVersion, origCommit })
+
+	cases := []struct {
+		name    string
+		version string
+		commit  string
+		want    string
+	}{
+		{name: "unstamped omits both", version: "", commit: "", want: ""},
+		{name: "version only", version: "1.2.3", commit: "", want: `,"version":"1.2.3"`},
+		{name: "commit only", version: "", commit: "abc1234", want: `,"commit":"abc1234"`},
+		{name: "both stamped", version: "1.2.3", commit: "abc1234", want: `,"version":"1.2.3","commit":"abc1234"`},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			aggrega.Version, aggrega.Commit = tc.version, tc.commit
+			if got := aggrega.ProvenanceMetadata(); got != tc.want {
+				t.Errorf("ProvenanceMetadata() = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestCLIRunInput_RoundTripJSONSchema(t *testing.T) {
 	t.Parallel()
 	schema := loadSchema(t, "wasm-cli-v1alpha1.schema.json")

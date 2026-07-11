@@ -17,7 +17,7 @@
  */
 
 export * from "@aggrega-ai/aggrega-abi";
-export { API_VERSION } from "./version.ts";
+export { API_VERSION, provenanceMetadata } from "./version.ts";
 export {
   log,
   emitWarning,

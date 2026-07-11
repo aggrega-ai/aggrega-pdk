@@ -48,6 +48,32 @@ functions the plugin imports (under `declare module "extism:host"`).
 See `examples/mutator/` and `examples/policy-validator/` for working
 plugin sources with build scripts.
 
+## Build provenance
+
+A plugin can stamp its version and commit into its `describe()`
+descriptor. Inject the values at the esbuild bundle step with `--define`:
+
+```sh
+npx esbuild src/index.ts --bundle --format=cjs --target=es2022 \
+  --platform=neutral --outfile=dist/plugin.js \
+  --define:AGGREGA_PLUGIN_VERSION='"1.2.3"' \
+  --define:AGGREGA_PLUGIN_COMMIT='"abc1234"'
+```
+
+Compose the descriptor by appending `provenanceMetadata()` inside the
+`"metadata"` object, after the fixed members:
+
+```ts
+import { provenanceMetadata } from "@aggrega-ai/aggrega-pdk-typescript";
+const head = `{"abi_version":"v1alpha1","metadata":{"author":"me"`;
+const descriptor = `${head}${provenanceMetadata()}}}`;
+```
+
+`provenanceMetadata()` reads the injected constants behind a `typeof`
+guard, so a plain bundle (no `--define`) leaves the provenance empty and
+yields empty rather than a `ReferenceError` — the unstamped descriptor is
+byte-identical to the stamped one minus the `version` / `commit` members.
+
 ## Layout
 
 ```text
