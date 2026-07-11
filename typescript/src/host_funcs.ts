@@ -17,13 +17,22 @@
  * module.
  */
 
-import { decodeCLIRunInput } from "@aggrega-ai/aggrega-abi";
+import {
+  decodeCLIRunInput,
+  decodeSourceFileResponse,
+  decodeSourcePackResponse,
+  encodeSourceFileRequest,
+  encodeSourcePackRequest,
+  type SourceProjection,
+} from "@aggrega-ai/aggrega-abi";
 
 declare module "extism:host" {
   interface user {
     aggrega_log(level: I64, message_ptr: I64): void;
     aggrega_emit_warning(code_ptr: I64, message_ptr: I64, path_ptr: I64): void;
     aggrega_fetch_external_input(url_ptr: I64): I64;
+    aggrega_pack_source(request_ptr: I64): I64;
+    aggrega_read_source_file(request_ptr: I64): I64;
     aggrega_cli_write_stdout(ptr: I64, len: I64): void;
     aggrega_cli_write_stderr(ptr: I64, len: I64): void;
   }
@@ -97,6 +106,71 @@ export function fetchExternalInput(url: string): ArrayBuffer {
     );
   }
   return Host.base64ToArrayBuffer(envelope.content);
+}
+
+/**
+ * Ask the Aggrega host to pack a selection from the acquired source and
+ * return the packed files. `op` names the shape of the selection ("file",
+ * "dir", or "tree") and `path` names it relative to the source root (the
+ * empty string names the root itself). The host resolves the selection under
+ * the source root, refusing any path that escapes above it, and returns the
+ * packed bytes as a source projection.
+ *
+ * This is the guest side of the host-listing source model: the host hands the
+ * guest a name-only listing, the guest applies its own resolution logic, and
+ * this call is the guest's request that the host read and pack the chosen
+ * selection — the only point at which source bytes cross into the guest.
+ *
+ * Failure is in-band: the host returns a JSON envelope carrying either a
+ * packed source projection or an error message; this wrapper throws an Error
+ * carrying that message. Plugin code should treat a pack failure as a render
+ * failure to report, not a condition to mask.
+ */
+export function packSource(op: string, path: string): SourceProjection {
+  const { aggrega_pack_source } = Host.getFunctions();
+  const reqMem = Memory.fromString(encodeSourcePackRequest({ op, path }));
+  const offset = aggrega_pack_source(reqMem.offset);
+  if (offset === BigInt(0)) {
+    throw new Error("aggrega_pack_source: host returned no envelope");
+  }
+  const response = decodeSourcePackResponse(Memory.find(offset).readString());
+  if (response.error) {
+    throw new Error(response.error);
+  }
+  if (response.source_projection === undefined) {
+    throw new Error(
+      "aggrega_pack_source: response carries neither a source projection nor an error",
+    );
+  }
+  return response.source_projection;
+}
+
+/**
+ * Ask the Aggrega host to read a single file from the acquired source and
+ * return its bytes. `path` names the file relative to the source root. The
+ * host resolves the path under the source root, refusing any path that escapes
+ * above it, and returns the file's raw bytes.
+ *
+ * It is the content-based-selection primitive: a guest whose resolution logic
+ * must inspect a file's content before choosing what to pack reads that file
+ * through this call, then issues its `packSource` request.
+ *
+ * Failure is in-band, matching `packSource`: the host returns a JSON envelope
+ * carrying either the file's base64 content or an error message; this wrapper
+ * throws an Error carrying that message.
+ */
+export function readSourceFile(path: string): ArrayBuffer {
+  const { aggrega_read_source_file } = Host.getFunctions();
+  const reqMem = Memory.fromString(encodeSourceFileRequest({ path }));
+  const offset = aggrega_read_source_file(reqMem.offset);
+  if (offset === BigInt(0)) {
+    throw new Error("aggrega_read_source_file: host returned no envelope");
+  }
+  const response = decodeSourceFileResponse(Memory.find(offset).readString());
+  if (response.error) {
+    throw new Error(response.error);
+  }
+  return Host.base64ToArrayBuffer(response.content ?? "");
 }
 
 /**

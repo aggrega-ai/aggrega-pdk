@@ -13,7 +13,10 @@
 //! calls `log(level, "message")` directly; the wrapper handles the
 //! host-call invocation.
 
-use aggrega_abi::CLIRunInput;
+use aggrega_abi::{
+    CLIRunInput, SourceFileRequest, SourceFileResponse, SourcePackRequest, SourcePackResponse,
+    SourceProjection,
+};
 use base64::Engine as _;
 use extism_pdk::{host_fn, warn, Error, Memory};
 
@@ -22,6 +25,8 @@ extern "ExtismHost" {
     fn aggrega_log(level: u64, message: String);
     fn aggrega_emit_warning(code: String, message: String, path: String);
     fn aggrega_fetch_external_input(url: String) -> String;
+    fn aggrega_pack_source(request: String) -> String;
+    fn aggrega_read_source_file(request: String) -> String;
 }
 
 // The streaming CLI emitters take an explicit (pointer, length) pair, so they
@@ -108,6 +113,69 @@ pub fn fetch_external_input(url: &str) -> Result<Vec<u8>, Error> {
             "aggrega_fetch_external_input: envelope carries neither content nor error",
         )),
     }
+}
+
+/// Ask the Aggrega host to pack a selection from the acquired source and
+/// return the packed files. `op` names the shape of the selection ("file",
+/// "dir", or "tree") and `path` names it relative to the source root (the
+/// empty string names the root itself). The host resolves the selection under
+/// the source root, refusing any path that escapes above it, and returns the
+/// packed bytes as a source projection.
+///
+/// This is the guest side of the host-listing source model: the host hands the
+/// guest a name-only listing, the guest applies its own resolution logic, and
+/// this call is the guest's request that the host read and pack the chosen
+/// selection — the only point at which source bytes cross into the guest.
+///
+/// Failure is in-band: the host returns an error envelope rather than trapping,
+/// and this wrapper surfaces it as the returned error. Plugin code should treat
+/// a pack failure as a render failure to report, not a condition to mask.
+pub fn pack_source(op: &str, path: &str) -> Result<SourceProjection, Error> {
+    let request = serde_json::to_string(&SourcePackRequest {
+        op: op.to_string(),
+        path: path.to_string(),
+    })
+    .map_err(|e| Error::msg(format!("aggrega_pack_source: encode request: {e}")))?;
+    let raw = unsafe { aggrega_pack_source(request)? };
+    let response: SourcePackResponse = serde_json::from_str(&raw)
+        .map_err(|e| Error::msg(format!("aggrega_pack_source: decode response: {e}")))?;
+    if !response.error.is_empty() {
+        return Err(Error::msg(response.error));
+    }
+    match response.source_projection {
+        Some(projection) => Ok(*projection),
+        None => Err(Error::msg(
+            "aggrega_pack_source: response carries neither a source projection nor an error",
+        )),
+    }
+}
+
+/// Ask the Aggrega host to read a single file from the acquired source and
+/// return its bytes. `path` names the file relative to the source root. The
+/// host resolves the path under the source root, refusing any path that escapes
+/// above it, and returns the file's raw bytes.
+///
+/// It is the content-based-selection primitive: a guest whose resolution logic
+/// must inspect a file's content before choosing what to pack reads that file
+/// through this call, then issues its [`pack_source`] request.
+///
+/// Failure is in-band, matching [`pack_source`]: the host returns an error
+/// envelope rather than trapping, and this wrapper surfaces it as the returned
+/// error.
+pub fn read_source_file(path: &str) -> Result<Vec<u8>, Error> {
+    let request = serde_json::to_string(&SourceFileRequest {
+        path: path.to_string(),
+    })
+    .map_err(|e| Error::msg(format!("aggrega_read_source_file: encode request: {e}")))?;
+    let raw = unsafe { aggrega_read_source_file(request)? };
+    let response: SourceFileResponse = serde_json::from_str(&raw)
+        .map_err(|e| Error::msg(format!("aggrega_read_source_file: decode response: {e}")))?;
+    if !response.error.is_empty() {
+        return Err(Error::msg(response.error));
+    }
+    base64::engine::general_purpose::STANDARD
+        .decode(response.content.as_bytes())
+        .map_err(|e| Error::msg(format!("aggrega_read_source_file: decode content: {e}")))
 }
 
 /// Stream a chunk of bytes to the Aggrega host's standard-output stream for the

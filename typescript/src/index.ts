@@ -22,6 +22,8 @@ export {
   log,
   emitWarning,
   fetchExternalInput,
+  packSource,
+  readSourceFile,
   writeStdout,
   writeStderr,
   cliArgs,

@@ -23,7 +23,10 @@ pub mod host_funcs;
 pub mod types;
 pub mod version;
 
-pub use host_funcs::{cli_args, emit_warning, fetch_external_input, log, write_stderr, write_stdout};
+pub use host_funcs::{
+    cli_args, emit_warning, fetch_external_input, log, pack_source, read_source_file, write_stderr,
+    write_stdout,
+};
 
 // Every socket type is generated from the canonical schemas into the portable
 // aggrega-abi crate and re-exported here, so plugin authors keep the flat
@@ -40,7 +43,8 @@ pub use aggrega_abi::{
     MutatorInput, MutatorNode, MutatorOutput, NarrowingExemption, NodeProvenance, Policies,
     PolicyResult,
     PolicyValidatorInput, PolicyValidatorOutput, PrecalculatedPath, RenderEdge, RenderNodeInput,
-    RenderNodeOutput, RenderedFile, RenderedNode, SourceFile, SourceProjection, SubChart,
-    WorkloadProjection,
+    RenderNodeOutput, RenderedFile, RenderedNode, SourceEntry, SourceFile, SourceFileRequest,
+    SourceFileResponse, SourceListing, SourcePackRequest, SourcePackResponse, SourceProjection,
+    SubChart, WorkloadProjection,
 };
 pub use version::API_VERSION;
