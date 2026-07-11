@@ -49,7 +49,7 @@ const FIXTURE_LABEL_VALUE = "mutator-typescript";
 // The static describe() self-report: a v1alpha1 mutator plugin whose
 // mutate export the host validates before dispatch.
 const PLUGIN_DESCRIPTOR =
-  '{"abi_version":"v1alpha1","plugin_type":"mutator","exports":[{"name":"mutate"}],"metadata":{"author":"aggrega","license":"Apache-2.0"}}';
+  '{"abi_version":"v1alpha1","plugin_type":"mutator","description":"Append a fixed label to every node in the mutation graph.","exports":[{"name":"mutate"}],"metadata":{"author":"aggrega","license":"Apache-2.0"}}';
 
 // Escapes a JSON Pointer reference token per RFC 6901: "~" becomes "~0"
 // and "/" becomes "~1". The order matters — "~" is escaped first so a

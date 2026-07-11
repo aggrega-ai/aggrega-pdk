@@ -31,7 +31,7 @@ const CONTENT_PREFIX: &str = "rendered-node:";
 
 /// The static `describe()` self-report: a v1alpha1 `provider` plugin whose
 /// `render_node` export the host validates before dispatch.
-const PLUGIN_DESCRIPTOR: &str = r#"{"abi_version":"v1alpha1","plugin_type":"provider","compatible_providers":["parity"],"exports":[{"name":"render_node","input_pattern":"b","stability":"experimental"}],"metadata":{"author":"aggrega","license":"Apache-2.0"}}"#;
+const PLUGIN_DESCRIPTOR: &str = r#"{"abi_version":"v1alpha1","plugin_type":"provider","description":"Render one IR node to a single output file whose bytes are the node id under a fixed prefix.","compatible_providers":["parity"],"exports":[{"name":"render_node","input_pattern":"b","stability":"experimental"}],"metadata":{"author":"aggrega","license":"Apache-2.0"}}"#;
 
 /// The host calls `describe()` once at load to read the plugin's static
 /// self-report before dispatching `render_node`.

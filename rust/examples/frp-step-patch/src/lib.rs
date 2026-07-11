@@ -32,7 +32,7 @@ use std::collections::BTreeMap;
 /// tested-compatible with the helm and helm-chart providers (both render
 /// workloads carrying a pod template, in flat-document and chart-source form
 /// respectively).
-const PLUGIN_DESCRIPTOR: &str = r#"{"abi_version":"v1alpha1","plugin_type":"frp_step","compatible_providers":["helm","helm-chart"],"exports":[{"name":"step","operates":"patch","scope":"own","selector":"workloads carrying a pod template"}],"metadata":{"author":"aggrega","license":"Apache-2.0"}}"#;
+const PLUGIN_DESCRIPTOR: &str = r#"{"abi_version":"v1alpha1","plugin_type":"frp_step","description":"Patch a selected workload and emit companion documents in one feature-recipe pipeline step.","compatible_providers":["helm","helm-chart"],"exports":[{"name":"step","operates":"patch","scope":"own","selector":"workloads carrying a pod template"}],"metadata":{"author":"aggrega","license":"Apache-2.0"}}"#;
 
 /// One addressable unit the host hands the guest: the codec's hybrid view of
 /// one piece of output. A structured unit carries a `tree` (the

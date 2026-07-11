@@ -13,7 +13,7 @@ use extism_pdk::{plugin_fn, FnResult};
 
 /// The static `describe()` self-report: a v1alpha1 `policy-validator`
 /// plugin whose `validate` export the host validates before dispatch.
-const PLUGIN_DESCRIPTOR: &str = r#"{"abi_version":"v1alpha1","plugin_type":"policy-validator","exports":[{"name":"validate"}],"metadata":{"author":"aggrega","license":"Apache-2.0"}}"#;
+const PLUGIN_DESCRIPTOR: &str = r#"{"abi_version":"v1alpha1","plugin_type":"policy-validator","description":"Report a deterministic pass and fail policy result over the build graph.","exports":[{"name":"validate"}],"metadata":{"author":"aggrega","license":"Apache-2.0"}}"#;
 
 /// The host calls `describe()` once at load to read the plugin's static
 /// self-report before dispatching `validate`.
