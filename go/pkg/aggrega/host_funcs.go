@@ -175,12 +175,70 @@ func ReadSourceFile(path string) ([]byte, error) {
 	return resp.Content, nil
 }
 
+// WriteStdout streams a chunk of bytes to the Aggrega host's standard-output
+// stream for the running CLI command. The host copies the bytes out of guest
+// memory and writes them, incrementally, to the terminal's stdout — there is
+// no single output payload, so a guest calls WriteStdout as many times as it
+// needs while it runs. This binding is granted only when the guest runs as a
+// CLI plugin; a build-time load never binds it.
+//
+// This is the wasip1 build of the binding; the off-Wasm build at
+// host_funcs_stub.go provides a no-op.
+func WriteStdout(data []byte) {
+	mem := pdk.AllocateBytes(data)
+	defer mem.Free()
+	aggregaCLIWriteStdout(uint64(mem.Offset()), uint64(mem.Length()))
+}
+
+// WriteStderr streams a chunk of bytes to the Aggrega host's standard-error
+// stream for the running CLI command. It is the stderr sibling of WriteStdout
+// and carries the same runtime-only grant.
+//
+// This is the wasip1 build of the binding; the off-Wasm build at
+// host_funcs_stub.go provides a no-op.
+func WriteStderr(data []byte) {
+	mem := pdk.AllocateBytes(data)
+	defer mem.Free()
+	aggregaCLIWriteStderr(uint64(mem.Offset()), uint64(mem.Length()))
+}
+
+// CLIArgs reads the cli_run input payload the host hands a CLI plugin on each
+// invocation and returns the argument vector — the tokens that follow the
+// resolved subcommand name on the command line, in invocation order. The guest
+// parses these tokens as its own flags and positional arguments, exactly as a
+// standalone command-line program reads the arguments after its name.
+//
+// This is the wasip1 build of the binding; the off-Wasm build at
+// host_funcs_stub.go returns a not-available error.
+func CLIArgs() ([]string, error) {
+	var in CLIRunInput
+	if err := json.Unmarshal(pdk.Input(), &in); err != nil {
+		return nil, fmt.Errorf("aggrega_cli_run: decode CLIRunInput: %w", err)
+	}
+	return in.Args, nil
+}
+
 // aggregaLog is the host-imported binding for the Aggrega log host
 // function. Signature matches the host-side declaration at
 // aggrega-cli/internal/wasm/hostfuncs.go: (level i64, message_ptr i64).
 //
 //go:wasmimport extism:host/user aggrega_log
 func aggregaLog(level uint64, messagePtr uint64)
+
+// aggregaCLIWriteStdout is the host-imported binding for the CLI profile's
+// stdout streaming host function. Signature matches the host-side declaration:
+// (ptr i64, len i64); the host copies len bytes from guest memory at ptr and
+// writes them to the injected stdout stream.
+//
+//go:wasmimport extism:host/user aggrega_cli_write_stdout
+func aggregaCLIWriteStdout(ptr uint64, length uint64)
+
+// aggregaCLIWriteStderr is the host-imported binding for the CLI profile's
+// stderr streaming host function. Signature: (ptr i64, len i64), the stderr
+// sibling of aggregaCLIWriteStdout.
+//
+//go:wasmimport extism:host/user aggrega_cli_write_stderr
+func aggregaCLIWriteStderr(ptr uint64, length uint64)
 
 // aggregaPackSource is the host-imported binding for the Aggrega pack-source
 // host function. Signature: (request_ptr i64) -> envelope_ptr i64; the argument

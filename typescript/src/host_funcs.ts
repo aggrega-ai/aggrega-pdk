@@ -17,11 +17,15 @@
  * module.
  */
 
+import { decodeCLIRunInput } from "@aggrega-ai/aggrega-abi";
+
 declare module "extism:host" {
   interface user {
     aggrega_log(level: I64, message_ptr: I64): void;
     aggrega_emit_warning(code_ptr: I64, message_ptr: I64, path_ptr: I64): void;
     aggrega_fetch_external_input(url_ptr: I64): I64;
+    aggrega_cli_write_stdout(ptr: I64, len: I64): void;
+    aggrega_cli_write_stderr(ptr: I64, len: I64): void;
   }
 }
 
@@ -93,4 +97,41 @@ export function fetchExternalInput(url: string): ArrayBuffer {
     );
   }
   return Host.base64ToArrayBuffer(envelope.content);
+}
+
+/**
+ * Stream a chunk of bytes to the Aggrega host's standard-output stream for
+ * the running CLI command. The host copies the bytes out of guest memory and
+ * writes them, incrementally, to the terminal's stdout — there is no single
+ * output payload, so a plugin calls `writeStdout` as many times as it needs
+ * while it runs. This binding is granted only when the guest runs as a CLI
+ * plugin; a build-time load never binds it.
+ */
+export function writeStdout(data: ArrayBufferLike): void {
+  const { aggrega_cli_write_stdout } = Host.getFunctions();
+  const mem = Memory.fromBuffer(data);
+  aggrega_cli_write_stdout(mem.offset, mem.len);
+}
+
+/**
+ * Stream a chunk of bytes to the Aggrega host's standard-error stream for the
+ * running CLI command. It is the stderr sibling of `writeStdout` and carries
+ * the same runtime-only grant.
+ */
+export function writeStderr(data: ArrayBufferLike): void {
+  const { aggrega_cli_write_stderr } = Host.getFunctions();
+  const mem = Memory.fromBuffer(data);
+  aggrega_cli_write_stderr(mem.offset, mem.len);
+}
+
+/**
+ * Read the `cli_run` input payload the host hands a CLI plugin on each
+ * invocation and return the argument vector — the tokens that follow the
+ * resolved subcommand name on the command line, in invocation order. The
+ * plugin parses these tokens as its own flags and positional arguments,
+ * exactly as a standalone command-line program reads the arguments after its
+ * name.
+ */
+export function cliArgs(): string[] {
+  return decodeCLIRunInput(Host.inputString()).args;
 }

@@ -25,6 +25,28 @@ func EmitWarning(code, message, path string) {
 	_ = path
 }
 
+// WriteStdout is a no-op off Wasm. The wasip1 build at host_funcs.go declares
+// the //go:wasmimport binding that streams the bytes to the host's stdout for
+// the running CLI command. See [Log] for the build asymmetry rationale.
+func WriteStdout(data []byte) {
+	_ = data
+}
+
+// WriteStderr is a no-op off Wasm. See [WriteStdout] for the build asymmetry
+// rationale.
+func WriteStderr(data []byte) {
+	_ = data
+}
+
+// CLIArgs returns a not-available error off Wasm. Like FetchExternalInput it
+// has a data result, so the off-Wasm stub cannot be a silent no-op; the error
+// keeps the failure loud in host-side unit tests that reach it. The wasip1
+// build at host_funcs.go reads the cli_run input payload and returns the
+// argument vector.
+func CLIArgs() ([]string, error) {
+	return nil, fmt.Errorf("aggrega_cli_run: CLI arguments are not available outside the Wasm runtime")
+}
+
 // FetchExternalInput returns a not-available error off Wasm. Unlike the
 // void diagnostic emitters, a fetch has a data result, so the off-Wasm
 // stub cannot be a silent no-op; the error keeps the failure loud in

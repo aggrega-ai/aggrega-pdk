@@ -26,7 +26,8 @@
 use std::path::PathBuf;
 
 use aggrega_pdk_rust::{
-    CompilationContext, IREdge, IRGraph, IRMetadata, IRNode, IRProvenance, IRSpec, LinterFinding,
+    CLIRunInput, CompilationContext, IREdge, IRGraph, IRMetadata, IRNode, IRProvenance, IRSpec,
+    LinterFinding,
     LinterInput, LinterOutput, MutatorGraph, MutatorInput, MutatorNode, MutatorOutput,
     NarrowingExemption, Policies, PolicyResult, PolicyValidatorInput, PolicyValidatorOutput,
     PrecalculatedPath, API_VERSION,
@@ -118,6 +119,29 @@ fn validate_with_ref(path: &PathBuf, ref_path: &PathBuf, instance: &serde_json::
 #[test]
 fn api_version_v1alpha1_contract_floor() {
     assert_eq!(API_VERSION, "v1alpha1");
+}
+
+#[test]
+fn cli_run_input_round_trip_json_schema() {
+    let schema = schema_path("wasm-cli-v1alpha1.schema.json");
+
+    let fixture = CLIRunInput {
+        args: vec![
+            "deploy".to_string(),
+            "--env".to_string(),
+            "prod".to_string(),
+            "payments".to_string(),
+        ],
+    };
+
+    let value = serde_json::to_value(&fixture).expect("serialise CLIRunInput");
+    if let Err(e) = validate(&schema, &value) {
+        panic!("schema validation failed for CLIRunInput fixture: {e}");
+    }
+
+    let raw = serde_json::to_string(&fixture).expect("marshal CLIRunInput");
+    let round: CLIRunInput = serde_json::from_str(&raw).expect("unmarshal CLIRunInput");
+    assert_eq!(fixture.args, round.args);
 }
 
 #[test]

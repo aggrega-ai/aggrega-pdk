@@ -13,14 +13,29 @@
 //! calls `log(level, "message")` directly; the wrapper handles the
 //! host-call invocation.
 
+use aggrega_abi::CLIRunInput;
 use base64::Engine as _;
-use extism_pdk::{host_fn, warn, Error};
+use extism_pdk::{host_fn, warn, Error, Memory};
 
 #[host_fn("extism:host/user")]
 extern "ExtismHost" {
     fn aggrega_log(level: u64, message: String);
     fn aggrega_emit_warning(code: String, message: String, path: String);
     fn aggrega_fetch_external_input(url: String) -> String;
+}
+
+// The streaming CLI emitters take an explicit (pointer, length) pair, so they
+// are imported as raw Wasm functions rather than through the `#[host_fn]`
+// macro. That macro marshals each argument to a single memory handle, which
+// cannot express a two-integer (ptr, len) signature; the host reads exactly
+// `len` bytes at `ptr`, so the guest passes the allocation's offset and length
+// as two separate i64 arguments.
+#[link(wasm_import_module = "extism:host/user")]
+extern "C" {
+    #[link_name = "aggrega_cli_write_stdout"]
+    fn aggrega_cli_write_stdout(ptr: u64, len: u64);
+    #[link_name = "aggrega_cli_write_stderr"]
+    fn aggrega_cli_write_stderr(ptr: u64, len: u64);
 }
 
 /// The JSON envelope `aggrega_fetch_external_input` returns. Exactly
@@ -93,4 +108,50 @@ pub fn fetch_external_input(url: &str) -> Result<Vec<u8>, Error> {
             "aggrega_fetch_external_input: envelope carries neither content nor error",
         )),
     }
+}
+
+/// Stream a chunk of bytes to the Aggrega host's standard-output stream for the
+/// running CLI command. The host copies the bytes out of guest memory and
+/// writes them, incrementally, to the terminal's stdout — there is no single
+/// output payload, so a plugin calls `write_stdout` as many times as it needs
+/// while it runs. This binding is granted only when the guest runs as a CLI
+/// plugin; a build-time load never binds it.
+///
+/// When the allocation of the outgoing bytes fails, surface the failure via
+/// Extism's own log channel at warn level rather than panicking, matching the
+/// error-path treatment of [`log`].
+pub fn write_stdout(data: &[u8]) {
+    match Memory::from_bytes(data) {
+        Ok(mem) => {
+            unsafe { aggrega_cli_write_stdout(mem.offset(), mem.len() as u64) };
+            mem.free();
+        }
+        Err(e) => warn!("aggrega_cli_write_stdout: allocation failed: {e:?}"),
+    }
+}
+
+/// Stream a chunk of bytes to the Aggrega host's standard-error stream for the
+/// running CLI command. It is the stderr sibling of [`write_stdout`] and
+/// carries the same runtime-only grant.
+pub fn write_stderr(data: &[u8]) {
+    match Memory::from_bytes(data) {
+        Ok(mem) => {
+            unsafe { aggrega_cli_write_stderr(mem.offset(), mem.len() as u64) };
+            mem.free();
+        }
+        Err(e) => warn!("aggrega_cli_write_stderr: allocation failed: {e:?}"),
+    }
+}
+
+/// Read the `cli_run` input payload the host hands a CLI plugin on each
+/// invocation and return the argument vector — the tokens that follow the
+/// resolved subcommand name on the command line, in invocation order. The
+/// plugin parses these tokens as its own flags and positional arguments,
+/// exactly as a standalone command-line program reads the arguments after its
+/// name.
+pub fn cli_args() -> Result<Vec<String>, Error> {
+    let raw = extism_pdk::input::<String>()?;
+    let parsed: CLIRunInput = serde_json::from_str(&raw)
+        .map_err(|e| Error::msg(format!("aggrega_cli_run: decode CLIRunInput: {e}")))?;
+    Ok(parsed.args)
 }

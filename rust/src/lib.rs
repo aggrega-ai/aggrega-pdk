@@ -7,7 +7,8 @@
 //! crate to obtain typed socket payloads, the [`APIVersion`] contract
 //! floor constant, and bindings to the Aggrega host functions
 //! (`aggrega_log`, `aggrega_emit_warning`,
-//! `aggrega_fetch_external_input`).
+//! `aggrega_fetch_external_input`, and the CLI streaming emitters
+//! `aggrega_cli_write_stdout` / `aggrega_cli_write_stderr`).
 //!
 //! Build a plugin to a `.wasm` artifact via:
 //!
@@ -22,7 +23,7 @@ pub mod host_funcs;
 pub mod types;
 pub mod version;
 
-pub use host_funcs::{emit_warning, fetch_external_input, log};
+pub use host_funcs::{cli_args, emit_warning, fetch_external_input, log, write_stderr, write_stdout};
 
 // Every socket type is generated from the canonical schemas into the portable
 // aggrega-abi crate and re-exported here, so plugin authors keep the flat
@@ -30,7 +31,7 @@ pub use host_funcs::{emit_warning, fetch_external_input, log};
 // in aggrega-abi. The policy-validator socket's graph is the full IR graph, so
 // the IR types are re-exported alongside the policy envelope.
 pub use aggrega_abi::{
-    AssembleBoundaryInput, AssembleBoundaryOutput, CatalogMetadata, CatalogProjection,
+    AssembleBoundaryInput, AssembleBoundaryOutput, CLIRunInput, CatalogMetadata, CatalogProjection,
     CompilationContext, FieldProvenance,
     IRBoundaryFeature, IREdge, IRFeatureEntry, IRGraph, IRMetadata, IRNode, IRNodeProjection,
     IRProvenance, IRSpec, LinkEdge, LinkEndpoint, LinkPatch, LinkPublishInput, LinkPublishOutput,

@@ -107,6 +107,29 @@ func TestAPIVersion_v1alpha1ContractFloor(t *testing.T) {
 	}
 }
 
+func TestCLIRunInput_RoundTripJSONSchema(t *testing.T) {
+	t.Parallel()
+	schema := loadSchema(t, "wasm-cli-v1alpha1.schema.json")
+
+	fixture := aggrega.CLIRunInput{Args: []string{"deploy", "--env", "prod", "payments"}}
+
+	if err := schema.Validate(jsonInstance(t, fixture)); err != nil {
+		t.Errorf("schema validation failed for CLIRunInput fixture: %v", err)
+	}
+
+	raw, err := json.Marshal(fixture)
+	if err != nil {
+		t.Fatalf("json.Marshal: %v", err)
+	}
+	var round aggrega.CLIRunInput
+	if err := json.Unmarshal(raw, &round); err != nil {
+		t.Fatalf("json.Unmarshal: %v", err)
+	}
+	if !reflect.DeepEqual(fixture, round) {
+		t.Errorf("round-trip inequality:\n  before: %+v\n  after:  %+v", fixture, round)
+	}
+}
+
 func TestMutatorInput_RoundTripJSONSchema(t *testing.T) {
 	t.Parallel()
 	schema := loadSchema(t, "wasm-mutator-v1alpha1.schema.json")

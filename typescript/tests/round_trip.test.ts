@@ -26,6 +26,9 @@ import Ajv from "ajv/dist/2020.js";
 
 import {
   API_VERSION,
+  type CLIRunInput,
+  encodeCLIRunInput,
+  decodeCLIRunInput,
   type MutatorInput,
   type MutatorOutput,
   type PolicyValidatorInput,
@@ -74,6 +77,19 @@ function makeValidatorWithRefs(schemaName: string, ...refNames: string[]) {
 
 test("API_VERSION is the v1alpha1 contract floor", () => {
   assert.equal(API_VERSION, "v1alpha1");
+});
+
+test("CLIRunInput round-trips through wasm-cli schema", () => {
+  const validate = makeValidator("wasm-cli-v1alpha1.schema.json");
+
+  const fixture: CLIRunInput = { args: ["deploy", "--env", "prod", "payments"] };
+
+  const wire = encodeCLIRunInput(fixture);
+  const ok = validate(JSON.parse(wire));
+  assert.equal(ok, true, `schema validation failed: ${JSON.stringify(validate.errors)}`);
+
+  const round = decodeCLIRunInput(wire);
+  assert.deepStrictEqual(round, fixture);
 });
 
 test("MutatorInput round-trips through wasm-mutator schema", () => {

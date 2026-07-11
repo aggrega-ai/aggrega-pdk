@@ -85,6 +85,15 @@ type (
 	SubChart               = abi.SubChart
 )
 
+// CLI socket. A cli plugin extends the compiler's command surface: the host
+// resolves a subcommand to a guest and hands it the invocation's argument
+// vector on the cli_run export. CLIRunInput carries that argument vector; the
+// guest streams stdout/stderr through the streaming host functions rather than
+// a wire payload, so the socket declares an input shape only.
+type (
+	CLIRunInput = abi.CLIRunInput
+)
+
 // Cross-boundary edge linking. A guest that wires uses edges whose ends
 // assemble into different dispatch groups implements the link_publish and
 // link_resolve exports, reading the host-assembled LinkEdge and returning the
