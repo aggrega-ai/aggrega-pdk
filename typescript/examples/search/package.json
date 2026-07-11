@@ -1,0 +1,18 @@
+{
+  "name": "search-typescript",
+  "version": "0.1.0-alpha.1",
+  "private": true,
+  "description": "Fixture search plugin for the Aggrega Wasm runtime, built via extism-js.",
+  "license": "Apache-2.0",
+  "scripts": {
+    "bundle": "esbuild src/index.ts --bundle --format=cjs --target=es2022 --platform=neutral --main-fields=module,main --outfile=dist/plugin.js"
+  },
+  "dependencies": {
+    "@aggrega-ai/aggrega-pdk-typescript": "file:../.."
+  },
+  "devDependencies": {
+    "@extism/js-pdk": "1.1.1",
+    "esbuild": "^0.24.0",
+    "typescript": "^5.6.0"
+  }
+}
