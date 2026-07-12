@@ -1,0 +1,48 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Cognitio S.r.l.
+
+[package]
+name = "policy-kubewarden-render-rust"
+version = "0.1.0-alpha.1"
+edition = "2021"
+publish = false
+
+# This crate is a self-contained workspace root: its own [workspace] table
+# detaches it from the parent, its own rust-toolchain.toml selects the current
+# stable toolchain, and its own Cargo.lock resolves its tree independently. The
+# parent workspace excludes this path, so this example's dependency resolution
+# never perturbs the parent workspace's deliberate toolchain floor or shared
+# lockfile.
+[workspace]
+
+[lib]
+crate-type = ["cdylib"]
+path = "src/lib.rs"
+
+[dependencies]
+# The plugin ABI surface. PolicyResult / PolicyValidatorOutput come from the
+# PDK re-export (single-sourcing the output shape with every other policy
+# guest); RenderPolicyValidatorInput comes from the ABI codec crate, which is
+# the render-stage input's definitional home.
+aggrega-pdk-rust = { path = "../.." }
+aggrega-abi = { path = "../../../../aggrega-abi/rust" }
+# The describe()/validate() export macros for our ABI. Our own extism export is
+# the sole entry point.
+extism-pdk = "1.4"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# Multi-document YAML parsing for the rendered manifests.
+serde_yaml = "0.9"
+
+# The Kubewarden ValidationRequest / ValidationResponse wire types are
+# reproduced as local structs in src/lib.rs, shaped exactly per the published
+# kubewarden-policy-sdk v0.17.3 (src/request.rs, src/response.rs). The SDK crate
+# is deliberately NOT a dependency: it links wapc-guest, whose unconditional
+# #[no_mangle] __guest_call export forces a "wapc" host-module import (the waPC
+# guest ABI) that this runtime's plugin loader does not host. The local types
+# keep the wire contract identical to a real Kubewarden policy without linking
+# that ABI.
+
+[profile.release]
+# Optimise for size: the YAML parser dominates the artifact.
+opt-level = "s"
