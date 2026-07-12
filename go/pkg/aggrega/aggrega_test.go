@@ -264,8 +264,8 @@ func TestPolicyValidatorOutput_RoundTripJSONSchema(t *testing.T) {
 
 	fixture := aggrega.PolicyValidatorOutput{
 		Results: []aggrega.PolicyResult{
-			{Pass: true, Message: "all labels present"},
-			{Pass: false, Message: "version floor violation: payments-db < 15.0.0"},
+			{Severity: "deny", Message: "version floor violation: payments-db < 15.0.0"},
+			{Severity: "audit", Message: "all labels present"},
 		},
 	}
 

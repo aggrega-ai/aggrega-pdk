@@ -266,12 +266,12 @@ fn policy_validator_output_round_trip_json_schema() {
     let fixture = PolicyValidatorOutput {
         results: vec![
             PolicyResult {
-                pass: true,
-                message: "all labels present".to_string(),
+                severity: "deny".to_string(),
+                message: "version floor violation: payments-db < 15.0.0".to_string(),
             },
             PolicyResult {
-                pass: false,
-                message: "version floor violation: payments-db < 15.0.0".to_string(),
+                severity: "audit".to_string(),
+                message: "all labels present".to_string(),
             },
         ],
     };

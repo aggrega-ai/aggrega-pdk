@@ -203,8 +203,8 @@ test("PolicyValidatorOutput round-trips through wasm-policy-validator schema", (
 
   const fixture: PolicyValidatorOutput = {
     results: [
-      { pass: true, message: "all labels present" },
-      { pass: false, message: "version floor violation: payments-db < 15.0.0" },
+      { severity: "deny", message: "version floor violation: payments-db < 15.0.0" },
+      { severity: "audit", message: "all labels present" },
     ],
   };
 

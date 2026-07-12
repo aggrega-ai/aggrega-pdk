@@ -4,15 +4,15 @@
 /**
  * Fixture policy-validator plugin for the Aggrega Wasm runtime.
  *
- * Emits a deterministic two-result PolicyValidatorOutput: one pass
- * result and one fail result. The fixture does not inspect input
+ * Emits a deterministic two-verdict PolicyValidatorOutput: one deny
+ * verdict and one audit verdict. The fixture does not inspect input
  * (Host.inputString() is read for parity with the runtime's expected
  * call shape but the value is unused); the outputs are constants so
  * end-to-end tests can assert exact shape across all three languages.
  */
 
 interface PolicyResult {
-  pass: boolean;
+  severity: string;
   message: string;
 }
 
@@ -21,9 +21,10 @@ interface PolicyValidatorOutput {
 }
 
 // The static describe() self-report: a v1alpha1 policy-validator plugin
-// whose validate export the host validates before dispatch.
+// evaluating the ir stage, whose validate export the host validates before
+// dispatch.
 const PLUGIN_DESCRIPTOR =
-  '{"abi_version":"v1alpha1","plugin_type":"policy-validator","description":"Report a deterministic pass and fail policy result over the build graph.","exports":[{"name":"validate"}],"metadata":{"author":"aggrega","license":"Apache-2.0"}}';
+  '{"abi_version":"v1alpha1","plugin_type":"policy-validator","stage":"ir","description":"Report deterministic deny and audit policy verdicts over the build graph.","exports":[{"name":"validate"}],"metadata":{"author":"aggrega","license":"Apache-2.0"}}';
 
 // The host calls describe() once at load to read the plugin's static
 // self-report before dispatching validate.
@@ -39,8 +40,8 @@ function validate(): void {
 
   const out: PolicyValidatorOutput = {
     results: [
-      { pass: true, message: "fixture rule A: ok" },
-      { pass: false, message: "fixture rule B: deliberate fail for end-to-end coverage" },
+      { severity: "deny", message: "fixture rule B: deliberate fail for end-to-end coverage" },
+      { severity: "audit", message: "fixture rule A: audit note" },
     ],
   };
   Host.outputString(JSON.stringify(out));
