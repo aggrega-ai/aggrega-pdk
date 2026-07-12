@@ -243,6 +243,8 @@ fn policy_validator_input_round_trip_json_schema() {
             nodes: vec!["payments-api".to_string(), "payments-db".to_string()],
             attached_features: vec!["feature/observability".to_string()],
         }],
+        sources: vec![],
+        settings: None,
     };
 
     let serialised = serde_json::to_value(&fixture).expect("serialize PolicyValidatorInput");
