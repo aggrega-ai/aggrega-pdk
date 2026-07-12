@@ -51,3 +51,11 @@ members = [
     "examples/search",
     "examples/wasi-probe",
 ]
+
+# The policy-regorus example embeds a Rego evaluator whose dependency needs a
+# newer Rust than this workspace's deliberate toolchain floor. It is a
+# self-contained workspace with its own toolchain pin and lockfile, excluded
+# here so this workspace never tries to build it under the floored toolchain.
+exclude = [
+    "examples/policy-regorus",
+]

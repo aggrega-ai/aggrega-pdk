@@ -1,0 +1,41 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Cognitio S.r.l.
+
+[package]
+name = "policy-regorus-rust"
+version = "0.1.0-alpha.1"
+edition = "2021"
+publish = false
+
+# This crate is a self-contained workspace root. It carries an embedded Rego
+# evaluator whose dependency needs a newer Rust than the enclosing plugin
+# workspace deliberately floors itself to, so it is fully isolated: its own
+# [workspace] table detaches it from the parent, its own rust-toolchain.toml
+# selects the newer toolchain, and its own Cargo.lock resolves its tree
+# independently. The parent workspace excludes this path.
+[workspace]
+
+[lib]
+crate-type = ["cdylib"]
+path = "src/lib.rs"
+
+[dependencies]
+# The plugin ABI surface: the describe()/validate() export macros and the
+# policy-validator wire types. Reusing the PDK's PolicyResult /
+# PolicyValidatorOutput single-sources the output shape with every other
+# policy guest rather than restating the wire contract locally.
+aggrega-pdk-rust = { path = "../.." }
+extism-pdk = "1.4"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# Error type shared with the ABI surface: extism-pdk's FnResult wraps
+# anyhow::Error and regorus returns anyhow::Result, so evaluation errors
+# propagate through the export boundary unchanged.
+anyhow = "1"
+# Embedded Rego evaluator. Pure-Rust, no external OPA process; evaluated
+# entirely in-guest so the host stays free of any policy-engine logic.
+regorus = "0.10.1"
+
+[profile.release]
+# Optimise for size: the embedded evaluator dominates the artifact.
+opt-level = "s"
