@@ -1,0 +1,58 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Cognitio S.r.l.
+
+[package]
+name = "policy-regorus-render-rust"
+version = "0.1.0-alpha.1"
+edition = "2021"
+publish = false
+
+# This crate is a self-contained workspace root. It carries an embedded Rego
+# evaluator (whose dependency needs a newer Rust than the enclosing plugin
+# workspace deliberately floors itself to) and a YAML parser (which must not
+# enter the shared lockfile), so it is fully isolated: its own [workspace] table
+# detaches it from the parent, its own rust-toolchain.toml selects the newer
+# toolchain, and its own Cargo.lock resolves its tree independently. The parent
+# workspace excludes this path.
+[workspace]
+
+[lib]
+crate-type = ["cdylib"]
+path = "src/lib.rs"
+
+[dependencies]
+# The plugin ABI surface. PolicyResult / PolicyValidatorOutput come from the
+# PDK re-export (single-sourcing the output shape with every other policy
+# guest); RenderPolicyValidatorInput comes from the ABI codec crate, which is
+# the render-stage input's definitional home.
+aggrega-pdk-rust = { path = "../.." }
+aggrega-abi = { path = "../../../../aggrega-abi/rust" }
+# The describe()/validate() export macros for our ABI. Our own extism export is
+# the sole entry point.
+extism-pdk = "1.4"
+serde = { version = "1", features = ["derive"] }
+# raw_value matches the ABI crate: the render payload's settings field is a
+# serde_json RawValue carried through verbatim.
+serde_json = { version = "1", features = ["raw_value"] }
+# Multi-document YAML/JSON parsing for the rendered artifacts (YAML is a
+# superset of JSON, so a JSON template parses through the same parser).
+serde_yaml = "0.9"
+# Error type shared with the ABI surface: extism-pdk's FnResult wraps
+# anyhow::Error and regorus returns anyhow::Result, so evaluation errors
+# propagate through the export boundary unchanged.
+anyhow = "1"
+# Embedded Rego evaluator. Pure-Rust, no external OPA process; evaluated
+# entirely in-guest so the host stays free of any policy-engine logic.
+regorus = "0.10.1"
+
+[profile.release]
+# Optimise for size: the embedded evaluator and the YAML parser dominate the
+# artifact. Whole-program link-time optimisation with a single codegen unit lets
+# dead code across the dependency tree be discarded; aborting on panic and
+# stripping symbols removes the unwinding machinery and the symbol table,
+# neither of which the guest needs.
+opt-level = "z"
+lto = true
+codegen-units = 1
+strip = true
+panic = "abort"

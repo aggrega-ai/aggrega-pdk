@@ -1,0 +1,9 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Cognitio S.r.l.
+#
+# The embedded Rego evaluator needs a newer Rust than the enclosing plugin
+# workspace floors itself to. This crate is excluded from that workspace and
+# pins the current stable toolchain for its own build so the two never collide.
+[toolchain]
+channel = "stable"
+targets = ["wasm32-wasip1"]

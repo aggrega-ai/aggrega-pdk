@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+# SPDX-License-Identifier: Apache-2.0
+# Build the policy-regorus-render example plugin to a .wasm artifact.
+#
+# This crate is a self-contained workspace (see Cargo.toml) built under its
+# own pinned toolchain, so the build runs from this directory rather than the
+# enclosing plugin workspace root, and dispatches through `rustup run stable`.
+#
+# Resolution order for the destination directory:
+#   1. $AGGREGA_PDK_WASM_OUT  (explicit override; the umbrella's integration
+#      test driver may set this when staging into a temporary directory).
+#   2. The umbrella's testdata directory, when this PDK is checked out as a
+#      submodule of the aggrega-umbrella superproject.
+#   3. The PDK's own root testdata/, for genuine standalone checkouts.
+
+set -eo pipefail
+
+if [ -f "${HOME}/.cargo/env" ]; then
+    # shellcheck disable=SC1091
+    . "${HOME}/.cargo/env"
+fi
+
+if [ -n "${AGGREGA_PDK_WASM_OUT:-}" ]; then
+    OUT_DIR="${AGGREGA_PDK_WASM_OUT}"
+else
+    SUPERPROJECT="$(git rev-parse --show-superproject-working-tree 2>/dev/null)"
+    if [ -n "$SUPERPROJECT" ]; then
+        OUT_DIR="${SUPERPROJECT}/aggrega-cli/internal/wasm/testdata"
+    else
+        OUT_DIR="$(git rev-parse --show-toplevel)/testdata"
+    fi
+fi
+
+mkdir -p "${OUT_DIR}"
+
+CRATE_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+(cd "${CRATE_DIR}" && rustup run stable cargo build --release --target wasm32-wasip1)
+
+BUILT="${CRATE_DIR}/target/wasm32-wasip1/release/policy_regorus_render_rust.wasm"
+DEST="${OUT_DIR}/policy-regorus-render-rust.wasm"
+
+# Post-build size optimisation. wasm-opt shrinks the artifact further than the
+# compiler alone; the feature flags enumerate exactly the WebAssembly proposals
+# the wasm32-wasip1 output relies on, so the optimiser validates rather than
+# rejects the module. The pass is deterministic for a given input and optimiser
+# version. When wasm-opt is unavailable (standalone checkouts without the
+# binaryen toolchain), fall back to copying the compiler output unchanged.
+if command -v wasm-opt >/dev/null 2>&1; then
+    wasm-opt -Oz \
+        --enable-bulk-memory \
+        --enable-sign-ext \
+        --enable-simd \
+        --enable-nontrapping-float-to-int \
+        "${BUILT}" -o "${DEST}"
+else
+    echo "wasm-opt not found on PATH; copying unoptimised artifact" >&2
+    cp "${BUILT}" "${DEST}"
+fi
+echo "Wrote ${DEST}"
