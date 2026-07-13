@@ -1,0 +1,52 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Cognitio S.r.l.
+
+[package]
+name = "policy-opa-wasm-rust"
+version = "0.1.0-alpha.1"
+edition = "2021"
+publish = false
+
+# This crate is a self-contained workspace root. It embeds a WebAssembly
+# interpreter and drives a pre-baked OPA-compiled policy module inside the
+# guest, so it resolves a dependency tree the enclosing plugin workspace does
+# not carry. It is fully isolated: its own [workspace] table detaches it from
+# the parent, its own rust-toolchain.toml selects the toolchain, and its own
+# Cargo.lock resolves its tree independently. The parent workspace excludes
+# this path.
+[workspace]
+
+[lib]
+crate-type = ["cdylib"]
+path = "src/lib.rs"
+
+[dependencies]
+# The plugin ABI surface: the describe()/validate() export macros and the
+# policy-validator wire types. Reusing the PDK's PolicyResult /
+# PolicyValidatorOutput single-sources the output shape with every other
+# policy guest rather than restating the wire contract locally.
+aggrega-pdk-rust = { path = "../.." }
+extism-pdk = "1.4"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# Error type shared with the ABI surface: extism-pdk's FnResult wraps
+# anyhow::Error, so evaluation and drive errors propagate through the export
+# boundary unchanged and surface as a build fault naming the failed call.
+anyhow = "1"
+# Pure-Rust WebAssembly interpreter. It instantiates the baked OPA policy
+# module inside this guest and satisfies that module's imports (env.memory and
+# the OPA builtin callbacks) with in-guest host functions, so the OPA Wasm ABI
+# is absorbed entirely here and never reaches the compiler host.
+wasmi = "0.40"
+
+[profile.release]
+# Optimise for size: the embedded interpreter and the baked policy module
+# dominate the artifact. Whole-program link-time optimisation with a single
+# codegen unit lets dead code across the dependency tree be discarded; aborting
+# on panic and stripping symbols removes the unwinding machinery and the symbol
+# table, neither of which the guest needs.
+opt-level = "z"
+lto = true
+codegen-units = 1
+strip = true
+panic = "abort"
