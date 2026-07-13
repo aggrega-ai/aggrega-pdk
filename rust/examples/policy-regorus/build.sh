@@ -37,5 +37,24 @@ CRATE_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 (cd "${CRATE_DIR}" && rustup run stable cargo build --release --target wasm32-wasip1)
 
-cp "${CRATE_DIR}/target/wasm32-wasip1/release/policy_regorus_rust.wasm" "${OUT_DIR}/policy-regorus-rust.wasm"
-echo "Wrote ${OUT_DIR}/policy-regorus-rust.wasm"
+BUILT="${CRATE_DIR}/target/wasm32-wasip1/release/policy_regorus_rust.wasm"
+DEST="${OUT_DIR}/policy-regorus-rust.wasm"
+
+# Post-build size optimisation. wasm-opt shrinks the artifact further than the
+# compiler alone; the feature flags enumerate exactly the WebAssembly proposals
+# the wasm32-wasip1 output relies on, so the optimiser validates rather than
+# rejects the module. The pass is deterministic for a given input and optimiser
+# version. When wasm-opt is unavailable (standalone checkouts without the
+# binaryen toolchain), fall back to copying the compiler output unchanged.
+if command -v wasm-opt >/dev/null 2>&1; then
+    wasm-opt -Oz \
+        --enable-bulk-memory \
+        --enable-sign-ext \
+        --enable-simd \
+        --enable-nontrapping-float-to-int \
+        "${BUILT}" -o "${DEST}"
+else
+    echo "wasm-opt not found on PATH; copying unoptimised artifact" >&2
+    cp "${BUILT}" "${DEST}"
+fi
+echo "Wrote ${DEST}"

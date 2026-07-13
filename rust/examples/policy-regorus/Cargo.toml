@@ -37,5 +37,12 @@ anyhow = "1"
 regorus = "0.10.1"
 
 [profile.release]
-# Optimise for size: the embedded evaluator dominates the artifact.
-opt-level = "s"
+# Optimise for size: the embedded evaluator dominates the artifact. Whole-program
+# link-time optimisation with a single codegen unit lets dead code across the
+# dependency tree be discarded; aborting on panic and stripping symbols removes
+# the unwinding machinery and the symbol table, neither of which the guest needs.
+opt-level = "z"
+lto = true
+codegen-units = 1
+strip = true
+panic = "abort"
