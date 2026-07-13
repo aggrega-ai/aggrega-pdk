@@ -126,6 +126,7 @@ fn cli_run_input_round_trip_json_schema() {
     let schema = schema_path("wasm-cli-v1alpha1.schema.json");
 
     let fixture = CLIRunInput {
+        command: "deploy".to_string(),
         args: vec![
             "deploy".to_string(),
             "--env".to_string(),

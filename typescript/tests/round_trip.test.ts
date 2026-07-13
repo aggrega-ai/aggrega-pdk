@@ -82,7 +82,7 @@ test("API_VERSION is the v1alpha1 contract floor", () => {
 test("CLIRunInput round-trips through wasm-cli schema", () => {
   const validate = makeValidator("wasm-cli-v1alpha1.schema.json");
 
-  const fixture: CLIRunInput = { args: ["deploy", "--env", "prod", "payments"] };
+  const fixture: CLIRunInput = { command: "deploy", args: ["deploy", "--env", "prod", "payments"] };
 
   const wire = encodeCLIRunInput(fixture);
   const ok = validate(JSON.parse(wire));

@@ -138,7 +138,7 @@ func TestCLIRunInput_RoundTripJSONSchema(t *testing.T) {
 	t.Parallel()
 	schema := loadSchema(t, "wasm-cli-v1alpha1.schema.json")
 
-	fixture := aggrega.CLIRunInput{Args: []string{"deploy", "--env", "prod", "payments"}}
+	fixture := aggrega.CLIRunInput{Command: "deploy", Args: []string{"deploy", "--env", "prod", "payments"}}
 
 	if err := schema.Validate(jsonInstance(t, fixture)); err != nil {
 		t.Errorf("schema validation failed for CLIRunInput fixture: %v", err)
