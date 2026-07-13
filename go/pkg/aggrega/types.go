@@ -7,5 +7,5 @@ package aggrega
 // generated from the canonical schemas into the portable aggrega-abi module and
 // re-exported from abi_reexport.go, single-sourcing the wire shape across the
 // host, the guest codec, and every PDK. The policy-validator socket's graph is
-// the full target-agnostic IR graph (types in aggrega-abi generated from
+// the full provider-agnostic IR graph (types in aggrega-abi generated from
 // ir-v1alpha1), so the IR types are re-exported alongside the policy envelope.

@@ -6,7 +6,7 @@
  * generated from the canonical schemas into the portable
  * @aggrega-ai/aggrega-abi package and re-exported from index.ts,
  * single-sourcing the wire shape across the host, the guest codec, and every
- * PDK. The policy-validator socket's graph is the full target-agnostic IR
+ * PDK. The policy-validator socket's graph is the full provider-agnostic IR
  * graph (types generated from ir-v1alpha1), re-exported alongside the policy
  * envelope.
  */
