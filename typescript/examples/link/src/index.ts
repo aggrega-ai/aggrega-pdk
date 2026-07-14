@@ -52,7 +52,7 @@ const LINK_FILE = "boundary.yaml";
 // declares the cross_boundary_linking capability and both link exports as a
 // pair, alongside the mandatory render_node export.
 const PLUGIN_DESCRIPTOR =
-  '{"abi_version":"v1alpha1","plugin_type":"provider","description":"Wire a cross-boundary uses edge by publishing a deterministic pointer and resolving it into each endpoint\'s assembled file.","compatible_providers":["link-cross-boundary"],"exports":[{"name":"render_node","input_pattern":"b","stability":"experimental"},{"name":"link_publish","input_pattern":"b","stability":"experimental"},{"name":"link_resolve","input_pattern":"b","stability":"experimental"}],"capabilities":{"input_kinds":{"sourced":false,"synthesized":false,"artifacts_standalone":true},"boundary_assembly":"none","cross_boundary_linking":true},"metadata":{"author":"aggrega","license":"Apache-2.0"}}';
+  '{"abi_version":"v1alpha1","plugin_type":"provider","description":"Wire a cross-boundary uses edge by publishing a deterministic pointer and resolving it into each endpoint\'s assembled file.","compatible_providers":["link-cross-boundary"],"exports":[{"name":"render_node","input_pattern":"b","stability":"experimental"},{"name":"link_publish","input_pattern":"b","stability":"experimental"},{"name":"link_resolve","input_pattern":"b","stability":"experimental"}],"contract":{"input_kinds":{"sourced":false,"synthesized":false,"artifacts_standalone":true},"boundary_assembly":"none","cross_boundary_linking":true},"metadata":{"author":"aggrega","license":"Apache-2.0"}}';
 
 // derivedPointer builds the deterministic pointer string a consumed
 // endpoint publishes for one link: the target node id and the socket alias
