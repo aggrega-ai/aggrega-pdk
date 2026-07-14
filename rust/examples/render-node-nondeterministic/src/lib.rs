@@ -36,7 +36,7 @@ static COUNTER: AtomicU32 = AtomicU32::new(0);
 /// The static `describe()` self-report: a v1alpha1 `provider` plugin whose
 /// `render_node` export the host validates before dispatch. It declares no
 /// capabilities block, so it makes no `reusable_instance` claim.
-const PLUGIN_DESCRIPTOR: &str = r#"{"abi_version":"v1alpha1","plugin_type":"provider","compatible_providers":["parity"],"exports":[{"name":"render_node","input_pattern":"b","stability":"experimental"}],"metadata":{"author":"aggrega","license":"Apache-2.0"}}"#;
+const PLUGIN_DESCRIPTOR: &str = r#"{"abi_version":"v1alpha1","plugin_type":"provider","capabilities":["parity"],"exports":[{"name":"render_node","input_pattern":"b","stability":"experimental"}],"metadata":{"author":"aggrega","license":"Apache-2.0"}}"#;
 
 /// The host calls `describe()` once at load to read the plugin's static
 /// self-report before dispatching `render_node`.

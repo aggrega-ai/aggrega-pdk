@@ -52,7 +52,7 @@ const contentPrefix = "rendered-node:"
 // provider plugin whose render_node export the host validates before
 // dispatch. The host reads this once at load through the shared describe()
 // gate.
-const pluginDescriptor = `{"abi_version":"v1alpha1","plugin_type":"provider","description":"Render one IR node to a single output file whose bytes are the node id under a fixed prefix.","compatible_providers":["parity"],"exports":[{"name":"render_node","input_pattern":"b","stability":"experimental"}],"metadata":{"author":"aggrega","license":"Apache-2.0"}}`
+const pluginDescriptor = `{"abi_version":"v1alpha1","plugin_type":"provider","description":"Render one IR node to a single output file whose bytes are the node id under a fixed prefix.","capabilities":["parity"],"exports":[{"name":"render_node","input_pattern":"b","stability":"experimental"}],"metadata":{"author":"aggrega","license":"Apache-2.0"}}`
 
 //go:wasmexport describe
 func describe() int32 {

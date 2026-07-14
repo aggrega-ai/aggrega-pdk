@@ -41,7 +41,7 @@ import {
 // in flat-document and chart-source form respectively). The host reads this
 // once at load and validates it before invoking step.
 const PLUGIN_DESCRIPTOR =
-  '{"abi_version":"v1alpha1","plugin_type":"frp_step","description":"Patch a selected workload and emit companion documents in one feature-recipe pipeline step.","compatible_providers":["helm","helm-chart"],"exports":[{"name":"step","operates":"patch","scope":"own","selector":"workloads carrying a pod template"}],"metadata":{"author":"aggrega","license":"Apache-2.0"}}';
+  '{"abi_version":"v1alpha1","plugin_type":"frp_step","description":"Patch a selected workload and emit companion documents in one feature-recipe pipeline step.","capabilities":["helm","helm-chart"],"exports":[{"name":"step","operates":"patch","scope":"own","selector":"workloads carrying a pod template"}],"metadata":{"author":"aggrega","license":"Apache-2.0"}}';
 
 // treeKind reports the kind field of a unit's tree, or "" when the unit is
 // opaque (no tree) or carries no kind.

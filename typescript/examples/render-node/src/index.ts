@@ -48,7 +48,7 @@ const CONTENT_PREFIX = "rendered-node:";
 // The static describe() self-report: a v1alpha1 provider plugin whose
 // render_node export the host validates before dispatch.
 const PLUGIN_DESCRIPTOR =
-  '{"abi_version":"v1alpha1","plugin_type":"provider","description":"Render one IR node to a single output file whose bytes are the node id under a fixed prefix.","compatible_providers":["parity"],"exports":[{"name":"render_node","input_pattern":"b","stability":"experimental"}],"metadata":{"author":"aggrega","license":"Apache-2.0"}}';
+  '{"abi_version":"v1alpha1","plugin_type":"provider","description":"Render one IR node to a single output file whose bytes are the node id under a fixed prefix.","capabilities":["parity"],"exports":[{"name":"render_node","input_pattern":"b","stability":"experimental"}],"metadata":{"author":"aggrega","license":"Apache-2.0"}}';
 
 // Standard base64 alphabet (RFC 4648) with padding, matching Go's
 // base64.StdEncoding — the render socket carries file content as base64

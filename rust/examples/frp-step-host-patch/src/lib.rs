@@ -39,7 +39,7 @@ use std::collections::BTreeMap;
 /// `step` export patches the host component's chart source and is
 /// tested-compatible only with the `helm-chart` provider (the provider that
 /// emits chart source).
-const PLUGIN_DESCRIPTOR: &str = r#"{"abi_version":"v1alpha1","plugin_type":"frp_step","compatible_providers":["helm-chart"],"exports":[{"name":"step","operates":"patch","scope":"host","selector":"chart values.yaml of the attached host component"}],"metadata":{"author":"aggrega","license":"Apache-2.0"}}"#;
+const PLUGIN_DESCRIPTOR: &str = r#"{"abi_version":"v1alpha1","plugin_type":"frp_step","capabilities":["helm-chart"],"exports":[{"name":"step","operates":"patch","scope":"host","selector":"chart values.yaml of the attached host component"}],"metadata":{"author":"aggrega","license":"Apache-2.0"}}"#;
 
 /// One addressable unit the host hands the guest. A structured unit carries
 /// a `tree` (the RFC-6902-addressable view the guest content-selects and

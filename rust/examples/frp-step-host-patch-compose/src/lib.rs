@@ -38,7 +38,7 @@ use std::collections::BTreeMap;
 /// The static `describe()` self-report: a v1alpha1 `frp_step` plugin whose
 /// `step` export patches the merged compose document and is tested-compatible
 /// only with the `compose` provider.
-const PLUGIN_DESCRIPTOR: &str = r#"{"abi_version":"v1alpha1","plugin_type":"frp_step","compatible_providers":["compose"],"exports":[{"name":"step","operates":"patch","scope":"host","selector":"environment of the attached host's service in the merged compose document"}],"metadata":{"author":"aggrega","license":"Apache-2.0"}}"#;
+const PLUGIN_DESCRIPTOR: &str = r#"{"abi_version":"v1alpha1","plugin_type":"frp_step","capabilities":["compose"],"exports":[{"name":"step","operates":"patch","scope":"host","selector":"environment of the attached host's service in the merged compose document"}],"metadata":{"author":"aggrega","license":"Apache-2.0"}}"#;
 
 /// One addressable unit the host hands the guest. A structured unit carries a
 /// `tree` (the RFC-6902-addressable view the guest content-selects and
