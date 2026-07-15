@@ -37,6 +37,10 @@ serde_json = { version = "1", features = ["raw_value"] }
 # Multi-document YAML/JSON parsing for the rendered artifacts (YAML is a
 # superset of JSON, so a JSON template parses through the same parser).
 serde_yaml = "0.9"
+# Native-HCL parsing for Terraform render output. A `.tf` file is not YAML or
+# JSON, so it is projected through this HCL reader into the same canonical
+# object shape a `.tf.json` file already parses to.
+hcl-rs = "0.19"
 # Error type shared with the ABI surface: extism-pdk's FnResult wraps
 # anyhow::Error and regorus returns anyhow::Result, so evaluation errors
 # propagate through the export boundary unchanged.

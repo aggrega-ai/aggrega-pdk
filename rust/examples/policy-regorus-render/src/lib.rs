@@ -20,13 +20,27 @@
 //! target — Compose services, CloudFormation resources — with the same Rego it
 //! would write against any structured document.
 //!
+//! Native-HCL Terraform output. A native Terraform file (a bare `.tf`) is
+//! neither YAML nor JSON, so it is projected through an HCL reader into the same
+//! canonical object a `.tf.json` file parses to:
+//! `input.artifacts[_].documents[_].resource.<type>.<name>.<attr>`. A policy
+//! reads a Terraform resource attribute the same way whichever form the
+//! compiler emitted — for an RDS instance, say,
+//! `input.artifacts[_].documents[_].resource.aws_db_instance[_].allocated_storage`.
+//! Every other artifact — `.tf.json`, `.auto.tfvars.json`, and Compose/CloudFormation
+//! YAML or JSON — stays on the YAML/JSON path unchanged. A `.tftpl` is Terraform
+//! template text rather than standalone HCL, so it is not projected and, like any
+//! non-structured content, surfaces `parse_error`.
+//!
 //! Input mapping. The Rego `input` document is the render payload enriched with
 //! the parsed documents:
 //!
 //!   - `input.artifacts[_].path`        — the artifact's output path.
 //!   - `input.artifacts[_].content`     — the raw rendered text, verbatim.
-//!   - `input.artifacts[_].documents`   — the parsed YAML/JSON documents at that
-//!                                        path, in document order.
+//!   - `input.artifacts[_].documents`   — the parsed documents at that path, in
+//!                                        document order: YAML/JSON documents for
+//!                                        a YAML/JSON artifact, or the single
+//!                                        projected object for a native `.tf`.
 //!   - `input.artifacts[_].parse_error` — present only when the content did not
 //!                                        parse; carries the parser's message.
 //!   - `input.sources`, `input.settings` — the attachment's own sources and
@@ -152,7 +166,16 @@ fn build_input(payload: &RenderPolicyValidatorInput) -> serde_json::Value {
                 "path": artifact.path,
                 "content": artifact.content,
             });
-            match parse_documents(&artifact.content) {
+            // A native-HCL Terraform file is neither YAML nor JSON, so it is
+            // projected through the HCL reader; every other artifact — including
+            // `.tf.json`, `.auto.tfvars.json`, and `.tftpl` template text — stays
+            // on the YAML/JSON path.
+            let parsed = if is_native_hcl(&artifact.path) {
+                project_hcl(&artifact.content)
+            } else {
+                parse_documents(&artifact.content)
+            };
+            match parsed {
                 Ok(documents) => {
                     entry["documents"] = serde_json::Value::Array(documents);
                 }
@@ -196,6 +219,30 @@ fn parse_documents(content: &str) -> anyhow::Result<Vec<serde_json::Value>> {
         documents.push(value);
     }
     Ok(documents)
+}
+
+/// is_native_hcl reports whether an artifact path is a native-HCL Terraform file
+/// — a bare `.tf`. A `.tf.json` is already JSON and a `.tftpl` is Terraform
+/// template text rather than standalone HCL, so both stay on the YAML/JSON path.
+/// (`.tf.json` ends in `.json`, so it fails the `.tf` suffix test on its own;
+/// the explicit exclusion states the intent and guards the boundary.)
+fn is_native_hcl(path: &str) -> bool {
+    path.ends_with(".tf") && !path.ends_with(".tf.json")
+}
+
+/// project_hcl projects one native-HCL Terraform artifact into its canonical
+/// object form. HCL is neither YAML nor JSON, so it is read with an HCL reader
+/// that yields the same shape a `.tf.json` file parses to —
+/// `{"resource": {"<type>": {"<name>": {<attrs>}}}}` — so a policy reads a
+/// resource attribute the same way regardless of which Terraform form the
+/// compiler emitted. It returns the single projected document in a one-element
+/// vector so it flows through the same `documents` array the YAML/JSON path
+/// produces. Object keys sort deterministically. A parse failure propagates so
+/// the caller can surface it as `parse_error` rather than silently drop the
+/// artifact.
+fn project_hcl(content: &str) -> anyhow::Result<Vec<serde_json::Value>> {
+    let value: serde_json::Value = hcl::from_str(content)?;
+    Ok(vec![value])
 }
 
 /// settings_value returns the attachment's settings as a JSON value for the
@@ -262,4 +309,230 @@ fn verdict(severity: &str, message: &Value) -> anyhow::Result<PolicyResult> {
         severity: severity.to_string(),
         message: message.as_string()?.to_string(),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use aggrega_abi::RenderedArtifact;
+
+    // The rendered main.tf of the terraform-rds worked example, captured from a
+    // live build of that example. Native HCL, not YAML or JSON — the projection
+    // under test turns it into the canonical Terraform object.
+    const RENDERED_MAIN_TF: &str = r####"# Aggrega build provenance
+# aggrega.ai/aggregate-name: aggregate
+# aggrega.ai/boundary-path: infra
+# aggrega.ai/compiler-version: (devel)
+# aggrega.ai/component-id: db
+# aggrega.ai/environment: production
+# aggrega.ai/provider: terraform
+# aggrega.ai/provider-version: 0.4.0-97-g89c68d8
+# aggrega.ai/recipe-uri: mariadb-rds:1.0.0
+resource "aws_db_instance" "db" {
+  identifier     = "db"
+  engine         = "mariadb"
+  engine_version = "11.4"
+  port           = 3306
+
+  ## ── Compute ──────────────────────────────────────────────
+  instance_class = "db.t3.small"
+
+  ## ── Storage ──────────────────────────────────────────────
+  allocated_storage = 100
+  storage_type      = "gp3"
+
+  ## ── Database ─────────────────────────────────────────────
+  db_name  = "appdb"
+  username = "admin"
+
+  ## Black-Box: RDS manages the password via Secrets Manager.
+  manage_master_user_password = true
+
+  ## ── HA ───────────────────────────────────────────────────
+  multi_az = true
+
+  ## ── Backup ───────────────────────────────────────────────
+  backup_retention_period = 14
+
+  ## ── Provider-specific overrides ──────────────────────────
+}
+"####;
+
+    // Builds a one-artifact render payload plus a single Rego source, as the
+    // JSON string the export boundary hands to evaluate.
+    fn payload_json(artifact_path: &str, content: &str, rego: &str) -> String {
+        json!({
+            "artifacts": [{ "path": artifact_path, "content": content }],
+            "sources": [{ "path": "policy.rego", "content": rego }],
+        })
+        .to_string()
+    }
+
+    fn one_artifact_input(path: &str, content: &str) -> RenderPolicyValidatorInput {
+        RenderPolicyValidatorInput {
+            artifacts: vec![RenderedArtifact {
+                path: path.to_string(),
+                content: content.to_string(),
+            }],
+            ..Default::default()
+        }
+    }
+
+    // A native .tf artifact projects into the canonical Terraform object shape
+    // resource.<type>.<name>.<attr>, with attribute types preserved.
+    #[test]
+    fn native_tf_projects_to_terraform_shape() {
+        let input = one_artifact_input("infra/terraform/main.tf", RENDERED_MAIN_TF);
+        let doc = build_input(&input);
+        let artifact = &doc["artifacts"][0];
+        assert!(
+            artifact.get("parse_error").is_none(),
+            "a well-formed .tf must not carry parse_error: {artifact}"
+        );
+        let db = &artifact["documents"][0]["resource"]["aws_db_instance"]["db"];
+        assert_eq!(db["allocated_storage"], json!(100));
+        assert_eq!(db["port"], json!(3306));
+        assert_eq!(db["manage_master_user_password"], json!(true));
+        assert_eq!(db["engine"], json!("mariadb"));
+        // Exactly one projected document for the native .tf artifact.
+        assert_eq!(artifact["documents"].as_array().unwrap().len(), 1);
+    }
+
+    // A policy reads a Terraform resource attribute out of the projected object
+    // and fires a deny — the load-bearing end-to-end proof.
+    #[test]
+    fn deny_fires_on_projected_hcl_attribute() {
+        let rego = r#"
+package aggrega.render.tf
+
+import rego.v1
+
+deny contains msg if {
+    some artifact in input.artifacts
+    some document in artifact.documents
+    some name
+    storage := document.resource.aws_db_instance[name].allocated_storage
+    storage > 50
+    msg := sprintf("aws_db_instance %v allocated_storage %v exceeds the 50Gi ceiling", [name, storage])
+}
+"#;
+        let out = evaluate(&payload_json("infra/terraform/main.tf", RENDERED_MAIN_TF, rego))
+            .expect("evaluate must succeed");
+        assert_eq!(out.results.len(), 1, "exactly one deny should fire: {:?}", out.results);
+        let v = &out.results[0];
+        assert_eq!(v.severity, "deny");
+        // The resource is addressed at resource.aws_db_instance.db, so the bound
+        // name is "db" and the read attribute is 100.
+        assert!(v.message.contains("db"), "message names the resource: {}", v.message);
+        assert!(v.message.contains("100"), "message carries the read value: {}", v.message);
+    }
+
+    // A deny keyed on port == 3306 also fires, confirming the projected scalar
+    // is a number the policy compares directly.
+    #[test]
+    fn deny_fires_on_projected_port() {
+        let rego = r#"
+package aggrega.render.tf.port
+
+import rego.v1
+
+deny contains msg if {
+    some document in input.artifacts[_].documents
+    document.resource.aws_db_instance[_].port == 3306
+    msg := "database exposes the default MariaDB port 3306"
+}
+"#;
+        let out = evaluate(&payload_json("infra/terraform/main.tf", RENDERED_MAIN_TF, rego))
+            .expect("evaluate must succeed");
+        assert_eq!(out.results.len(), 1, "port deny should fire: {:?}", out.results);
+        assert_eq!(out.results[0].message, "database exposes the default MariaDB port 3306");
+    }
+
+    // A malformed .tf does not silently allow: documents stays empty, parse_error
+    // is set, and a policy denying on parse_error fires.
+    #[test]
+    fn malformed_tf_preserves_parse_error() {
+        // Unterminated block — not valid HCL.
+        let bad = "resource \"aws_db_instance\" \"db\" {\n  allocated_storage = 100\n";
+        let input = one_artifact_input("infra/terraform/main.tf", bad);
+        let doc = build_input(&input);
+        let artifact = &doc["artifacts"][0];
+        assert_eq!(
+            artifact["documents"].as_array().unwrap().len(),
+            0,
+            "malformed .tf yields no documents"
+        );
+        assert!(
+            artifact["parse_error"].is_string(),
+            "malformed .tf sets parse_error: {artifact}"
+        );
+
+        let rego = r#"
+package aggrega.render.tf.malformed
+
+import rego.v1
+
+deny contains msg if {
+    some artifact in input.artifacts
+    artifact.parse_error
+    msg := "render artifact failed to parse"
+}
+"#;
+        let out = evaluate(&payload_json("infra/terraform/main.tf", bad, rego))
+            .expect("evaluate must succeed");
+        assert_eq!(out.results.len(), 1, "parse_error deny should fire: {:?}", out.results);
+        assert_eq!(out.results[0].message, "render artifact failed to parse");
+    }
+
+    // A .tf.json is already JSON: it stays on the YAML/JSON path and parses into
+    // the same {resource:...} object, confirming the HCL branch excludes it.
+    #[test]
+    fn tf_json_stays_on_yaml_json_path() {
+        let json_tf = r#"{"resource":{"aws_db_instance":{"db":{"allocated_storage":100,"port":3306}}}}"#;
+        let input = one_artifact_input("infra/terraform/main.tf.json", json_tf);
+        let doc = build_input(&input);
+        let artifact = &doc["artifacts"][0];
+        assert!(
+            artifact.get("parse_error").is_none(),
+            "valid .tf.json must not carry parse_error: {artifact}"
+        );
+        let db = &artifact["documents"][0]["resource"]["aws_db_instance"]["db"];
+        assert_eq!(db["allocated_storage"], json!(100));
+        assert_eq!(db["port"], json!(3306));
+    }
+
+    // A .tftpl is template text, not standalone HCL: it stays on the YAML/JSON
+    // path. Native-HCL content that projects cleanly as a .tf therefore does NOT
+    // project under a .tftpl name — it surfaces parse_error like any non-YAML/JSON
+    // content — which is exactly the routing rider.
+    #[test]
+    fn tftpl_is_not_hcl_projected() {
+        // Real Terraform template text (a %{ for } directive) — not standalone
+        // HCL. It stays on the YAML/JSON path, where it does not parse, so it
+        // surfaces parse_error rather than an HCL-projected resource object.
+        let content = "%{ for ip in ips ~}\n${ip}:${port}\n%{ endfor ~}\n";
+        let input = one_artifact_input("infra/terraform/user_data.tftpl", content);
+        let doc = build_input(&input);
+        let artifact = &doc["artifacts"][0];
+        assert_eq!(
+            artifact["documents"].as_array().unwrap().len(),
+            0,
+            ".tftpl is not HCL-projected, so no resource documents: {artifact}"
+        );
+        assert!(
+            artifact["parse_error"].is_string(),
+            ".tftpl template text surfaces parse_error: {artifact}"
+        );
+    }
+
+    // The routing predicate itself: only a bare .tf is native HCL.
+    #[test]
+    fn native_hcl_predicate() {
+        assert!(is_native_hcl("main.tf"));
+        assert!(is_native_hcl("infra/terraform/main.tf"));
+        assert!(!is_native_hcl("main.tf.json"));
+        assert!(!is_native_hcl("vars.auto.tfvars.json"));
+        assert!(!is_native_hcl("user_data.tftpl"));
+        assert!(!is_native_hcl("compose.yaml"));
+    }
 }

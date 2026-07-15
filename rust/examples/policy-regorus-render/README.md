@@ -23,6 +23,24 @@ alongside the raw content. A policy reasons over the structured render output of
 any YAML/JSON target with the same Rego it would write against any structured
 document: Docker Compose services, CloudFormation resources, and so on.
 
+### Native-HCL Terraform output
+
+A native Terraform file (a bare `.tf`) is neither YAML nor JSON, so it is
+projected through an HCL reader into the same canonical object a `.tf.json` file
+parses to:
+
+```text
+input.artifacts[_].documents[_].resource.<type>.<name>.<attr>
+```
+
+A policy reads a Terraform resource attribute the same way whichever form the
+compiler emitted — for an RDS instance, for example,
+`input.artifacts[_].documents[_].resource.aws_db_instance[_].allocated_storage`.
+Every other artifact — `.tf.json`, `.auto.tfvars.json`, and Compose or
+CloudFormation YAML/JSON — stays on the YAML/JSON path unchanged. A `.tftpl` is
+Terraform template text rather than standalone HCL, so it is not projected and,
+like any non-structured content, surfaces `parse_error`.
+
 ## What it does
 
 The plugin exports the two functions the policy socket expects:
@@ -77,8 +95,9 @@ documents:
 
 - `input.artifacts[_].path` — the artifact's output path.
 - `input.artifacts[_].content` — the raw rendered text, verbatim.
-- `input.artifacts[_].documents` — the parsed YAML/JSON documents at that path,
-  in document order.
+- `input.artifacts[_].documents` — the parsed documents at that path, in
+  document order: YAML/JSON documents for a YAML/JSON artifact, or the single
+  projected object for a native `.tf`.
 - `input.artifacts[_].parse_error` — present only when the content did not parse;
   carries the parser's message.
 - `input.sources`, `input.settings` — the attachment's own sources and settings.
