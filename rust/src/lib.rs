@@ -43,7 +43,7 @@ pub use aggrega_abi::{
     MutatorInput, MutatorNode, MutatorOutput, NarrowingExemption, NodeProvenance, Policies,
     PolicyResult,
     PolicyValidatorInput, PolicyValidatorOutput, PrecalculatedPath, RenderEdge, RenderNodeInput,
-    RenderNodeOutput, RenderedFile, RenderedNode, SearchInput, SearchOutput, SearchResult,
+    RenderNodeOutput, RenderedFile, RenderedNode,
     SourceEntry, SourceFile, SourceFileRequest,
     SourceFileResponse, SourceListing, SourcePackRequest, SourcePackResponse, SourceProjection,
     SubChart, WorkloadProjection,

@@ -94,19 +94,6 @@ type (
 	CLIRunInput = abi.CLIRunInput
 )
 
-// Search socket. A search plugin answers a ranked full-text query over its own
-// embedded index on the search export: SearchInput carries the query, an
-// optional result cap, and optional field filters; SearchOutput carries the
-// ranked results the guest found, each a SearchResult with a document id,
-// title, in-document anchor, snippet, and relevance score. The guest owns the
-// index and the ranking; the host carries the query in and the results out
-// verbatim and interprets neither.
-type (
-	SearchInput  = abi.SearchInput
-	SearchResult = abi.SearchResult
-	SearchOutput = abi.SearchOutput
-)
-
 // Cross-boundary edge linking. A guest that wires uses edges whose ends
 // assemble into different dispatch groups implements the link_publish and
 // link_resolve exports, reading the host-assembled LinkEdge and returning the
