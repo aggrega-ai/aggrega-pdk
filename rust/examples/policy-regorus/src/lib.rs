@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 Cognitio S.r.l.
 
-//! Reference policy-validator plugin backed by an embedded Rego evaluator.
+//! Reference policy plugin backed by an embedded Rego evaluator.
 //!
 //! The plugin evaluates operator-supplied Rego policies against the build's
 //! IR graph entirely in-guest: the Rego engine is compiled into the plugin,
@@ -34,14 +34,14 @@
 //! fault naming the plugin, distinct from a deny verdict, so "the engine
 //! cannot evaluate this policy" never reads as "the policy allows the build".
 
-use aggrega_pdk_rust::{PolicyResult, PolicyValidatorOutput};
+use aggrega_pdk_rust::{PolicyResult, PolicyOutput};
 use extism_pdk::{plugin_fn, FnResult};
 use regorus::Value;
 
-/// The static `describe()` self-report: a v1alpha1 `policy-validator` plugin
+/// The static `describe()` self-report: a v1alpha1 `policy` plugin
 /// evaluating the ir stage, whose `validate` export the host validates before
 /// dispatch.
-const PLUGIN_DESCRIPTOR: &str = r#"{"abi_version":"v1alpha1","plugin_type":"policy-validator","stage":"ir","description":"Evaluate operator-supplied Rego policies against the build graph with an embedded Rego engine.","exports":[{"name":"validate"}],"metadata":{"author":"aggrega","license":"Apache-2.0"}}"#;
+const PLUGIN_DESCRIPTOR: &str = r#"{"abi_version":"v1alpha1","plugin_type":"policy","stage":"ir","description":"Evaluate operator-supplied Rego policies against the build graph with an embedded Rego engine.","exports":[{"name":"validate"}],"metadata":{"author":"aggrega","license":"Apache-2.0"}}"#;
 
 /// The host calls `describe()` once at load to read the plugin's static
 /// self-report before dispatching `validate`.
@@ -63,7 +63,7 @@ pub fn validate(input: String) -> FnResult<String> {
 /// engine, and collects the fired verdicts. It returns an error for any
 /// genuine load or evaluation failure so the caller surfaces a build fault; an
 /// undefined decision rule is not a failure and simply contributes no verdict.
-fn evaluate(raw: &str) -> anyhow::Result<PolicyValidatorOutput> {
+fn evaluate(raw: &str) -> anyhow::Result<PolicyOutput> {
     let payload: serde_json::Value = serde_json::from_str(raw)?;
 
     let mut engine = regorus::Engine::new();
@@ -106,7 +106,7 @@ fn evaluate(raw: &str) -> anyhow::Result<PolicyValidatorOutput> {
         collect(&obj, "warn", &mut results)?;
         collect(&obj, "audit", &mut results)?;
     }
-    Ok(PolicyValidatorOutput { results })
+    Ok(PolicyOutput { results })
 }
 
 /// eval_package evaluates a package reference to its object value. A reference

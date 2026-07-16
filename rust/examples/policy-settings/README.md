@@ -1,6 +1,6 @@
 # policy-settings (Rust fixture)
 
-A Rust policy-validator plugin that **types its attachment settings**. Its
+A Rust policy plugin that **types its attachment settings**. Its
 `describe()` self-report carries a `settings_schema` — a JSON Schema the host
 compiles at load and validates the operator's `with.settings` against before
 dispatching `validate`.

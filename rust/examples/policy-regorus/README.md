@@ -5,7 +5,7 @@ Copyright 2026 Cognitio S.r.l.
 
 # policy-regorus
 
-A reference `policy-validator` plugin that evaluates operator-supplied
+A reference `policy` plugin that evaluates operator-supplied
 [Rego](https://www.openpolicyagent.org/docs/latest/policy-language/) policies
 against the build's IR graph. The Rego engine is embedded in the plugin, so
 the compiler runs no policy engine of its own and carries no policy-language
@@ -16,7 +16,7 @@ routes the payload in and the verdicts out.
 
 The plugin exports the two functions the policy socket expects:
 
-- `describe()` — reports itself as a `policy-validator` plugin, ABI
+- `describe()` — reports itself as a `policy` plugin, ABI
   `v1alpha1`, evaluating the `ir` stage, exporting `validate`.
 - `validate(input)` — evaluates the attached policies against the payload the
   host hands it and returns the fired verdicts.
@@ -116,12 +116,12 @@ behind a thin adapter plugin:
    implements OPA's own Wasm ABI (its own entrypoints, memory model, and
    builtin-callback protocol).
 
-2. Wrap that module in a `policy-validator` adapter plugin. The adapter
+2. Wrap that module in a `policy` adapter plugin. The adapter
    absorbs OPA's Wasm ABI entirely inside the guest: it instantiates the
    OPA-built module, sets the input, invokes the evaluation entrypoint, and
    maps the OPA decision back to the `deny` / `warn` / `audit` verdict shape
    the socket expects. The compiler host sees only the standard
-   `describe()` / `validate()` policy-validator surface; it never learns that
+   `describe()` / `validate()` policy surface; it never learns that
    OPA is involved and carries no OPA-specific logic.
 
 The adapter keeps the same host contract as this plugin, so switching a policy

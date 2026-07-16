@@ -5,7 +5,7 @@ Copyright 2026 Cognitio S.r.l.
 
 # policy-regorus-render
 
-A reference render-stage `policy-validator` plugin that evaluates
+A reference render-stage `policy` plugin that evaluates
 operator-supplied
 [Rego](https://www.openpolicyagent.org/docs/latest/policy-language/) policies
 against the compiler's **rendered output artifacts**. It is the render-stage
@@ -45,7 +45,7 @@ like any non-structured content, surfaces `parse_error`.
 
 The plugin exports the two functions the policy socket expects:
 
-- `describe()` — reports itself as a `policy-validator` plugin, ABI
+- `describe()` — reports itself as a `policy` plugin, ABI
   `v1alpha1`, evaluating the `render` stage, exporting `validate`.
 - `validate(input)` — evaluates the attached policies against the rendered
   artifacts the host hands it and returns the fired verdicts.

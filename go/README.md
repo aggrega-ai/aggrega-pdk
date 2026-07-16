@@ -28,7 +28,7 @@ The result is a WASI reactor. The Aggrega Wasm loader runs it under a
 deterministic, capability-denied WASI configuration — the
 ahead-of-time-purity firewall the developer guide describes in full.
 
-See `examples/mutator/` and `examples/policy-validator/` for working
+See `examples/mutator/` and `examples/policy/` for working
 plugin sources.
 
 ## Build provenance
@@ -71,7 +71,7 @@ go/
 │   └── aggrega_test.go (round-trip mirroring tests against the schemas)
 └── examples/
     ├── mutator/      (fixture mutator plugin)
-    └── policy-validator/ (fixture policy-validator plugin)
+    └── policy/          (fixture policy plugin)
 ```
 
 ## Standalone reuse

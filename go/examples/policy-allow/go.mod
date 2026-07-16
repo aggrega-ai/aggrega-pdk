@@ -1,4 +1,4 @@
-module github.com/aggrega-ai/aggrega-pdk-go/examples/policy-validator-observe
+module github.com/aggrega-ai/aggrega-pdk-go/examples/policy-allow
 
 go 1.26.0
 

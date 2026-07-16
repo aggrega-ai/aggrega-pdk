@@ -31,7 +31,7 @@ pub use host_funcs::{
 // Every socket type is generated from the canonical schemas into the portable
 // aggrega-abi crate and re-exported here, so plugin authors keep the flat
 // `aggrega_pdk_rust::<Type>` spelling while the wire shape stays single-sourced
-// in aggrega-abi. The policy-validator socket's graph is the full IR graph, so
+// in aggrega-abi. The policy socket's graph is the full IR graph, so
 // the IR types are re-exported alongside the policy envelope.
 pub use aggrega_abi::{
     AssembleBoundaryInput, AssembleBoundaryOutput, CLIRunInput, CatalogMetadata, CatalogProjection,
@@ -42,7 +42,7 @@ pub use aggrega_abi::{
     MutatorGraph,
     MutatorInput, MutatorNode, MutatorOutput, NarrowingExemption, NodeProvenance, Policies,
     PolicyResult,
-    PolicyValidatorInput, PolicyValidatorOutput, PrecalculatedPath, RenderEdge, RenderNodeInput,
+    PolicyInput, PolicyOutput, PrecalculatedPath, RenderEdge, RenderNodeInput,
     RenderNodeOutput, RenderedFile, RenderedNode,
     SourceEntry, SourceFile, SourceFileRequest,
     SourceFileResponse, SourceListing, SourcePackRequest, SourcePackResponse, SourceProjection,

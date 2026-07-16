@@ -45,7 +45,7 @@ embedding the QuickJS runtime; typical artifact size is 2–3 MB. The
 functions (under a `declare module "main"` block) plus the host
 functions the plugin imports (under `declare module "extism:host"`).
 
-See `examples/mutator/` and `examples/policy-validator/` for working
+See `examples/mutator/` and `examples/policy/` for working
 plugin sources with build scripts.
 
 ## Build provenance
@@ -91,7 +91,7 @@ typescript/
 │   └── round_trip.test.ts (round-trip mirroring against the schemas)
 └── examples/
     ├── mutator/        (fixture mutator plugin)
-    └── policy-validator/ (fixture policy-validator plugin)
+    └── policy/ (fixture policy plugin)
 ```
 
 ## Toolchain dependencies

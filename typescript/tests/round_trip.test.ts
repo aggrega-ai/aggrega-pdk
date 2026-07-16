@@ -31,8 +31,8 @@ import {
   decodeCLIRunInput,
   type MutatorInput,
   type MutatorOutput,
-  type PolicyValidatorInput,
-  type PolicyValidatorOutput,
+  type PolicyInput,
+  type PolicyOutput,
 } from "../src/index.ts";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -139,15 +139,15 @@ test("MutatorOutput round-trips through wasm-mutator schema", () => {
   assert.equal(ok, true, `schema validation failed: ${JSON.stringify(validate.errors)}`);
 });
 
-test("PolicyValidatorInput round-trips through wasm-policy-validator schema", () => {
+test("PolicyInput round-trips through wasm-policy schema", () => {
   // Under b-full the policy input carries the full IR graph; the schema
   // references ir-v1alpha1 for the graph field, so both schemas are registered.
   const validate = makeValidatorWithRefs(
-    "wasm-policy-validator-v1alpha1.schema.json",
+    "wasm-policy-v1alpha1.schema.json",
     "ir-v1alpha1.schema.json",
   );
 
-  const fixture: PolicyValidatorInput = {
+  const fixture: PolicyInput = {
     graph: {
       apiVersion: "aggrega.ai/v1alpha1",
       kind: "IR",
@@ -191,17 +191,17 @@ test("PolicyValidatorInput round-trips through wasm-policy-validator schema", ()
   const ok = validate(serialised);
   assert.equal(ok, true, `schema validation failed: ${JSON.stringify(validate.errors)}`);
 
-  const round = JSON.parse(JSON.stringify(fixture)) as PolicyValidatorInput;
+  const round = JSON.parse(JSON.stringify(fixture)) as PolicyInput;
   assert.deepStrictEqual(round, fixture);
 });
 
-test("PolicyValidatorOutput round-trips through wasm-policy-validator schema", () => {
+test("PolicyOutput round-trips through wasm-policy schema", () => {
   const validate = makeValidatorWithRefs(
-    "wasm-policy-validator-v1alpha1.schema.json",
+    "wasm-policy-v1alpha1.schema.json",
     "ir-v1alpha1.schema.json",
   );
 
-  const fixture: PolicyValidatorOutput = {
+  const fixture: PolicyOutput = {
     results: [
       { severity: "deny", message: "version floor violation: payments-db < 15.0.0" },
       { severity: "audit", message: "all labels present" },
@@ -212,6 +212,6 @@ test("PolicyValidatorOutput round-trips through wasm-policy-validator schema", (
   const ok = validate(serialised);
   assert.equal(ok, true, `schema validation failed: ${JSON.stringify(validate.errors)}`);
 
-  const round = JSON.parse(JSON.stringify(fixture)) as PolicyValidatorOutput;
+  const round = JSON.parse(JSON.stringify(fixture)) as PolicyOutput;
   assert.deepStrictEqual(round, fixture);
 });

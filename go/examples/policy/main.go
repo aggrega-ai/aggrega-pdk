@@ -1,24 +1,24 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 Cognitio S.r.l.
 
-// Fixture policy-validator plugin for the Aggrega Wasm runtime.
+// Fixture policy plugin for the Aggrega Wasm runtime.
 //
-// Emits a deterministic two-verdict PolicyValidatorOutput: one deny
+// Emits a deterministic two-verdict PolicyOutput: one deny
 // verdict and one audit verdict. The fixture does not inspect the input
 // graph; the outputs are constants so end-to-end tests can assert exact
 // equality of the emitted shape.
 //
-// Build: GOOS=wasip1 GOARCH=wasm go build -buildmode=c-shared -o policy-validator-go.wasm ./
+// Build: GOOS=wasip1 GOARCH=wasm go build -buildmode=c-shared -o policy-go.wasm ./
 package main
 
 import (
 	pdk "github.com/extism/go-pdk"
 )
 
-// The fixture emits a constant two-verdict PolicyValidatorOutput. The
+// The fixture emits a constant two-verdict PolicyOutput. The
 // output is a hand-formatted literal — the fixture's wire shape is
 // fixed, so a constant string is the simplest faithful encoding and
-// matches the exact wire shape the wasm-policy-validator JSON Schema
+// matches the exact wire shape the wasm-policy JSON Schema
 // describes. The PDK's own round-trip tests exercise the full
 // encoding/json path against the same schema.
 const fixtureOutput = `{"results":[` +
@@ -27,10 +27,10 @@ const fixtureOutput = `{"results":[` +
 	`]}`
 
 // pluginDescriptor is the static describe() self-report: a v1alpha1
-// policy-validator plugin evaluating the ir stage, whose validate export the
+// policy plugin evaluating the ir stage, whose validate export the
 // host validates before dispatch. The host reads this once at load through the
 // shared describe() gate.
-const pluginDescriptor = `{"abi_version":"v1alpha1","plugin_type":"policy-validator","stage":"ir","description":"Report deterministic deny and audit policy verdicts over the build graph.","exports":[{"name":"validate"}],"metadata":{"author":"aggrega","license":"Apache-2.0"}}`
+const pluginDescriptor = `{"abi_version":"v1alpha1","plugin_type":"policy","stage":"ir","description":"Report deterministic deny and audit policy verdicts over the build graph.","exports":[{"name":"validate"}],"metadata":{"author":"aggrega","license":"Apache-2.0"}}`
 
 //go:wasmexport describe
 func describe() int32 {

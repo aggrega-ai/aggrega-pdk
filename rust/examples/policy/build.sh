@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: Apache-2.0
-# Build the policy-validator fixture plugin to a .wasm artifact.
+# Build the policy fixture plugin to a .wasm artifact.
 #
 # Resolution order for the destination directory:
 #   1. $AGGREGA_PDK_WASM_OUT  (explicit override; the umbrella's
@@ -33,7 +33,7 @@ mkdir -p "${OUT_DIR}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 WORKSPACE_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 
-(cd "${WORKSPACE_ROOT}" && cargo build --release --target wasm32-unknown-unknown -p policy-validator-rust)
+(cd "${WORKSPACE_ROOT}" && cargo build --release --target wasm32-unknown-unknown -p policy-rust)
 
-cp "${WORKSPACE_ROOT}/target/wasm32-unknown-unknown/release/policy_validator_rust.wasm" "${OUT_DIR}/policy-validator-rust.wasm"
-echo "Wrote ${OUT_DIR}/policy-validator-rust.wasm"
+cp "${WORKSPACE_ROOT}/target/wasm32-unknown-unknown/release/policy_rust.wasm" "${OUT_DIR}/policy-rust.wasm"
+echo "Wrote ${OUT_DIR}/policy-rust.wasm"

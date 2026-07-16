@@ -1,13 +1,13 @@
-# policy-validator (Rust fixture)
+# policy (Go fixture)
 
-A small Rust plugin demonstrating the Aggrega policy-validator socket.
-The plugin emits a deterministic two-result `PolicyValidatorOutput` —
+A small Go plugin demonstrating the Aggrega policy socket.
+The plugin emits a deterministic two-result `PolicyOutput` —
 one pass, one fail — for end-to-end loader exercises.
 
 ## Build
 
-Rust toolchain with the `wasm32-unknown-unknown` target required.
-Run from this directory:
+Standard Go required (the build targets `GOOS=wasip1`). Run from this
+directory:
 
 ```sh
 bash build.sh
@@ -24,7 +24,7 @@ Destination resolution:
 
 ## Source-level dependency
 
-This fixture is a workspace member of `aggrega-pdk-rust` and consumes
-the PDK via a path dependency. The umbrella checkout provides the
-sibling structure. Standalone reuse by end users is gated on PDK
-publication.
+This fixture consumes the PDK via a `replace` directive in `go.mod`
+pointing at the sibling PDK source at `../../`. The umbrella checkout
+provides the file-relative resolution. Standalone reuse by end users
+is gated on PDK publication.

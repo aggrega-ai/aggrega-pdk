@@ -1,10 +1,10 @@
-# policy-validator-allow (Go fixture)
+# policy-allow (Go fixture)
 
-A Go plugin that drives the Aggrega policy-validator socket's success
-path. It emits a constant `PolicyValidatorOutput` whose single verdict
+A Go plugin that drives the Aggrega policy socket's success
+path. It emits a constant `PolicyOutput` whose single verdict
 passes, so a host-side test can prove the socket lets a build succeed
 when every rule passes — the counterpart to the minimal
-`policy-validator` fixture, whose deliberate failing verdict proves the
+`policy` fixture, whose deliberate failing verdict proves the
 build-halt path.
 
 ## Build

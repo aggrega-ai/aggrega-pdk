@@ -1,4 +1,4 @@
-module github.com/aggrega-ai/aggrega-pdk-go/examples/policy-validator-render
+module github.com/aggrega-ai/aggrega-pdk-go/examples/policy-render
 
 go 1.26.0
 

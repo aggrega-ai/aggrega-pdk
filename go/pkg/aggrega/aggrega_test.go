@@ -208,16 +208,16 @@ func TestMutatorOutput_RoundTripJSONSchema(t *testing.T) {
 	}
 }
 
-func TestPolicyValidatorInput_RoundTripJSONSchema(t *testing.T) {
+func TestPolicyInput_RoundTripJSONSchema(t *testing.T) {
 	t.Parallel()
 	// The policy schema references ir-v1alpha1 for its graph field, so both
 	// schemas are registered with the compiler to resolve the cross-file $ref.
-	schema := loadSchemaWithRefs(t, "wasm-policy-validator-v1alpha1.schema.json", "ir-v1alpha1.schema.json")
+	schema := loadSchemaWithRefs(t, "wasm-policy-v1alpha1.schema.json", "ir-v1alpha1.schema.json")
 
 	// Under b-full the policy input carries the full IR graph (single-sourced
 	// from ir-v1alpha1). The guest IR types use plain maps (the guest reads a
 	// map; key order on the wire is the host's concern).
-	fixture := aggrega.PolicyValidatorInput{
+	fixture := aggrega.PolicyInput{
 		Graph: aggrega.IRGraph{
 			APIVersion: "aggrega.ai/v1alpha1",
 			Kind:       "IR",
@@ -252,17 +252,17 @@ func TestPolicyValidatorInput_RoundTripJSONSchema(t *testing.T) {
 	}
 
 	if err := schema.Validate(jsonInstance(t, fixture)); err != nil {
-		t.Errorf("schema validation failed for PolicyValidatorInput fixture: %v", err)
+		t.Errorf("schema validation failed for PolicyInput fixture: %v", err)
 	}
 }
 
-func TestPolicyValidatorOutput_RoundTripJSONSchema(t *testing.T) {
+func TestPolicyOutput_RoundTripJSONSchema(t *testing.T) {
 	t.Parallel()
 	// Compiling the policy schema resolves its graph $ref into ir-v1alpha1, so
 	// the IR schema is registered even though the output payload omits the graph.
-	schema := loadSchemaWithRefs(t, "wasm-policy-validator-v1alpha1.schema.json", "ir-v1alpha1.schema.json")
+	schema := loadSchemaWithRefs(t, "wasm-policy-v1alpha1.schema.json", "ir-v1alpha1.schema.json")
 
-	fixture := aggrega.PolicyValidatorOutput{
+	fixture := aggrega.PolicyOutput{
 		Results: []aggrega.PolicyResult{
 			{Severity: "deny", Message: "version floor violation: payments-db < 15.0.0"},
 			{Severity: "audit", Message: "all labels present"},
@@ -270,14 +270,14 @@ func TestPolicyValidatorOutput_RoundTripJSONSchema(t *testing.T) {
 	}
 
 	if err := schema.Validate(jsonInstance(t, fixture)); err != nil {
-		t.Errorf("schema validation failed for PolicyValidatorOutput fixture: %v", err)
+		t.Errorf("schema validation failed for PolicyOutput fixture: %v", err)
 	}
 
 	raw, err := json.Marshal(fixture)
 	if err != nil {
 		t.Fatalf("json.Marshal: %v", err)
 	}
-	var round aggrega.PolicyValidatorOutput
+	var round aggrega.PolicyOutput
 	if err := json.Unmarshal(raw, &round); err != nil {
 		t.Fatalf("json.Unmarshal: %v", err)
 	}

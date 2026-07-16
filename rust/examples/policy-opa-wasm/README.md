@@ -5,7 +5,7 @@ Copyright 2026 Cognitio S.r.l.
 
 # policy-opa-wasm
 
-A reference `policy-validator` plugin that evaluates a Rego policy with the full
+A reference `policy` plugin that evaluates a Rego policy with the full
 [OPA](https://www.openpolicyagent.org/) engine — the complete builtin surface and
 exact reference-engine semantics — by driving an OPA-compiled WebAssembly module
 inside the guest.
@@ -28,7 +28,7 @@ on every build:
 2. Satisfies the OPA module's own imports — its linear memory and its builtin /
    abort callbacks — with in-guest host functions. The OPA Wasm ABI is absorbed
    entirely here: the compiler host sees only the standard `describe()` /
-   `validate()` policy-validator surface and never learns OPA is involved.
+   `validate()` policy surface and never learns OPA is involved.
 3. Runs OPA's evaluation sequence over every compiled entrypoint and maps each
    entrypoint's decision back to the socket's verdict shape.
 
@@ -37,7 +37,7 @@ runs, nothing is fetched, and the build stays deterministic and hermetic.
 
 ## What it exports
 
-- `describe()` — reports itself as a `policy-validator` plugin, ABI `v1alpha1`,
+- `describe()` — reports itself as a `policy` plugin, ABI `v1alpha1`,
   evaluating the `ir` stage, exporting `validate`.
 - `validate(input)` — drives the baked module against the payload the host hands
   it and returns the fired verdicts.

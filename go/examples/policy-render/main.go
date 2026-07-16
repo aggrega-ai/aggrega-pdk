@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 Cognitio S.r.l.
 
-// Render-stage policy-validator fixture plugin for the Aggrega Wasm runtime.
+// Render-stage policy fixture plugin for the Aggrega Wasm runtime.
 //
 // It declares the render stage, so the host runs it after render over the
 // rendered artifacts rather than over the IR graph. It reads its input payload:
@@ -10,7 +10,7 @@
 // object (settings.severity), defaulting to audit when unset. Driving it with
 // different settings exercises the render-stage deny / warn / audit host paths.
 //
-// Build: GOOS=wasip1 GOARCH=wasm go build -buildmode=c-shared -o policy-validator-render-go.wasm ./
+// Build: GOOS=wasip1 GOARCH=wasm go build -buildmode=c-shared -o policy-render-go.wasm ./
 package main
 
 import (
@@ -42,8 +42,8 @@ type output struct {
 }
 
 // pluginDescriptor is the static describe() self-report: a v1alpha1
-// policy-validator plugin evaluating the render stage.
-const pluginDescriptor = `{"abi_version":"v1alpha1","plugin_type":"policy-validator","stage":"render","description":"Echo the rendered artifacts and emit a settings-driven verdict over the render output.","exports":[{"name":"validate"}],"metadata":{"author":"aggrega","license":"Apache-2.0"}}`
+// policy plugin evaluating the render stage.
+const pluginDescriptor = `{"abi_version":"v1alpha1","plugin_type":"policy","stage":"render","description":"Echo the rendered artifacts and emit a settings-driven verdict over the render output.","exports":[{"name":"validate"}],"metadata":{"author":"aggrega","license":"Apache-2.0"}}`
 
 //go:wasmexport describe
 func describe() int32 {

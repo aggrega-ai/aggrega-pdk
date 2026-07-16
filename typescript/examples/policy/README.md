@@ -1,8 +1,8 @@
-# policy-validator (TypeScript fixture)
+# policy (TypeScript fixture)
 
-A small TypeScript plugin demonstrating the Aggrega policy-validator
+A small TypeScript plugin demonstrating the Aggrega policy
 socket. The plugin emits a deterministic two-result
-`PolicyValidatorOutput` — one pass, one fail — matching the Go and
+`PolicyOutput` — one pass, one fail — matching the Go and
 Rust counterparts byte-for-byte at the verdict level.
 
 ## Build
@@ -15,7 +15,7 @@ bash build.sh
 ```
 
 See the mutator fixture's README for the full build flow; the
-policy-validator fixture follows the same shape.
+policy fixture follows the same shape.
 
 ## Plugin entry shape
 

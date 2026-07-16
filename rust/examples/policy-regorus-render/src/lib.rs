@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 Cognitio S.r.l.
 
-//! Reference render-stage policy-validator plugin backed by an embedded Rego
+//! Reference render-stage policy plugin backed by an embedded Rego
 //! evaluator.
 //!
 //! This is the render-stage sibling of the IR-stage embedded-Rego policy
@@ -80,17 +80,17 @@
 //! Rego set iteration is sorted, so identical input yields a byte-identical
 //! verdict sequence.
 
-use aggrega_abi::RenderPolicyValidatorInput;
-use aggrega_pdk_rust::{PolicyResult, PolicyValidatorOutput};
+use aggrega_abi::RenderPolicyInput;
+use aggrega_pdk_rust::{PolicyResult, PolicyOutput};
 use extism_pdk::{plugin_fn, FnResult};
 use regorus::Value;
 use serde::Deserialize;
 use serde_json::json;
 
-/// The static `describe()` self-report: a v1alpha1 `policy-validator` plugin
+/// The static `describe()` self-report: a v1alpha1 `policy` plugin
 /// evaluating the render stage, whose `validate` export the host validates
 /// before dispatch.
-const PLUGIN_DESCRIPTOR: &str = r#"{"abi_version":"v1alpha1","plugin_type":"policy-validator","stage":"render","description":"Evaluate operator-supplied Rego policies against the rendered YAML/JSON output artifacts with an embedded Rego engine.","exports":[{"name":"validate"}],"metadata":{"author":"aggrega","license":"Apache-2.0"}}"#;
+const PLUGIN_DESCRIPTOR: &str = r#"{"abi_version":"v1alpha1","plugin_type":"policy","stage":"render","description":"Evaluate operator-supplied Rego policies against the rendered YAML/JSON output artifacts with an embedded Rego engine.","exports":[{"name":"validate"}],"metadata":{"author":"aggrega","license":"Apache-2.0"}}"#;
 
 /// The host calls `describe()` once at load to read the plugin's static
 /// self-report before dispatching `validate`.
@@ -116,8 +116,8 @@ pub fn validate(input: String) -> FnResult<String> {
 /// simply contributes no verdict. A per-artifact parse failure is not an
 /// evaluate-level error — it is surfaced to the policy as `parse_error` on the
 /// artifact rather than allowed away.
-fn evaluate(raw: &str) -> anyhow::Result<PolicyValidatorOutput> {
-    let payload: RenderPolicyValidatorInput = serde_json::from_str(raw)?;
+fn evaluate(raw: &str) -> anyhow::Result<PolicyOutput> {
+    let payload: RenderPolicyInput = serde_json::from_str(raw)?;
 
     let mut engine = regorus::Engine::new();
 
@@ -151,13 +151,13 @@ fn evaluate(raw: &str) -> anyhow::Result<PolicyValidatorOutput> {
         collect(&obj, "warn", &mut results)?;
         collect(&obj, "audit", &mut results)?;
     }
-    Ok(PolicyValidatorOutput { results })
+    Ok(PolicyOutput { results })
 }
 
 /// build_input assembles the Rego input document: each artifact carries its
 /// path, its raw content, and its parsed documents; the attachment's sources
 /// and settings are carried through so the whole payload is visible to a policy.
-fn build_input(payload: &RenderPolicyValidatorInput) -> serde_json::Value {
+fn build_input(payload: &RenderPolicyInput) -> serde_json::Value {
     let artifacts: Vec<serde_json::Value> = payload
         .artifacts
         .iter()
@@ -247,7 +247,7 @@ fn project_hcl(content: &str) -> anyhow::Result<Vec<serde_json::Value>> {
 
 /// settings_value returns the attachment's settings as a JSON value for the
 /// input document, or null when the attachment declares none.
-fn settings_value(payload: &RenderPolicyValidatorInput) -> serde_json::Value {
+fn settings_value(payload: &RenderPolicyInput) -> serde_json::Value {
     match &payload.settings {
         Some(raw) => serde_json::from_str(raw.get()).unwrap_or(serde_json::Value::Null),
         None => serde_json::Value::Null,
@@ -368,8 +368,8 @@ resource "aws_db_instance" "db" {
         .to_string()
     }
 
-    fn one_artifact_input(path: &str, content: &str) -> RenderPolicyValidatorInput {
-        RenderPolicyValidatorInput {
+    fn one_artifact_input(path: &str, content: &str) -> RenderPolicyInput {
+        RenderPolicyInput {
             artifacts: vec![RenderedArtifact {
                 path: path.to_string(),
                 content: content.to_string(),

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 Cognitio S.r.l.
 
-//! Reference render-stage policy-validator plugin that runs a Kubewarden-style
+//! Reference render-stage policy plugin that runs a Kubewarden-style
 //! validating policy over the rendered Kubernetes manifests.
 //!
 //! Kubewarden policies are written against the Kubernetes AdmissionReview
@@ -12,7 +12,7 @@
 //! in-guest:
 //!
 //!   - Outward, it speaks the Aggrega plugin ABI: `describe()` reports a
-//!     `policy-validator` plugin evaluating the `render` stage, and `validate`
+//!     `policy` plugin evaluating the `render` stage, and `validate`
 //!     consumes the render-stage payload and returns policy verdicts. The host
 //!     stays free of any Kubewarden or admission-control logic.
 //!   - Inward, it absorbs the Kubewarden contract: for each rendered object it
@@ -51,15 +51,15 @@
 
 use std::collections::{HashMap, HashSet};
 
-use aggrega_abi::RenderPolicyValidatorInput;
-use aggrega_pdk_rust::{PolicyResult, PolicyValidatorOutput};
+use aggrega_abi::RenderPolicyInput;
+use aggrega_pdk_rust::{PolicyResult, PolicyOutput};
 use extism_pdk::{plugin_fn, FnResult};
 use serde::{Deserialize, Serialize};
 
-/// The static `describe()` self-report: a v1alpha1 `policy-validator` plugin
+/// The static `describe()` self-report: a v1alpha1 `policy` plugin
 /// evaluating the render stage, whose `validate` export the host validates
 /// before dispatch.
-const PLUGIN_DESCRIPTOR: &str = r#"{"abi_version":"v1alpha1","plugin_type":"policy-validator","stage":"render","description":"Run a Kubewarden-style validating policy over the rendered Kubernetes manifests.","exports":[{"name":"validate"}],"metadata":{"author":"aggrega","license":"Apache-2.0"}}"#;
+const PLUGIN_DESCRIPTOR: &str = r#"{"abi_version":"v1alpha1","plugin_type":"policy","stage":"render","description":"Run a Kubewarden-style validating policy over the rendered Kubernetes manifests.","exports":[{"name":"validate"}],"metadata":{"author":"aggrega","license":"Apache-2.0"}}"#;
 
 /// The host calls `describe()` once at load to read the plugin's static
 /// self-report before dispatching `validate`.
@@ -73,7 +73,7 @@ pub fn describe() -> FnResult<String> {
 /// an error, which the host surfaces as a build fault.
 #[plugin_fn]
 pub fn validate(input: String) -> FnResult<String> {
-    let payload: RenderPolicyValidatorInput = serde_json::from_str(&input)?;
+    let payload: RenderPolicyInput = serde_json::from_str(&input)?;
     let settings: AdapterSettings = match &payload.settings {
         Some(raw) => serde_json::from_str(raw.get())?,
         None => AdapterSettings::default(),
@@ -107,7 +107,7 @@ pub fn validate(input: String) -> FnResult<String> {
             }
         }
     }
-    Ok(serde_json::to_string(&PolicyValidatorOutput { results })?)
+    Ok(serde_json::to_string(&PolicyOutput { results })?)
 }
 
 /// AdapterSettings is the attachment's free-form settings object as this

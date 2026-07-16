@@ -1,5 +1,5 @@
 [package]
-name = "policy-validator-rust"
+name = "policy-rust"
 version = "0.1.0-alpha.1"
 edition = "2021"
 publish = false

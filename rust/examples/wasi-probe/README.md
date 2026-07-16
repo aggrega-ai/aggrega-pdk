@@ -46,7 +46,7 @@ runs `rustup target add wasm32-wasip1` idempotently.
 
 ## Why this fixture exists
 
-The mutator and policy-validator fixtures both build for
+The mutator and policy fixtures both build for
 `wasm32-unknown-unknown` and emit zero WASI imports. They prove the
 host accepts WASI-free Wasm; they do NOT prove the host's stubbed-
 WASI subset works.

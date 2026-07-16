@@ -16,7 +16,7 @@ upstream [Extism](https://extism.org) PDK
 (`extism-pdk-<language>`), adding Aggrega-typed builders for the
 Wasm socket payloads and bindings for the Aggrega host functions
 (`aggrega_log`, `aggrega_emit_warning`). Plugin authors targeting a
-mutator, policy-validator, or any future Aggrega socket consume the
+mutator, policy, or any future Aggrega socket consume the
 language-appropriate PDK and write idiomatic source against it.
 
 Contract floor: `v1alpha1`. The three PDKs export a common version

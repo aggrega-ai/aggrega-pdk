@@ -38,8 +38,8 @@ jobs:
         working-directory: go/examples/mutator
         run: bash build.sh
 
-      - name: Build Go fixture — policy-validator
-        working-directory: go/examples/policy-validator
+      - name: Build Go fixture — policy
+        working-directory: go/examples/policy
         run: bash build.sh
 
   rust-pdk:
@@ -89,8 +89,8 @@ jobs:
         working-directory: rust/examples/mutator
         run: bash build.sh
 
-      - name: Build Rust fixture — policy-validator
-        working-directory: rust/examples/policy-validator
+      - name: Build Rust fixture — policy
+        working-directory: rust/examples/policy
         run: bash build.sh
 
   typescript-pdk:
@@ -134,6 +134,6 @@ jobs:
         working-directory: typescript/examples/mutator
         run: bash build.sh
 
-      - name: Build TS fixture — policy-validator
-        working-directory: typescript/examples/policy-validator
+      - name: Build TS fixture — policy
+        working-directory: typescript/examples/policy
         run: bash build.sh

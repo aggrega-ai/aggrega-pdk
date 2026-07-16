@@ -30,7 +30,7 @@ The artifact lands at
 directory under the `<socket>-<lang>.wasm` naming convention the
 host's integration tests consume.
 
-See `examples/mutator/` and `examples/policy-validator/` for working
+See `examples/mutator/` and `examples/policy/` for working
 plugin sources.
 
 ## Build provenance
@@ -78,7 +78,7 @@ rust/
 │   └── round_trip.rs   (round-trip mirroring tests against the schemas)
 └── examples/
     ├── mutator/        (fixture mutator plugin)
-    └── policy-validator/ (fixture policy-validator plugin)
+    └── policy/ (fixture policy plugin)
 ```
 
 ## Standalone reuse

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 Cognitio S.r.l.
 
-//! Reference policy-validator plugin that drives a pre-baked OPA-compiled
+//! Reference policy plugin that drives a pre-baked OPA-compiled
 //! policy module with the full OPA evaluation semantics and builtin surface.
 //!
 //! The policy is authored in Rego, compiled once with OPA's own toolchain
@@ -44,7 +44,7 @@
 //! fails the build loudly rather than passing silently. "The adapter cannot
 //! evaluate this policy" never reads as "the policy allows the build".
 
-use aggrega_pdk_rust::{PolicyResult, PolicyValidatorOutput};
+use aggrega_pdk_rust::{PolicyResult, PolicyOutput};
 use anyhow::{anyhow, bail, Context};
 use extism_pdk::{plugin_fn, FnResult};
 use wasmi::{Caller, Engine, Linker, Memory, MemoryType, Module, Store};
@@ -53,10 +53,10 @@ use wasmi::{Caller, Engine, Linker, Memory, MemoryType, Module, Store};
 /// from policy.rego with the OPA CLI as documented in the README.
 static POLICY_WASM: &[u8] = include_bytes!("../policy.wasm");
 
-/// The static `describe()` self-report: a v1alpha1 `policy-validator` plugin
+/// The static `describe()` self-report: a v1alpha1 `policy` plugin
 /// evaluating the ir stage, whose `validate` export the host validates before
 /// dispatch.
-const PLUGIN_DESCRIPTOR: &str = r#"{"abi_version":"v1alpha1","plugin_type":"policy-validator","stage":"ir","description":"Evaluate an OPA-compiled Rego policy against the build graph, driving the baked policy module in-guest.","exports":[{"name":"validate"}],"metadata":{"author":"aggrega","license":"Apache-2.0"}}"#;
+const PLUGIN_DESCRIPTOR: &str = r#"{"abi_version":"v1alpha1","plugin_type":"policy","stage":"ir","description":"Evaluate an OPA-compiled Rego policy against the build graph, driving the baked policy module in-guest.","exports":[{"name":"validate"}],"metadata":{"author":"aggrega","license":"Apache-2.0"}}"#;
 
 /// The host calls `describe()` once at load to read the plugin's static
 /// self-report before dispatching `validate`.
@@ -71,7 +71,7 @@ pub fn describe() -> FnResult<String> {
 #[plugin_fn]
 pub fn validate(input: String) -> FnResult<String> {
     let results = evaluate(&input)?;
-    Ok(serde_json::to_string(&PolicyValidatorOutput { results })?)
+    Ok(serde_json::to_string(&PolicyOutput { results })?)
 }
 
 /// ExternalBuiltinInvoked reports a baked policy reaching for a host-provided

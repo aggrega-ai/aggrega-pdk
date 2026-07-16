@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: Apache-2.0
-# Build the policy-validator fixture plugin to a .wasm artifact.
+# Build the policy-allow fixture plugin to a .wasm artifact.
 #
 # Resolution order for the destination directory:
 #   1. $AGGREGA_PDK_WASM_OUT  (explicit override; the build invokes it
@@ -29,5 +29,5 @@ else
 fi
 
 mkdir -p "${OUT_DIR}"
-GOOS=wasip1 GOARCH=wasm go build -buildmode=c-shared -o "${OUT_DIR}/policy-validator-go.wasm" ./
-echo "Wrote ${OUT_DIR}/policy-validator-go.wasm"
+GOOS=wasip1 GOARCH=wasm go build -buildmode=c-shared -o "${OUT_DIR}/policy-allow-go.wasm" ./
+echo "Wrote ${OUT_DIR}/policy-allow-go.wasm"

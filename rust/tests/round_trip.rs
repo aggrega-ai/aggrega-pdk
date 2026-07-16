@@ -7,7 +7,7 @@
 //! serialised value against the corresponding JSON Schema in the sibling
 //! `aggrega-schemas` repository, and deserialises it back.
 //!
-//! The mutator, linter, and policy-validator socket types are all generated
+//! The mutator, linter, and policy socket types are all generated
 //! into the portable `aggrega-abi` crate (re-exported by this PDK) and their
 //! cross-language wire parity is pinned by the parity tests in `aggrega-abi`.
 //! The tests here are a schema-validation smoke over the re-exported socket
@@ -29,7 +29,7 @@ use aggrega_pdk_rust::{
     CLIRunInput, CompilationContext, IREdge, IRGraph, IRMetadata, IRNode, IRProvenance, IRSpec,
     LinterFinding,
     LinterInput, LinterOutput, MutatorGraph, MutatorInput, MutatorNode, MutatorOutput,
-    NarrowingExemption, Policies, PolicyResult, PolicyValidatorInput, PolicyValidatorOutput,
+    NarrowingExemption, Policies, PolicyResult, PolicyInput, PolicyOutput,
     PrecalculatedPath, API_VERSION,
 };
 use std::collections::BTreeMap;
@@ -191,16 +191,16 @@ fn mutator_output_round_trip_json_schema() {
 }
 
 #[test]
-fn policy_validator_input_round_trip_json_schema() {
+fn policy_input_round_trip_json_schema() {
     // Under b-full the policy input carries the full IR graph; the schema
     // references ir-v1alpha1 for the graph field, so both schemas are registered.
-    let schema = schema_path("wasm-policy-validator-v1alpha1.schema.json");
+    let schema = schema_path("wasm-policy-v1alpha1.schema.json");
     let ir_schema = schema_path("ir-v1alpha1.schema.json");
 
     let mut labels = BTreeMap::new();
     labels.insert("team".to_string(), "payments".to_string());
 
-    let fixture = PolicyValidatorInput {
+    let fixture = PolicyInput {
         graph: IRGraph {
             api_version: "aggrega.ai/v1alpha1".to_string(),
             kind: "IR".to_string(),
@@ -248,13 +248,13 @@ fn policy_validator_input_round_trip_json_schema() {
         settings: None,
     };
 
-    let serialised = serde_json::to_value(&fixture).expect("serialize PolicyValidatorInput");
+    let serialised = serde_json::to_value(&fixture).expect("serialize PolicyInput");
     validate_with_ref(&schema, &ir_schema, &serialised).expect("schema validation");
 
     // The abi types do not derive PartialEq (RawValue lacks it); compare the
     // re-serialized wire instead.
-    let round: PolicyValidatorInput =
-        serde_json::from_value(serialised.clone()).expect("deserialize PolicyValidatorInput");
+    let round: PolicyInput =
+        serde_json::from_value(serialised.clone()).expect("deserialize PolicyInput");
     assert_eq!(
         serde_json::to_string(&fixture).unwrap(),
         serde_json::to_string(&round).unwrap()
@@ -262,11 +262,11 @@ fn policy_validator_input_round_trip_json_schema() {
 }
 
 #[test]
-fn policy_validator_output_round_trip_json_schema() {
-    let schema = schema_path("wasm-policy-validator-v1alpha1.schema.json");
+fn policy_output_round_trip_json_schema() {
+    let schema = schema_path("wasm-policy-v1alpha1.schema.json");
     let ir_schema = schema_path("ir-v1alpha1.schema.json");
 
-    let fixture = PolicyValidatorOutput {
+    let fixture = PolicyOutput {
         results: vec![
             PolicyResult {
                 severity: "deny".to_string(),
@@ -279,11 +279,11 @@ fn policy_validator_output_round_trip_json_schema() {
         ],
     };
 
-    let serialised = serde_json::to_value(&fixture).expect("serialize PolicyValidatorOutput");
+    let serialised = serde_json::to_value(&fixture).expect("serialize PolicyOutput");
     validate_with_ref(&schema, &ir_schema, &serialised).expect("schema validation");
 
-    let round: PolicyValidatorOutput =
-        serde_json::from_value(serialised).expect("deserialize PolicyValidatorOutput");
+    let round: PolicyOutput =
+        serde_json::from_value(serialised).expect("deserialize PolicyOutput");
     assert_eq!(
         serde_json::to_string(&fixture).unwrap(),
         serde_json::to_string(&round).unwrap()

@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 Cognitio S.r.l.
 
-// Allow-all proof policy-validator plugin for the Aggrega Wasm runtime.
+// Allow-all proof policy plugin for the Aggrega Wasm runtime.
 //
-// Emits a deterministic PolicyValidatorOutput with no fired verdicts, so
+// Emits a deterministic PolicyOutput with no fired verdicts, so
 // the host-side end-to-end test can prove the policy socket lets a build
 // succeed when no rule fires — the counterpart to the minimal
-// policy-validator fixture, whose deny verdict proves the build-halt path.
+// policy fixture, whose deny verdict proves the build-halt path.
 //
-// It self-describes via describe() as a policy-validator plugin whose
+// It self-describes via describe() as a policy plugin whose
 // validate export the host validates before dispatch.
 //
-// Build: GOOS=wasip1 GOARCH=wasm go build -buildmode=c-shared -o policy-validator-allow-go.wasm ./
+// Build: GOOS=wasip1 GOARCH=wasm go build -buildmode=c-shared -o policy-allow-go.wasm ./
 package main
 
 import (
@@ -25,9 +25,9 @@ import (
 const fixtureOutput = `{"results":[]}`
 
 // pluginDescriptor is the static describe() self-report: a v1alpha1
-// policy-validator plugin evaluating the ir stage, whose validate export the
+// policy plugin evaluating the ir stage, whose validate export the
 // host validates before dispatch.
-const pluginDescriptor = `{"abi_version":"v1alpha1","plugin_type":"policy-validator","stage":"ir","exports":[{"name":"validate"}],"metadata":{"author":"aggrega","license":"Apache-2.0"}}`
+const pluginDescriptor = `{"abi_version":"v1alpha1","plugin_type":"policy","stage":"ir","exports":[{"name":"validate"}],"metadata":{"author":"aggrega","license":"Apache-2.0"}}`
 
 //go:wasmexport describe
 func describe() int32 {

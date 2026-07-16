@@ -20,9 +20,9 @@ crate-type = ["cdylib"]
 path = "src/lib.rs"
 
 [dependencies]
-# The plugin ABI surface. PolicyResult / PolicyValidatorOutput come from the
+# The plugin ABI surface. PolicyResult / PolicyOutput come from the
 # PDK re-export (single-sourcing the output shape with every other policy
-# guest); RenderPolicyValidatorInput comes from the ABI codec crate, which is
+# guest); RenderPolicyInput comes from the ABI codec crate, which is
 # the render-stage input's definitional home.
 aggrega-pdk-rust = { path = "../.." }
 aggrega-abi = { path = "../../../../aggrega-abi/rust" }

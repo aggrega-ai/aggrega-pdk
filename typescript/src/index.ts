@@ -11,7 +11,7 @@
  *
  * Every socket type and its encode/decode codec is generated from the
  * canonical schemas into @aggrega-ai/aggrega-abi and re-exported here,
- * single-sourcing the wire shape. The policy-validator socket's graph is the
+ * single-sourcing the wire shape. The policy socket's graph is the
  * full capability-agnostic IR graph (generated from ir-v1alpha1), re-exported
  * alongside the policy envelope.
  */

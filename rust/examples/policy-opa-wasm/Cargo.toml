@@ -22,8 +22,8 @@ path = "src/lib.rs"
 
 [dependencies]
 # The plugin ABI surface: the describe()/validate() export macros and the
-# policy-validator wire types. Reusing the PDK's PolicyResult /
-# PolicyValidatorOutput single-sources the output shape with every other
+# policy wire types. Reusing the PDK's PolicyResult /
+# PolicyOutput single-sources the output shape with every other
 # policy guest rather than restating the wire contract locally.
 aggrega-pdk-rust = { path = "../.." }
 extism-pdk = "1.4"

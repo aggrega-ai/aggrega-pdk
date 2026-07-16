@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: Apache-2.0
-# Build the policy-validator fixture plugin to a .wasm artifact via
+# Build the policy fixture plugin to a .wasm artifact via
 # the Extism JS PDK (extism-js compiler + QuickJS runtime).
 
 set -eo pipefail
@@ -36,5 +36,5 @@ mkdir -p "${OUT_DIR}" "${SCRIPT_DIR}/dist"
 
 (cd "${SCRIPT_DIR}" && npm install --no-save --silent --no-audit --no-fund)
 (cd "${SCRIPT_DIR}" && npx esbuild src/index.ts --bundle --format=cjs --target=es2022 --platform=neutral --outfile=dist/plugin.js)
-extism-js -i "${SCRIPT_DIR}/index.d.ts" "${SCRIPT_DIR}/dist/plugin.js" -o "${OUT_DIR}/policy-validator-typescript.wasm"
-echo "Wrote ${OUT_DIR}/policy-validator-typescript.wasm"
+extism-js -i "${SCRIPT_DIR}/index.d.ts" "${SCRIPT_DIR}/dist/plugin.js" -o "${OUT_DIR}/policy-typescript.wasm"
+echo "Wrote ${OUT_DIR}/policy-typescript.wasm"

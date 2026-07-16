@@ -30,14 +30,14 @@ type (
 	NarrowingExemption = abi.NarrowingExemption
 )
 
-// Policy-validator socket. The graph is the full capability-agnostic IR graph; the
+// Policy socket. The graph is the full capability-agnostic IR graph; the
 // IR types are re-exported alongside the policy envelope so plugin authors build
 // and read the same IR shape the compiler emits.
 type (
-	PolicyValidatorInput  = abi.PolicyValidatorInput
-	PolicyValidatorOutput = abi.PolicyValidatorOutput
-	PolicyResult          = abi.PolicyResult
-	PrecalculatedPath     = abi.PrecalculatedPath
+	PolicyInput       = abi.PolicyInput
+	PolicyOutput      = abi.PolicyOutput
+	PolicyResult      = abi.PolicyResult
+	PrecalculatedPath = abi.PrecalculatedPath
 )
 
 // IR graph (the policy socket's graph shape).

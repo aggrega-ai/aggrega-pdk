@@ -5,7 +5,7 @@ Copyright 2026 Cognitio S.r.l.
 
 # policy-kubewarden-render
 
-A reference render-stage `policy-validator` plugin that runs a
+A reference render-stage `policy` plugin that runs a
 [Kubewarden](https://kubewarden.io/)-style validating policy over the rendered
 Kubernetes manifests. It is an *adapter*: it speaks the Aggrega plugin ABI
 outward and absorbs the Kubewarden admission-control contract inward, so the
@@ -53,7 +53,7 @@ Kubewarden policy is called as an ordinary in-guest Rust function,
 
 The plugin exports the two functions the policy socket expects:
 
-- `describe()` — reports itself as a `policy-validator` plugin, ABI `v1alpha1`,
+- `describe()` — reports itself as a `policy` plugin, ABI `v1alpha1`,
   evaluating the `render` stage, exporting `validate`.
 - `validate(input)` — receives the render-stage payload (the rendered
   artifacts, plus the attachment's sources and settings), runs the policy over

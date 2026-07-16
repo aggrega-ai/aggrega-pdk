@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 Cognitio S.r.l.
 
-// Observing policy-validator fixture plugin for the Aggrega Wasm runtime.
+// Observing policy fixture plugin for the Aggrega Wasm runtime.
 //
 // Unlike the constant-output policy fixtures, this plugin reads its input
 // payload: it echoes the attachment-supplied sources (count, and the first
@@ -11,7 +11,7 @@
 // settings exercises the deny / warn / audit host paths, and the echoed source
 // detail proves the sources reached the guest as base names.
 //
-// Build: GOOS=wasip1 GOARCH=wasm go build -buildmode=c-shared -o policy-validator-observe-go.wasm ./
+// Build: GOOS=wasip1 GOARCH=wasm go build -buildmode=c-shared -o policy-observe-go.wasm ./
 package main
 
 import (
@@ -48,8 +48,8 @@ type output struct {
 }
 
 // pluginDescriptor is the static describe() self-report: a v1alpha1
-// policy-validator plugin evaluating the ir stage.
-const pluginDescriptor = `{"abi_version":"v1alpha1","plugin_type":"policy-validator","stage":"ir","description":"Echo the attachment sources and emit a settings-driven verdict over the build graph.","exports":[{"name":"validate"}],"metadata":{"author":"aggrega","license":"Apache-2.0"}}`
+// policy plugin evaluating the ir stage.
+const pluginDescriptor = `{"abi_version":"v1alpha1","plugin_type":"policy","stage":"ir","description":"Echo the attachment sources and emit a settings-driven verdict over the build graph.","exports":[{"name":"validate"}],"metadata":{"author":"aggrega","license":"Apache-2.0"}}`
 
 //go:wasmexport describe
 func describe() int32 {

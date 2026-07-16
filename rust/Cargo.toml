@@ -46,7 +46,7 @@ members = [
     "examples/link-cross-boundary",
     "examples/mutator",
     "examples/policy-settings",
-    "examples/policy-validator",
+    "examples/policy",
     "examples/render-node",
     "examples/render-node-nondeterministic",
     "examples/wasi-probe",
