@@ -40,10 +40,18 @@ const fixtureLabelKey = "fixture.aggrega-pdk/touched"
 // outputs when multiple PDKs ship.
 const fixtureLabelValue = "mutator-go"
 
-// pluginDescriptor is the static describe() self-report: a v1alpha1
-// mutator plugin whose mutate export the host validates before dispatch.
-// The host reads this once at load through the shared describe() gate.
-const pluginDescriptor = `{"abi_version":"v1alpha1","plugin_type":"mutator","description":"Append a fixed label to every node in the mutation graph.","exports":[{"name":"mutate"}],"metadata":{"author":"aggrega","license":"Apache-2.0"}}`
+// descriptor is the static describe() self-report: a v1alpha1 mutator plugin
+// whose mutate export the host validates before dispatch. The host reads this
+// once at load through the shared describe() gate.
+func descriptor() aggrega.PluginDescriptor {
+	return aggrega.PluginDescriptor{
+		AbiVersion:  aggrega.APIVersion,
+		PluginType:  "mutator",
+		Description: "Append a fixed label to every node in the mutation graph.",
+		Exports:     []aggrega.PluginExport{{Name: "mutate"}},
+		Metadata:    &aggrega.PluginDescriptorMeta{Author: "aggrega", License: "Apache-2.0"},
+	}
+}
 
 // escapePointerToken escapes a JSON Pointer reference token per RFC 6901:
 // "~" becomes "~0" and "/" becomes "~1". The order matters — "~" is
@@ -58,7 +66,12 @@ func escapePointerToken(tok string) string {
 
 //go:wasmexport describe
 func describe() int32 {
-	pdk.Output([]byte(pluginDescriptor))
+	out, err := aggrega.MarshalDescriptor(descriptor())
+	if err != nil {
+		pdk.SetError(err)
+		return 1
+	}
+	pdk.Output(out)
 	return 0
 }
 

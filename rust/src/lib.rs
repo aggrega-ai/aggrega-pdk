@@ -19,10 +19,12 @@
 //! See the crate-level README and the per-fixture examples under
 //! `examples/` for working plugin sources.
 
+pub mod describe;
 pub mod host_funcs;
 pub mod types;
 pub mod version;
 
+pub use describe::encode_descriptor;
 pub use host_funcs::{
     cli_args, emit_warning, fetch_external_input, log, pack_source, read_source_file, write_stderr,
     write_stdout,
@@ -34,15 +36,19 @@ pub use host_funcs::{
 // in aggrega-abi. The policy socket's graph is the full IR graph, so
 // the IR types are re-exported alongside the policy envelope.
 pub use aggrega_abi::{
-    AssembleBoundaryInput, AssembleBoundaryOutput, CLIRunInput, CatalogMetadata, CatalogProjection,
+    ArtifactDelimiters, AssembleBoundaryInput, AssembleBoundaryOutput, AssemblyNameAnnotation,
+    CLIRunInput, CatalogMetadata, CatalogProjection,
     CompilationContext, FieldProvenance,
     IRBoundaryFeature, IREdge, IRFeatureEntry, IRGraph, IRMetadata, IRNode, IRNodeProjection,
-    IRProvenance, IRSpec, LinkEdge, LinkEndpoint, LinkPatch, LinkPublishInput, LinkPublishOutput,
+    IRProvenance, IRSpec, InputKinds, LinkEdge, LinkEndpoint, LinkPatch, LinkPublishInput,
+    LinkPublishOutput,
     LinkResolveInput, LinkResolveOutput, LinterFinding, LinterInput, LinterOutput, Maintainer,
     MutatorGraph,
-    MutatorInput, MutatorNode, MutatorOutput, NarrowingExemption, NodeProvenance, Policies,
+    MutatorInput, MutatorNode, MutatorOutput, NarrowingExemption, NodeProvenance,
+    PluginCLICommand, PluginCommandFlag, PluginDescriptor, PluginDescriptorMeta, PluginExport,
+    Policies,
     PolicyResult,
-    PolicyInput, PolicyOutput, PrecalculatedPath, RenderEdge, RenderNodeInput,
+    PolicyInput, PolicyOutput, PrecalculatedPath, ProviderContract, RenderEdge, RenderNodeInput,
     RenderNodeOutput, RenderedFile, RenderedNode,
     SourceEntry, SourceFile, SourceFileRequest,
     SourceFileResponse, SourceListing, SourcePackRequest, SourcePackResponse, SourceProjection,

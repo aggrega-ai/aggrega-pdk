@@ -34,12 +34,15 @@
  */
 
 import {
+  API_VERSION,
   decodeLinkPublishInput,
+  encodeDescriptor,
   encodeLinkPublishOutput,
   decodeLinkResolveInput,
   encodeLinkResolveOutput,
   encodeRenderNodeOutput,
   type LinkPatch,
+  type PluginDescriptor,
 } from "@aggrega-ai/aggrega-pdk-typescript";
 
 // The assembled file each endpoint's dispatch group emits and this fixture
@@ -51,8 +54,35 @@ const LINK_FILE = "boundary.yaml";
 // The static describe() self-report: a v1alpha1 provider plugin that
 // declares the cross_boundary_linking capability and both link exports as a
 // pair, alongside the mandatory render_node export.
-const PLUGIN_DESCRIPTOR =
-  '{"abi_version":"v1alpha1","plugin_type":"provider","description":"Wire a cross-boundary uses edge by publishing a deterministic pointer and resolving it into each endpoint\'s assembled file.","capabilities":["link-cross-boundary"],"exports":[{"name":"render_node","input_pattern":"b","stability":"experimental"},{"name":"link_publish","input_pattern":"b","stability":"experimental"},{"name":"link_resolve","input_pattern":"b","stability":"experimental"}],"contract":{"input_kinds":{"sourced":false,"synthesized":false,"artifacts_standalone":true},"boundary_assembly":"none","cross_boundary_linking":true},"metadata":{"author":"aggrega","license":"Apache-2.0"}}';
+function descriptor(): PluginDescriptor {
+  const experimental = (name: string) => ({
+    name,
+    input_pattern: "b",
+    stability: "experimental",
+  });
+  return {
+    abi_version: API_VERSION,
+    plugin_type: "provider",
+    description:
+      "Wire a cross-boundary uses edge by publishing a deterministic pointer and resolving it into each endpoint's assembled file.",
+    capabilities: ["link-cross-boundary"],
+    exports: [
+      experimental("render_node"),
+      experimental("link_publish"),
+      experimental("link_resolve"),
+    ],
+    contract: {
+      input_kinds: {
+        sourced: false,
+        synthesized: false,
+        artifacts_standalone: true,
+      },
+      boundary_assembly: "none",
+      cross_boundary_linking: true,
+    },
+    metadata: { author: "aggrega", license: "Apache-2.0" },
+  };
+}
 
 // derivedPointer builds the deterministic pointer string a consumed
 // endpoint publishes for one link: the target node id and the socket alias
@@ -74,7 +104,7 @@ function oneOp(file: string, path: string, value: string): unknown {
 // The host calls describe() once at load to read the plugin's static
 // self-report before dispatching any export.
 function describe(): void {
-  Host.outputString(PLUGIN_DESCRIPTOR);
+  Host.outputString(encodeDescriptor(descriptor()));
 }
 
 function render_node(): void {

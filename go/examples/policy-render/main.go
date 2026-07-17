@@ -18,6 +18,8 @@ import (
 	"fmt"
 
 	pdk "github.com/extism/go-pdk"
+
+	"github.com/aggrega-ai/aggrega-pdk-go/pkg/aggrega"
 )
 
 type artifact struct {
@@ -41,13 +43,27 @@ type output struct {
 	Results []result `json:"results"`
 }
 
-// pluginDescriptor is the static describe() self-report: a v1alpha1
-// policy plugin evaluating the render stage.
-const pluginDescriptor = `{"abi_version":"v1alpha1","plugin_type":"policy","stage":"render","description":"Echo the rendered artifacts and emit a settings-driven verdict over the render output.","exports":[{"name":"validate"}],"metadata":{"author":"aggrega","license":"Apache-2.0"}}`
+// descriptor is the static describe() self-report: a v1alpha1 policy plugin
+// evaluating the render stage.
+func descriptor() aggrega.PluginDescriptor {
+	return aggrega.PluginDescriptor{
+		AbiVersion:  aggrega.APIVersion,
+		PluginType:  "policy",
+		Stage:       "render",
+		Description: "Echo the rendered artifacts and emit a settings-driven verdict over the render output.",
+		Exports:     []aggrega.PluginExport{{Name: "validate"}},
+		Metadata:    &aggrega.PluginDescriptorMeta{Author: "aggrega", License: "Apache-2.0"},
+	}
+}
 
 //go:wasmexport describe
 func describe() int32 {
-	pdk.Output([]byte(pluginDescriptor))
+	out, err := aggrega.MarshalDescriptor(descriptor())
+	if err != nil {
+		pdk.SetError(err)
+		return 1
+	}
+	pdk.Output(out)
 	return 0
 }
 

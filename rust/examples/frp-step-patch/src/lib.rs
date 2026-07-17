@@ -22,6 +22,9 @@
 //! validates the descriptor, then dispatches `step` with the keyed
 //! document set as input.
 
+use aggrega_pdk_rust::{
+    encode_descriptor, PluginDescriptor, PluginDescriptorMeta, PluginExport, API_VERSION,
+};
 use extism_pdk::{plugin_fn, FnResult};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -32,7 +35,29 @@ use std::collections::BTreeMap;
 /// tested-compatible with the helm and helm-chart providers (both render
 /// workloads carrying a pod template, in flat-document and chart-source form
 /// respectively).
-const PLUGIN_DESCRIPTOR: &str = r#"{"abi_version":"v1alpha1","plugin_type":"frp_step","description":"Patch a selected workload and emit companion documents in one feature-recipe pipeline step.","capabilities":["helm","helm-chart"],"exports":[{"name":"step","operates":"patch","scope":"own","selector":"workloads carrying a pod template"}],"metadata":{"author":"aggrega","license":"Apache-2.0"}}"#;
+fn descriptor() -> PluginDescriptor {
+    PluginDescriptor {
+        abi_version: API_VERSION.to_string(),
+        plugin_type: "frp_step".to_string(),
+        description:
+            "Patch a selected workload and emit companion documents in one feature-recipe pipeline step."
+                .to_string(),
+        capabilities: vec!["helm".to_string(), "helm-chart".to_string()],
+        exports: vec![PluginExport {
+            name: "step".to_string(),
+            operates: "patch".to_string(),
+            scope: "own".to_string(),
+            selector: "workloads carrying a pod template".to_string(),
+            ..Default::default()
+        }],
+        metadata: Some(Box::new(PluginDescriptorMeta {
+            author: "aggrega".to_string(),
+            license: "Apache-2.0".to_string(),
+            ..Default::default()
+        })),
+        ..Default::default()
+    }
+}
 
 /// One addressable unit the host hands the guest: the codec's hybrid view of
 /// one piece of output. A structured unit carries a `tree` (the
@@ -106,7 +131,7 @@ struct StepOutput {
 /// self-declaration before dispatching `step`.
 #[plugin_fn]
 pub fn describe() -> FnResult<String> {
-    Ok(PLUGIN_DESCRIPTOR.to_string())
+    Ok(encode_descriptor(&descriptor()))
 }
 
 /// `step` runs one pipeline step over the keyed document set: it

@@ -7,7 +7,7 @@
   "types": "./dist/index.d.ts",
   "scripts": {
     "build": "tsc",
-    "test": "node --test --experimental-strip-types tests/round_trip.test.ts"
+    "test": "node --test --experimental-strip-types tests/round_trip.test.ts tests/describe.test.ts"
   },
   "dependencies": {
     "@aggrega-ai/aggrega-abi": "file:../../aggrega-abi/typescript"

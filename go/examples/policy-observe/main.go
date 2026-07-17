@@ -20,6 +20,8 @@ import (
 	"sort"
 
 	pdk "github.com/extism/go-pdk"
+
+	"github.com/aggrega-ai/aggrega-pdk-go/pkg/aggrega"
 )
 
 // input is the narrow projection of the socket payload this fixture reads. The
@@ -47,13 +49,27 @@ type output struct {
 	Results []result `json:"results"`
 }
 
-// pluginDescriptor is the static describe() self-report: a v1alpha1
-// policy plugin evaluating the ir stage.
-const pluginDescriptor = `{"abi_version":"v1alpha1","plugin_type":"policy","stage":"ir","description":"Echo the attachment sources and emit a settings-driven verdict over the build graph.","exports":[{"name":"validate"}],"metadata":{"author":"aggrega","license":"Apache-2.0"}}`
+// descriptor is the static describe() self-report: a v1alpha1 policy plugin
+// evaluating the ir stage.
+func descriptor() aggrega.PluginDescriptor {
+	return aggrega.PluginDescriptor{
+		AbiVersion:  aggrega.APIVersion,
+		PluginType:  "policy",
+		Stage:       "ir",
+		Description: "Echo the attachment sources and emit a settings-driven verdict over the build graph.",
+		Exports:     []aggrega.PluginExport{{Name: "validate"}},
+		Metadata:    &aggrega.PluginDescriptorMeta{Author: "aggrega", License: "Apache-2.0"},
+	}
+}
 
 //go:wasmexport describe
 func describe() int32 {
-	pdk.Output([]byte(pluginDescriptor))
+	out, err := aggrega.MarshalDescriptor(descriptor())
+	if err != nil {
+		pdk.SetError(err)
+		return 1
+	}
+	pdk.Output(out)
 	return 0
 }
 

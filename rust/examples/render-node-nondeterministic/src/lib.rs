@@ -18,7 +18,10 @@
 
 use std::sync::atomic::{AtomicU32, Ordering};
 
-use aggrega_pdk_rust::{RenderNodeInput, RenderNodeOutput, RenderedFile};
+use aggrega_pdk_rust::{
+    encode_descriptor, PluginDescriptor, PluginDescriptorMeta, PluginExport, RenderNodeInput,
+    RenderNodeOutput, RenderedFile, API_VERSION,
+};
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 use extism_pdk::{plugin_fn, FnResult};
 
@@ -36,13 +39,31 @@ static COUNTER: AtomicU32 = AtomicU32::new(0);
 /// The static `describe()` self-report: a v1alpha1 `provider` plugin whose
 /// `render_node` export the host validates before dispatch. It declares no
 /// capabilities block, so it makes no `reusable_instance` claim.
-const PLUGIN_DESCRIPTOR: &str = r#"{"abi_version":"v1alpha1","plugin_type":"provider","capabilities":["parity"],"exports":[{"name":"render_node","input_pattern":"b","stability":"experimental"}],"metadata":{"author":"aggrega","license":"Apache-2.0"}}"#;
+fn descriptor() -> PluginDescriptor {
+    PluginDescriptor {
+        abi_version: API_VERSION.to_string(),
+        plugin_type: "provider".to_string(),
+        capabilities: vec!["parity".to_string()],
+        exports: vec![PluginExport {
+            name: "render_node".to_string(),
+            input_pattern: "b".to_string(),
+            stability: "experimental".to_string(),
+            ..Default::default()
+        }],
+        metadata: Some(Box::new(PluginDescriptorMeta {
+            author: "aggrega".to_string(),
+            license: "Apache-2.0".to_string(),
+            ..Default::default()
+        })),
+        ..Default::default()
+    }
+}
 
 /// The host calls `describe()` once at load to read the plugin's static
 /// self-report before dispatching `render_node`.
 #[plugin_fn]
 pub fn describe() -> FnResult<String> {
-    Ok(PLUGIN_DESCRIPTOR.to_string())
+    Ok(encode_descriptor(&descriptor()))
 }
 
 #[plugin_fn]

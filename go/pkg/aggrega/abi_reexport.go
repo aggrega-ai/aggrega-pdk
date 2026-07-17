@@ -94,6 +94,25 @@ type (
 	CLIRunInput = abi.CLIRunInput
 )
 
+// Describe socket. Every plugin returns a descriptor from its describe()
+// export, which the host reads once at load: the ABI-compatibility handshake,
+// the plugin type, the offered exports, and the optional per-type surfaces (a
+// provider's render-behavior contract, a CLI plugin's commands and their
+// flags, a settings schema, authorship and build-provenance metadata). A guest
+// constructs a typed PluginDescriptor and marshals it to the wire bytes through
+// [MarshalDescriptor] rather than hand-assembling the JSON.
+type (
+	PluginDescriptor       = abi.PluginDescriptor
+	PluginExport           = abi.PluginExport
+	PluginCLICommand       = abi.PluginCLICommand
+	PluginCommandFlag      = abi.PluginCommandFlag
+	PluginDescriptorMeta   = abi.PluginDescriptorMeta
+	ProviderContract       = abi.ProviderContract
+	InputKinds             = abi.InputKinds
+	ArtifactDelimiters     = abi.ArtifactDelimiters
+	AssemblyNameAnnotation = abi.AssemblyNameAnnotation
+)
+
 // Cross-boundary edge linking. A guest that wires uses edges whose ends
 // assemble into different dispatch groups implements the link_publish and
 // link_resolve exports, reading the host-assembled LinkEdge and returning the

@@ -25,6 +25,8 @@ import (
 	"strings"
 
 	pdk "github.com/extism/go-pdk"
+
+	"github.com/aggrega-ai/aggrega-pdk-go/pkg/aggrega"
 )
 
 // proofLabelKey is the label key the proof plugin appends. It carries a
@@ -36,9 +38,16 @@ const proofLabelKey = "proof.aggrega/touched"
 // proofLabelValue is the label value the proof plugin writes.
 const proofLabelValue = "mutator-proof"
 
-// pluginDescriptor is the static describe() self-report: a v1alpha1
-// mutator plugin whose mutate export the host validates before dispatch.
-const pluginDescriptor = `{"abi_version":"v1alpha1","plugin_type":"mutator","exports":[{"name":"mutate"}],"metadata":{"author":"aggrega","license":"Apache-2.0"}}`
+// descriptor is the static describe() self-report: a v1alpha1 mutator plugin
+// whose mutate export the host validates before dispatch.
+func descriptor() aggrega.PluginDescriptor {
+	return aggrega.PluginDescriptor{
+		AbiVersion: aggrega.APIVersion,
+		PluginType: "mutator",
+		Exports:    []aggrega.PluginExport{{Name: "mutate"}},
+		Metadata:   &aggrega.PluginDescriptorMeta{Author: "aggrega", License: "Apache-2.0"},
+	}
+}
 
 // mutatorInput is the minimal shape the proof plugin reads from the
 // MutatorInput payload: it needs only the node IDs to root a per-node
@@ -61,7 +70,12 @@ func escapePointerToken(tok string) string {
 
 //go:wasmexport describe
 func describe() int32 {
-	pdk.Output([]byte(pluginDescriptor))
+	out, err := aggrega.MarshalDescriptor(descriptor())
+	if err != nil {
+		pdk.SetError(err)
+		return 1
+	}
+	pdk.Output(out)
 	return 0
 }
 

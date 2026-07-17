@@ -13,6 +13,8 @@ package main
 
 import (
 	pdk "github.com/extism/go-pdk"
+
+	"github.com/aggrega-ai/aggrega-pdk-go/pkg/aggrega"
 )
 
 // The fixture emits a constant two-verdict PolicyOutput. The
@@ -26,15 +28,28 @@ const fixtureOutput = `{"results":[` +
 	`{"severity":"audit","message":"fixture rule A: audit note"}` +
 	`]}`
 
-// pluginDescriptor is the static describe() self-report: a v1alpha1
-// policy plugin evaluating the ir stage, whose validate export the
-// host validates before dispatch. The host reads this once at load through the
-// shared describe() gate.
-const pluginDescriptor = `{"abi_version":"v1alpha1","plugin_type":"policy","stage":"ir","description":"Report deterministic deny and audit policy verdicts over the build graph.","exports":[{"name":"validate"}],"metadata":{"author":"aggrega","license":"Apache-2.0"}}`
+// descriptor is the static describe() self-report: a v1alpha1 policy plugin
+// evaluating the ir stage, whose validate export the host validates before
+// dispatch. The host reads this once at load through the shared describe() gate.
+func descriptor() aggrega.PluginDescriptor {
+	return aggrega.PluginDescriptor{
+		AbiVersion:  aggrega.APIVersion,
+		PluginType:  "policy",
+		Stage:       "ir",
+		Description: "Report deterministic deny and audit policy verdicts over the build graph.",
+		Exports:     []aggrega.PluginExport{{Name: "validate"}},
+		Metadata:    &aggrega.PluginDescriptorMeta{Author: "aggrega", License: "Apache-2.0"},
+	}
+}
 
 //go:wasmexport describe
 func describe() int32 {
-	pdk.Output([]byte(pluginDescriptor))
+	out, err := aggrega.MarshalDescriptor(descriptor())
+	if err != nil {
+		pdk.SetError(err)
+		return 1
+	}
+	pdk.Output(out)
 	return 0
 }
 

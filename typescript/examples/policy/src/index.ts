@@ -11,6 +11,12 @@
  * end-to-end tests can assert exact shape across all three languages.
  */
 
+import {
+  API_VERSION,
+  encodeDescriptor,
+  type PluginDescriptor,
+} from "@aggrega-ai/aggrega-pdk-typescript";
+
 interface PolicyResult {
   severity: string;
   message: string;
@@ -23,13 +29,22 @@ interface PolicyOutput {
 // The static describe() self-report: a v1alpha1 policy plugin
 // evaluating the ir stage, whose validate export the host validates before
 // dispatch.
-const PLUGIN_DESCRIPTOR =
-  '{"abi_version":"v1alpha1","plugin_type":"policy","stage":"ir","description":"Report deterministic deny and audit policy verdicts over the build graph.","exports":[{"name":"validate"}],"metadata":{"author":"aggrega","license":"Apache-2.0"}}';
+function descriptor(): PluginDescriptor {
+  return {
+    abi_version: API_VERSION,
+    plugin_type: "policy",
+    stage: "ir",
+    description:
+      "Report deterministic deny and audit policy verdicts over the build graph.",
+    exports: [{ name: "validate" }],
+    metadata: { author: "aggrega", license: "Apache-2.0" },
+  };
+}
 
 // The host calls describe() once at load to read the plugin's static
 // self-report before dispatching validate.
 function describe(): void {
-  Host.outputString(PLUGIN_DESCRIPTOR);
+  Host.outputString(encodeDescriptor(descriptor()));
 }
 
 function validate(): void {

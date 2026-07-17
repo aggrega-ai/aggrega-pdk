@@ -30,6 +30,9 @@
 //! opaque unit, not a PATCH target, and the host halts loudly on a PATCH
 //! against it — the operator patches `values.yaml` instead.
 
+use aggrega_pdk_rust::{
+    encode_descriptor, PluginDescriptor, PluginDescriptorMeta, PluginExport, API_VERSION,
+};
 use extism_pdk::{plugin_fn, FnResult};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -39,7 +42,26 @@ use std::collections::BTreeMap;
 /// `step` export patches the host component's chart source and is
 /// tested-compatible only with the `helm-chart` provider (the provider that
 /// emits chart source).
-const PLUGIN_DESCRIPTOR: &str = r#"{"abi_version":"v1alpha1","plugin_type":"frp_step","capabilities":["helm-chart"],"exports":[{"name":"step","operates":"patch","scope":"host","selector":"chart values.yaml of the attached host component"}],"metadata":{"author":"aggrega","license":"Apache-2.0"}}"#;
+fn descriptor() -> PluginDescriptor {
+    PluginDescriptor {
+        abi_version: API_VERSION.to_string(),
+        plugin_type: "frp_step".to_string(),
+        capabilities: vec!["helm-chart".to_string()],
+        exports: vec![PluginExport {
+            name: "step".to_string(),
+            operates: "patch".to_string(),
+            scope: "host".to_string(),
+            selector: "chart values.yaml of the attached host component".to_string(),
+            ..Default::default()
+        }],
+        metadata: Some(Box::new(PluginDescriptorMeta {
+            author: "aggrega".to_string(),
+            license: "Apache-2.0".to_string(),
+            ..Default::default()
+        })),
+        ..Default::default()
+    }
+}
 
 /// One addressable unit the host hands the guest. A structured unit carries
 /// a `tree` (the RFC-6902-addressable view the guest content-selects and
@@ -91,7 +113,7 @@ struct StepOutput {
 /// self-declaration before dispatching `step`.
 #[plugin_fn]
 pub fn describe() -> FnResult<String> {
-    Ok(PLUGIN_DESCRIPTOR.to_string())
+    Ok(encode_descriptor(&descriptor()))
 }
 
 /// Reports whether a unit's tree is the host chart's `values.yaml`: an

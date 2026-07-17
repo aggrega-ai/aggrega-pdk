@@ -44,23 +44,29 @@ AGGREGA_VERSION=1.2.3 AGGREGA_COMMIT=abc1234 \
   cargo build --release --target wasm32-wasip1
 ```
 
-Compose the descriptor by appending `provenance_metadata!()` inside the
-`"metadata"` object, after the fixed members:
+Build the descriptor with typed values and encode it through the
+`describe!` macro, which folds the stamped `AGGREGA_VERSION` /
+`AGGREGA_COMMIT` into the descriptor's `metadata` object:
 
 ```rust
-use aggrega_pdk_rust::provenance_metadata;
-let head = r#"{"abi_version":"v1alpha1","metadata":{"author":"me""#;
-let descriptor = format!("{head}{}}}}}", provenance_metadata!());
+use aggrega_pdk_rust::{describe, PluginDescriptor, PluginExport, API_VERSION};
+let wire = describe!(PluginDescriptor {
+    abi_version: API_VERSION.to_string(),
+    plugin_type: "cli".to_string(),
+    exports: vec![PluginExport { name: "cli_run".to_string(), ..Default::default() }],
+    ..Default::default()
+});
 ```
 
-`provenance_metadata!` is a macro, not a function, on purpose. It reads
-the variables via `option_env!`, which is evaluated where the macro
-expands — the plugin's own crate — so the values track *your* build. A
-plain PDK library function would instead capture the environment at the
-PDK's own (cached) compile and report a stale value. A plain build
-(neither variable set) leaves the provenance empty, and the fragment
-contributes nothing — the unstamped descriptor is byte-identical to the
-stamped one minus the `version` / `commit` members.
+`describe!` is a macro, not a function, on purpose. It reads the
+variables via `option_env!`, which is evaluated where the macro expands —
+the plugin's own crate — so the values track *your* build. A plain PDK
+library function would instead capture the environment at the PDK's own
+(cached) compile and report a stale value. A plain build (neither
+variable set) leaves the provenance empty and the encoded descriptor
+omits the `version` / `commit` members — byte-identical to the stamped
+one minus those members. A guest that has no build-time stamp uses
+`encode_descriptor(&descriptor)` directly.
 
 ## Layout
 

@@ -19,6 +19,12 @@
  * Host.outputString(), expose via module.exports.
  */
 
+import {
+  API_VERSION,
+  encodeDescriptor,
+  type PluginDescriptor,
+} from "@aggrega-ai/aggrega-pdk-typescript";
+
 interface IRNodeProjection {
   id: string;
 }
@@ -47,8 +53,19 @@ const CONTENT_PREFIX = "rendered-node:";
 
 // The static describe() self-report: a v1alpha1 provider plugin whose
 // render_node export the host validates before dispatch.
-const PLUGIN_DESCRIPTOR =
-  '{"abi_version":"v1alpha1","plugin_type":"provider","description":"Render one IR node to a single output file whose bytes are the node id under a fixed prefix.","capabilities":["parity"],"exports":[{"name":"render_node","input_pattern":"b","stability":"experimental"}],"metadata":{"author":"aggrega","license":"Apache-2.0"}}';
+function descriptor(): PluginDescriptor {
+  return {
+    abi_version: API_VERSION,
+    plugin_type: "provider",
+    description:
+      "Render one IR node to a single output file whose bytes are the node id under a fixed prefix.",
+    capabilities: ["parity"],
+    exports: [
+      { name: "render_node", input_pattern: "b", stability: "experimental" },
+    ],
+    metadata: { author: "aggrega", license: "Apache-2.0" },
+  };
+}
 
 // Standard base64 alphabet (RFC 4648) with padding, matching Go's
 // base64.StdEncoding — the render socket carries file content as base64
@@ -94,7 +111,7 @@ function utf8Bytes(s: string): number[] {
 // The host calls describe() once at load to read the plugin's static
 // self-report before dispatching render_node.
 function describe(): void {
-  Host.outputString(PLUGIN_DESCRIPTOR);
+  Host.outputString(encodeDescriptor(descriptor()));
 }
 
 function render_node(): void {

@@ -2,6 +2,16 @@ module github.com/aggrega-ai/aggrega-pdk-go/examples/policy-allow
 
 go 1.26.0
 
-require github.com/extism/go-pdk v1.1.3
+require (
+	github.com/aggrega-ai/aggrega-pdk-go v0.0.0
+	github.com/extism/go-pdk v1.1.3
+)
 
-replace github.com/aggrega-ai/aggrega-pdk-go => ../../
+require github.com/aggrega-ai/aggrega-abi-go v0.0.0 // indirect
+
+replace (
+	github.com/aggrega-ai/aggrega-pdk-go => ../../
+	github.com/aggrega-ai/aggrega-pdk-go v0.0.0 => ../../
+)
+
+replace github.com/aggrega-ai/aggrega-abi-go v0.0.0 => ../../../../aggrega-abi/go

@@ -221,6 +221,7 @@ dependencies = [
 name = "frp-step-host-patch-compose-rust"
 version = "0.1.0-alpha.1"
 dependencies = [
+ "aggrega-pdk-rust",
  "extism-pdk",
  "serde",
  "serde_json",
@@ -230,6 +231,7 @@ dependencies = [
 name = "frp-step-host-patch-rust"
 version = "0.1.0-alpha.1"
 dependencies = [
+ "aggrega-pdk-rust",
  "extism-pdk",
  "serde",
  "serde_json",
@@ -239,6 +241,7 @@ dependencies = [
 name = "frp-step-own-patch-compose-rust"
 version = "0.1.0-alpha.1"
 dependencies = [
+ "aggrega-pdk-rust",
  "extism-pdk",
  "serde",
  "serde_json",
@@ -248,6 +251,7 @@ dependencies = [
 name = "frp-step-patch-rust"
 version = "0.1.0-alpha.1"
 dependencies = [
+ "aggrega-pdk-rust",
  "extism-pdk",
  "serde",
  "serde_json",

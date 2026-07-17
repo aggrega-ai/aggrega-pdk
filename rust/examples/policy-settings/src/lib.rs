@@ -16,15 +16,45 @@
 //! value it read — proof that a conforming setting flowed through to the guest as
 //! the declared type.
 
-use aggrega_pdk_rust::{PolicyResult, PolicyInput, PolicyOutput};
+use aggrega_pdk_rust::{
+    encode_descriptor, PluginDescriptor, PluginDescriptorMeta, PluginExport, PolicyInput,
+    PolicyOutput, PolicyResult, API_VERSION,
+};
 use extism_pdk::{plugin_fn, FnResult, WithReturnCode};
 use serde::Deserialize;
+use serde_json::value::RawValue;
+
+/// The inline JSON Schema that types this plugin's attachment settings. It is
+/// carried verbatim in the descriptor's opaque `settings_schema` field; the host
+/// compiles it at load and validates the attachment's `with.settings` against it
+/// before dispatching `validate`.
+const SETTINGS_SCHEMA: &str = r#"{"type":"object","properties":{"max_replicas":{"type":"integer","minimum":1}},"required":["max_replicas"],"additionalProperties":false}"#;
 
 /// The static `describe()` self-report: a v1alpha1 `policy` plugin
 /// evaluating the ir stage whose settings are typed by an inline JSON Schema.
-/// The host compiles the `settings_schema` at load and validates the
-/// attachment's `with.settings` against it before dispatching `validate`.
-const PLUGIN_DESCRIPTOR: &str = r#"{"abi_version":"v1alpha1","plugin_type":"policy","stage":"ir","description":"Enforce a typed replica ceiling declared through the attachment settings schema.","exports":[{"name":"validate"}],"settings_schema":{"type":"object","properties":{"max_replicas":{"type":"integer","minimum":1}},"required":["max_replicas"],"additionalProperties":false},"metadata":{"author":"aggrega","license":"Apache-2.0"}}"#;
+fn descriptor() -> PluginDescriptor {
+    PluginDescriptor {
+        abi_version: API_VERSION.to_string(),
+        plugin_type: "policy".to_string(),
+        stage: "ir".to_string(),
+        description: "Enforce a typed replica ceiling declared through the attachment settings schema."
+            .to_string(),
+        exports: vec![PluginExport {
+            name: "validate".to_string(),
+            ..Default::default()
+        }],
+        settings_schema: Some(
+            RawValue::from_string(SETTINGS_SCHEMA.to_string())
+                .expect("SETTINGS_SCHEMA is valid JSON"),
+        ),
+        metadata: Some(Box::new(PluginDescriptorMeta {
+            author: "aggrega".to_string(),
+            license: "Apache-2.0".to_string(),
+            ..Default::default()
+        })),
+        ..Default::default()
+    }
+}
 
 /// The typed shape of this plugin's attachment settings. The host guarantees the
 /// operator's `with.settings` conforms to the declared `settings_schema` before
@@ -38,7 +68,7 @@ struct Settings {
 /// self-report — including its settings schema — before dispatching `validate`.
 #[plugin_fn]
 pub fn describe() -> FnResult<String> {
-    Ok(PLUGIN_DESCRIPTOR.to_string())
+    Ok(encode_descriptor(&descriptor()))
 }
 
 #[plugin_fn]

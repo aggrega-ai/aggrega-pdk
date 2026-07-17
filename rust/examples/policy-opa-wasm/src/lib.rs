@@ -44,7 +44,10 @@
 //! fails the build loudly rather than passing silently. "The adapter cannot
 //! evaluate this policy" never reads as "the policy allows the build".
 
-use aggrega_pdk_rust::{PolicyResult, PolicyOutput};
+use aggrega_pdk_rust::{
+    encode_descriptor, PluginDescriptor, PluginDescriptorMeta, PluginExport, PolicyOutput,
+    PolicyResult, API_VERSION,
+};
 use anyhow::{anyhow, bail, Context};
 use extism_pdk::{plugin_fn, FnResult};
 use wasmi::{Caller, Engine, Linker, Memory, MemoryType, Module, Store};
@@ -56,13 +59,32 @@ static POLICY_WASM: &[u8] = include_bytes!("../policy.wasm");
 /// The static `describe()` self-report: a v1alpha1 `policy` plugin
 /// evaluating the ir stage, whose `validate` export the host validates before
 /// dispatch.
-const PLUGIN_DESCRIPTOR: &str = r#"{"abi_version":"v1alpha1","plugin_type":"policy","stage":"ir","description":"Evaluate an OPA-compiled Rego policy against the build graph, driving the baked policy module in-guest.","exports":[{"name":"validate"}],"metadata":{"author":"aggrega","license":"Apache-2.0"}}"#;
+fn descriptor() -> PluginDescriptor {
+    PluginDescriptor {
+        abi_version: API_VERSION.to_string(),
+        plugin_type: "policy".to_string(),
+        stage: "ir".to_string(),
+        description:
+            "Evaluate an OPA-compiled Rego policy against the build graph, driving the baked policy module in-guest."
+                .to_string(),
+        exports: vec![PluginExport {
+            name: "validate".to_string(),
+            ..Default::default()
+        }],
+        metadata: Some(Box::new(PluginDescriptorMeta {
+            author: "aggrega".to_string(),
+            license: "Apache-2.0".to_string(),
+            ..Default::default()
+        })),
+        ..Default::default()
+    }
+}
 
 /// The host calls `describe()` once at load to read the plugin's static
 /// self-report before dispatching `validate`.
 #[plugin_fn]
 pub fn describe() -> FnResult<String> {
-    Ok(PLUGIN_DESCRIPTOR.to_string())
+    Ok(encode_descriptor(&descriptor()))
 }
 
 /// The host calls `validate(input)` with the policy payload as a JSON string

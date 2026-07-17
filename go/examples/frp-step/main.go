@@ -39,15 +39,30 @@ import (
 
 	abi "github.com/aggrega-ai/aggrega-abi-go/pkg/abi"
 	pdk "github.com/extism/go-pdk"
+
+	"github.com/aggrega-ai/aggrega-pdk-go/pkg/aggrega"
 )
 
-// pluginDescriptor is the static describe() self-report: a v1alpha1
-// frp_step plugin whose step export patches own-scope workloads and is
-// tested-compatible with the helm and helm-chart providers (both render
-// workloads carrying a pod template, in flat-document and chart-source
-// form respectively). The host reads this once at load and validates it
-// before invoking step.
-const pluginDescriptor = `{"abi_version":"v1alpha1","plugin_type":"frp_step","description":"Patch a selected workload and emit companion documents in one feature-recipe pipeline step.","capabilities":["helm","helm-chart"],"exports":[{"name":"step","operates":"patch","scope":"own","selector":"workloads carrying a pod template"}],"metadata":{"author":"aggrega","license":"Apache-2.0"}}`
+// descriptor is the static describe() self-report: a v1alpha1 frp_step plugin
+// whose step export patches own-scope workloads and is tested-compatible with
+// the helm and helm-chart providers (both render workloads carrying a pod
+// template, in flat-document and chart-source form respectively). The host
+// reads this once at load and validates it before invoking step.
+func descriptor() aggrega.PluginDescriptor {
+	return aggrega.PluginDescriptor{
+		AbiVersion:   aggrega.APIVersion,
+		PluginType:   "frp_step",
+		Description:  "Patch a selected workload and emit companion documents in one feature-recipe pipeline step.",
+		Capabilities: []string{"helm", "helm-chart"},
+		Exports: []aggrega.PluginExport{{
+			Name:     "step",
+			Operates: "patch",
+			Scope:    "own",
+			Selector: "workloads carrying a pod template",
+		}},
+		Metadata: &aggrega.PluginDescriptorMeta{Author: "aggrega", License: "Apache-2.0"},
+	}
+}
 
 // treeKind reports the kind field of a unit's tree, or "" when the unit
 // is opaque (no tree) or carries no kind.
@@ -66,7 +81,12 @@ func treeKind(u abi.Unit) string {
 
 //go:wasmexport describe
 func describe() int32 {
-	pdk.Output([]byte(pluginDescriptor))
+	out, err := aggrega.MarshalDescriptor(descriptor())
+	if err != nil {
+		pdk.SetError(err)
+		return 1
+	}
+	pdk.Output(out)
 	return 0
 }
 

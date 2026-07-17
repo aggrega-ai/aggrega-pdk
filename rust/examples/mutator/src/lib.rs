@@ -14,7 +14,10 @@
 //!  - Output JSON serialises to a [`MutatorOutput`] valid against the
 //!    `wasm-mutator-v1alpha1` JSON Schema.
 
-use aggrega_pdk_rust::{MutatorInput, MutatorOutput};
+use aggrega_pdk_rust::{
+    encode_descriptor, MutatorInput, MutatorOutput, PluginDescriptor, PluginDescriptorMeta,
+    PluginExport, API_VERSION,
+};
 use extism_pdk::{plugin_fn, FnResult};
 use serde_json::{json, value::RawValue};
 
@@ -30,7 +33,23 @@ const FIXTURE_LABEL_VALUE: &str = "mutator-rust";
 
 /// The static `describe()` self-report: a v1alpha1 `mutator` plugin
 /// whose `mutate` export the host validates before dispatch.
-const PLUGIN_DESCRIPTOR: &str = r#"{"abi_version":"v1alpha1","plugin_type":"mutator","description":"Append a fixed label to every node in the mutation graph.","exports":[{"name":"mutate"}],"metadata":{"author":"aggrega","license":"Apache-2.0"}}"#;
+fn descriptor() -> PluginDescriptor {
+    PluginDescriptor {
+        abi_version: API_VERSION.to_string(),
+        plugin_type: "mutator".to_string(),
+        description: "Append a fixed label to every node in the mutation graph.".to_string(),
+        exports: vec![PluginExport {
+            name: "mutate".to_string(),
+            ..Default::default()
+        }],
+        metadata: Some(Box::new(PluginDescriptorMeta {
+            author: "aggrega".to_string(),
+            license: "Apache-2.0".to_string(),
+            ..Default::default()
+        })),
+        ..Default::default()
+    }
+}
 
 /// Escapes a JSON Pointer reference token per RFC 6901: `~` becomes `~0`
 /// and `/` becomes `~1`. The order matters — `~` is escaped first so a
@@ -45,7 +64,7 @@ fn escape_pointer_token(tok: &str) -> String {
 /// self-report before dispatching `mutate`.
 #[plugin_fn]
 pub fn describe() -> FnResult<String> {
-    Ok(PLUGIN_DESCRIPTOR.to_string())
+    Ok(encode_descriptor(&descriptor()))
 }
 
 #[plugin_fn]

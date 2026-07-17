@@ -44,17 +44,22 @@ GOOS=wasip1 GOARCH=wasm go build -buildmode=c-shared -o plugin.wasm \
   ./
 ```
 
-Compose the descriptor by appending `aggrega.ProvenanceMetadata()` inside
-the `"metadata"` object, after the fixed members:
+Build the descriptor with typed values and marshal it through
+`aggrega.MarshalDescriptor`; it folds the stamped `Version` and `Commit`
+into the descriptor's `metadata` object:
 
 ```go
-head := `{"abi_version":"v1alpha1",...,"metadata":{"author":"me"`
-descriptor := head + aggrega.ProvenanceMetadata() + `}}`
+out, err := aggrega.MarshalDescriptor(aggrega.PluginDescriptor{
+    AbiVersion: aggrega.APIVersion,
+    PluginType: "cli",
+    Exports:    []aggrega.PluginExport{{Name: "cli_run"}},
+    Metadata:   &aggrega.PluginDescriptorMeta{Author: "me"},
+})
 ```
 
-A plain build (no `-ldflags`) leaves the provenance empty, and the
-fragment contributes nothing — the unstamped descriptor is byte-identical
-to the stamped one minus the `version` / `commit` members.
+A plain build (no `-ldflags`) leaves the provenance empty and
+`MarshalDescriptor` omits the `version` / `commit` members — the unstamped
+descriptor is byte-identical to the stamped one minus those members.
 
 ## Layout
 

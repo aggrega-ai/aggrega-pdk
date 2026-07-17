@@ -32,6 +32,9 @@
 //! RFC-6902-patchable and the surgical insert preserves every sibling service,
 //! key, comment, and scalar style verbatim.
 
+use aggrega_pdk_rust::{
+    encode_descriptor, PluginDescriptor, PluginDescriptorMeta, PluginExport, API_VERSION,
+};
 use extism_pdk::{plugin_fn, FnResult};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -40,7 +43,27 @@ use std::collections::BTreeMap;
 /// The static `describe()` self-report: a v1alpha1 `frp_step` plugin whose
 /// `step` export patches the merged compose document at OWN scope and is
 /// tested-compatible only with the `compose` provider.
-const PLUGIN_DESCRIPTOR: &str = r#"{"abi_version":"v1alpha1","plugin_type":"frp_step","capabilities":["compose"],"exports":[{"name":"step","operates":"patch","scope":"own","selector":"environment of each service in the node's own merged compose document"}],"metadata":{"author":"aggrega","license":"Apache-2.0"}}"#;
+fn descriptor() -> PluginDescriptor {
+    PluginDescriptor {
+        abi_version: API_VERSION.to_string(),
+        plugin_type: "frp_step".to_string(),
+        capabilities: vec!["compose".to_string()],
+        exports: vec![PluginExport {
+            name: "step".to_string(),
+            operates: "patch".to_string(),
+            scope: "own".to_string(),
+            selector: "environment of each service in the node's own merged compose document"
+                .to_string(),
+            ..Default::default()
+        }],
+        metadata: Some(Box::new(PluginDescriptorMeta {
+            author: "aggrega".to_string(),
+            license: "Apache-2.0".to_string(),
+            ..Default::default()
+        })),
+        ..Default::default()
+    }
+}
 
 /// One addressable unit the host hands the guest. A structured unit carries a
 /// `tree` (the RFC-6902-addressable view the guest content-selects and
@@ -88,7 +111,7 @@ struct StepOutput {
 /// self-declaration before dispatching `step`.
 #[plugin_fn]
 pub fn describe() -> FnResult<String> {
-    Ok(PLUGIN_DESCRIPTOR.to_string())
+    Ok(encode_descriptor(&descriptor()))
 }
 
 /// Returns the sorted service names of a merged compose document's tree: an

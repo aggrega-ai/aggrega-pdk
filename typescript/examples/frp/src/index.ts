@@ -29,9 +29,12 @@
  */
 
 import {
+  API_VERSION,
   decodeFRPStepInput,
+  encodeDescriptor,
   encodeFRPStepOutput,
   type JSONPatchOp,
+  type PluginDescriptor,
   type SideEffect,
 } from "@aggrega-ai/aggrega-pdk-typescript";
 
@@ -40,8 +43,24 @@ import {
 // and helm-chart providers (both render workloads carrying a pod template,
 // in flat-document and chart-source form respectively). The host reads this
 // once at load and validates it before invoking step.
-const PLUGIN_DESCRIPTOR =
-  '{"abi_version":"v1alpha1","plugin_type":"frp_step","description":"Patch a selected workload and emit companion documents in one feature-recipe pipeline step.","capabilities":["helm","helm-chart"],"exports":[{"name":"step","operates":"patch","scope":"own","selector":"workloads carrying a pod template"}],"metadata":{"author":"aggrega","license":"Apache-2.0"}}';
+function descriptor(): PluginDescriptor {
+  return {
+    abi_version: API_VERSION,
+    plugin_type: "frp_step",
+    description:
+      "Patch a selected workload and emit companion documents in one feature-recipe pipeline step.",
+    capabilities: ["helm", "helm-chart"],
+    exports: [
+      {
+        name: "step",
+        operates: "patch",
+        scope: "own",
+        selector: "workloads carrying a pod template",
+      },
+    ],
+    metadata: { author: "aggrega", license: "Apache-2.0" },
+  };
+}
 
 // treeKind reports the kind field of a unit's tree, or "" when the unit is
 // opaque (no tree) or carries no kind.
@@ -58,7 +77,7 @@ function treeKind(tree: unknown): string {
 // The host calls describe() once at load to read the plugin's static
 // self-report before dispatching step.
 function describe(): void {
-  Host.outputString(PLUGIN_DESCRIPTOR);
+  Host.outputString(encodeDescriptor(descriptor()));
 }
 
 function step(): void {

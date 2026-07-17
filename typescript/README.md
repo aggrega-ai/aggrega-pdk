@@ -60,19 +60,26 @@ npx esbuild src/index.ts --bundle --format=cjs --target=es2022 \
   --define:AGGREGA_PLUGIN_COMMIT='"abc1234"'
 ```
 
-Compose the descriptor by appending `provenanceMetadata()` inside the
-`"metadata"` object, after the fixed members:
+Build the descriptor with typed values and encode it through
+`encodeDescriptor`; it folds the injected constants into the descriptor's
+`metadata` object:
 
 ```ts
-import { provenanceMetadata } from "@aggrega-ai/aggrega-pdk-typescript";
-const head = `{"abi_version":"v1alpha1","metadata":{"author":"me"`;
-const descriptor = `${head}${provenanceMetadata()}}}`;
+import { encodeDescriptor, type PluginDescriptor } from "@aggrega-ai/aggrega-pdk-typescript";
+const d: PluginDescriptor = {
+  abi_version: "v1alpha1",
+  plugin_type: "cli",
+  exports: [{ name: "cli_run" }],
+  metadata: { author: "me" },
+};
+Host.outputString(encodeDescriptor(d));
 ```
 
-`provenanceMetadata()` reads the injected constants behind a `typeof`
-guard, so a plain bundle (no `--define`) leaves the provenance empty and
-yields empty rather than a `ReferenceError` — the unstamped descriptor is
-byte-identical to the stamped one minus the `version` / `commit` members.
+`encodeDescriptor` reads the injected constants behind a `typeof` guard,
+so a plain bundle (no `--define`) leaves the provenance empty and yields
+no `version` / `commit` members rather than a `ReferenceError` — the
+unstamped descriptor is byte-identical to the stamped one minus those
+members.
 
 ## Layout
 

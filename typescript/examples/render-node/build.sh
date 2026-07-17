@@ -64,7 +64,7 @@ mkdir -p "${OUT_DIR}" "${SCRIPT_DIR}/dist"
 (cd "${SCRIPT_DIR}" && npm install --no-save --silent --no-audit --no-fund)
 
 # Bundle TypeScript to a single CommonJS JS file.
-(cd "${SCRIPT_DIR}" && npx esbuild src/index.ts --bundle --format=cjs --target=es2022 --platform=neutral --outfile=dist/plugin.js)
+(cd "${SCRIPT_DIR}" && npx esbuild src/index.ts --bundle --format=cjs --target=es2022 --platform=neutral --main-fields=module,main --outfile=dist/plugin.js)
 
 # Compile the bundled JS into a Wasm artifact embedding QuickJS.
 extism-js -i "${SCRIPT_DIR}/index.d.ts" "${SCRIPT_DIR}/dist/plugin.js" -o "${OUT_DIR}/render-node-typescript.wasm"

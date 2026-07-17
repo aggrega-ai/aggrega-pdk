@@ -24,8 +24,9 @@
 //! never invokes it, but a provider plugin must declare it.
 
 use aggrega_pdk_rust::{
-    LinkPatch, LinkPublishInput, LinkPublishOutput, LinkResolveInput, LinkResolveOutput,
-    RenderNodeOutput,
+    encode_descriptor, InputKinds, LinkPatch, LinkPublishInput, LinkPublishOutput, LinkResolveInput,
+    LinkResolveOutput, PluginDescriptor, PluginDescriptorMeta, PluginExport, ProviderContract,
+    RenderNodeOutput, API_VERSION,
 };
 use extism_pdk::{plugin_fn, FnResult};
 use serde_json::value::RawValue;
@@ -38,7 +39,42 @@ const LINK_FILE: &str = "boundary.yaml";
 /// The static `describe()` self-report: a v1alpha1 `provider` plugin that
 /// declares the `cross_boundary_linking` capability and both link exports as a
 /// pair, alongside the mandatory `render_node` export.
-const PLUGIN_DESCRIPTOR: &str = r#"{"abi_version":"v1alpha1","plugin_type":"provider","description":"Wire a cross-boundary uses edge by publishing a deterministic pointer and resolving it into each endpoint's assembled file.","capabilities":["link-cross-boundary"],"exports":[{"name":"render_node","input_pattern":"b","stability":"experimental"},{"name":"link_publish","input_pattern":"b","stability":"experimental"},{"name":"link_resolve","input_pattern":"b","stability":"experimental"}],"contract":{"input_kinds":{"sourced":false,"synthesized":false,"artifacts_standalone":true},"boundary_assembly":"none","cross_boundary_linking":true},"metadata":{"author":"aggrega","license":"Apache-2.0"}}"#;
+fn descriptor() -> PluginDescriptor {
+    let experimental = |name: &str| PluginExport {
+        name: name.to_string(),
+        input_pattern: "b".to_string(),
+        stability: "experimental".to_string(),
+        ..Default::default()
+    };
+    PluginDescriptor {
+        abi_version: API_VERSION.to_string(),
+        plugin_type: "provider".to_string(),
+        description:
+            "Wire a cross-boundary uses edge by publishing a deterministic pointer and resolving it into each endpoint's assembled file."
+                .to_string(),
+        capabilities: vec!["link-cross-boundary".to_string()],
+        exports: vec![
+            experimental("render_node"),
+            experimental("link_publish"),
+            experimental("link_resolve"),
+        ],
+        contract: Some(Box::new(ProviderContract {
+            input_kinds: InputKinds {
+                artifacts_standalone: true,
+                ..Default::default()
+            },
+            boundary_assembly: "none".to_string(),
+            cross_boundary_linking: true,
+            ..Default::default()
+        })),
+        metadata: Some(Box::new(PluginDescriptorMeta {
+            author: "aggrega".to_string(),
+            license: "Apache-2.0".to_string(),
+            ..Default::default()
+        })),
+        ..Default::default()
+    }
+}
 
 /// derived_pointer builds the deterministic pointer string a consumed endpoint
 /// publishes for one link: the target node id and the socket alias the edge is
@@ -67,7 +103,7 @@ fn one_op(file: &str, path: &str, value: &str) -> FnResult<Box<RawValue>> {
 /// self-report before dispatching any export.
 #[plugin_fn]
 pub fn describe() -> FnResult<String> {
-    Ok(PLUGIN_DESCRIPTOR.to_string())
+    Ok(encode_descriptor(&descriptor()))
 }
 
 #[plugin_fn]

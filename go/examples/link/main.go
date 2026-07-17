@@ -48,11 +48,29 @@ import (
 // files in distinct groups.
 const linkFile = "boundary.yaml"
 
-// pluginDescriptor is the static describe() self-report: a v1alpha1
-// provider plugin that declares the cross_boundary_linking capability and
-// both link exports as a pair, alongside the mandatory render_node export.
-// The host reads this once at load through the shared describe() gate.
-const pluginDescriptor = `{"abi_version":"v1alpha1","plugin_type":"provider","description":"Wire a cross-boundary uses edge by publishing a deterministic pointer and resolving it into each endpoint's assembled file.","capabilities":["link-cross-boundary"],"exports":[{"name":"render_node","input_pattern":"b","stability":"experimental"},{"name":"link_publish","input_pattern":"b","stability":"experimental"},{"name":"link_resolve","input_pattern":"b","stability":"experimental"}],"contract":{"input_kinds":{"sourced":false,"synthesized":false,"artifacts_standalone":true},"boundary_assembly":"none","cross_boundary_linking":true},"metadata":{"author":"aggrega","license":"Apache-2.0"}}`
+// descriptor is the static describe() self-report: a v1alpha1 provider plugin
+// that declares the cross_boundary_linking capability and both link exports as
+// a pair, alongside the mandatory render_node export. The host reads this once
+// at load through the shared describe() gate.
+func descriptor() aggrega.PluginDescriptor {
+	return aggrega.PluginDescriptor{
+		AbiVersion:   aggrega.APIVersion,
+		PluginType:   "provider",
+		Description:  "Wire a cross-boundary uses edge by publishing a deterministic pointer and resolving it into each endpoint's assembled file.",
+		Capabilities: []string{"link-cross-boundary"},
+		Exports: []aggrega.PluginExport{
+			{Name: "render_node", InputPattern: "b", Stability: "experimental"},
+			{Name: "link_publish", InputPattern: "b", Stability: "experimental"},
+			{Name: "link_resolve", InputPattern: "b", Stability: "experimental"},
+		},
+		Contract: &aggrega.ProviderContract{
+			InputKinds:           aggrega.InputKinds{ArtifactsStandalone: true},
+			BoundaryAssembly:     "none",
+			CrossBoundaryLinking: true,
+		},
+		Metadata: &aggrega.PluginDescriptorMeta{Author: "aggrega", License: "Apache-2.0"},
+	}
+}
 
 // derivedPointer builds the deterministic pointer string a consumed
 // endpoint publishes for one link: the target node id and the socket alias
@@ -87,7 +105,12 @@ func oneOp(file, path, value string) (json.RawMessage, error) {
 
 //go:wasmexport describe
 func describe() int32 {
-	pdk.Output([]byte(pluginDescriptor))
+	out, err := aggrega.MarshalDescriptor(descriptor())
+	if err != nil {
+		pdk.SetError(err)
+		return 1
+	}
+	pdk.Output(out)
 	return 0
 }
 

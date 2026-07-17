@@ -16,7 +16,10 @@
 //!  - Output JSON serialises to a [`RenderNodeOutput`] whose file content
 //!    round-trips through the render socket's base64 wire encoding.
 
-use aggrega_pdk_rust::{RenderNodeInput, RenderNodeOutput, RenderedFile};
+use aggrega_pdk_rust::{
+    encode_descriptor, PluginDescriptor, PluginDescriptorMeta, PluginExport, RenderNodeInput,
+    RenderNodeOutput, RenderedFile, API_VERSION,
+};
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 use extism_pdk::{plugin_fn, FnResult};
 
@@ -31,13 +34,34 @@ const CONTENT_PREFIX: &str = "rendered-node:";
 
 /// The static `describe()` self-report: a v1alpha1 `provider` plugin whose
 /// `render_node` export the host validates before dispatch.
-const PLUGIN_DESCRIPTOR: &str = r#"{"abi_version":"v1alpha1","plugin_type":"provider","description":"Render one IR node to a single output file whose bytes are the node id under a fixed prefix.","capabilities":["parity"],"exports":[{"name":"render_node","input_pattern":"b","stability":"experimental"}],"metadata":{"author":"aggrega","license":"Apache-2.0"}}"#;
+fn descriptor() -> PluginDescriptor {
+    PluginDescriptor {
+        abi_version: API_VERSION.to_string(),
+        plugin_type: "provider".to_string(),
+        description:
+            "Render one IR node to a single output file whose bytes are the node id under a fixed prefix."
+                .to_string(),
+        capabilities: vec!["parity".to_string()],
+        exports: vec![PluginExport {
+            name: "render_node".to_string(),
+            input_pattern: "b".to_string(),
+            stability: "experimental".to_string(),
+            ..Default::default()
+        }],
+        metadata: Some(Box::new(PluginDescriptorMeta {
+            author: "aggrega".to_string(),
+            license: "Apache-2.0".to_string(),
+            ..Default::default()
+        })),
+        ..Default::default()
+    }
+}
 
 /// The host calls `describe()` once at load to read the plugin's static
 /// self-report before dispatching `render_node`.
 #[plugin_fn]
 pub fn describe() -> FnResult<String> {
-    Ok(PLUGIN_DESCRIPTOR.to_string())
+    Ok(encode_descriptor(&descriptor()))
 }
 
 #[plugin_fn]

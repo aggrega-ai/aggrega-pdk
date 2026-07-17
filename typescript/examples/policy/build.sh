@@ -35,6 +35,6 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 mkdir -p "${OUT_DIR}" "${SCRIPT_DIR}/dist"
 
 (cd "${SCRIPT_DIR}" && npm install --no-save --silent --no-audit --no-fund)
-(cd "${SCRIPT_DIR}" && npx esbuild src/index.ts --bundle --format=cjs --target=es2022 --platform=neutral --outfile=dist/plugin.js)
+(cd "${SCRIPT_DIR}" && npx esbuild src/index.ts --bundle --format=cjs --target=es2022 --platform=neutral --main-fields=module,main --outfile=dist/plugin.js)
 extism-js -i "${SCRIPT_DIR}/index.d.ts" "${SCRIPT_DIR}/dist/plugin.js" -o "${OUT_DIR}/policy-typescript.wasm"
 echo "Wrote ${OUT_DIR}/policy-typescript.wasm"
