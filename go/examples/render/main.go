@@ -48,6 +48,12 @@ const outputPath = "parity.txt"
 // so identical input produces identical content.
 const contentPrefix = "rendered-node:"
 
+// outputFormat is the format the fixture declares its emitted file was
+// rendered in, so the host can route the file to a matching parser. A
+// provider that declares no format leaves the field unset and the host
+// infers the format from the file extension.
+const outputFormat = "text"
+
 // descriptor is the static describe() self-report: a v1alpha1 provider plugin
 // whose render_node export the host validates before dispatch. The host reads
 // this once at load through the shared describe() gate.
@@ -92,6 +98,7 @@ func render_node() int32 {
 		Files: []aggrega.RenderedFile{{
 			Path:    outputPath,
 			Content: content,
+			Format:  outputFormat,
 		}},
 	}
 	outputBytes, err := json.Marshal(out)

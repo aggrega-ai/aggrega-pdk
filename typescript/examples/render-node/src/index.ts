@@ -36,6 +36,7 @@ interface RenderNodeInput {
 interface RenderedFile {
   path: string;
   content: string;
+  format?: string;
 }
 
 interface RenderNodeOutput {
@@ -50,6 +51,11 @@ const OUTPUT_PATH = "parity.txt";
 // bytes. Constant across the per-language render fixtures so identical
 // input produces identical content.
 const CONTENT_PREFIX = "rendered-node:";
+
+// The format the fixture declares its emitted file was rendered in, so the
+// host can route the file to a matching parser. A provider that declares no
+// format leaves the field unset and the host infers it from the extension.
+const OUTPUT_FORMAT = "text";
 
 // The static describe() self-report: a v1alpha1 provider plugin whose
 // render_node export the host validates before dispatch.
@@ -118,7 +124,13 @@ function render_node(): void {
   const input: RenderNodeInput = JSON.parse(Host.inputString());
   const content = CONTENT_PREFIX + input.node.id;
   const out: RenderNodeOutput = {
-    files: [{ path: OUTPUT_PATH, content: base64Encode(utf8Bytes(content)) }],
+    files: [
+      {
+        path: OUTPUT_PATH,
+        content: base64Encode(utf8Bytes(content)),
+        format: OUTPUT_FORMAT,
+      },
+    ],
   };
   Host.outputString(JSON.stringify(out));
 }

@@ -79,6 +79,9 @@ pub fn render_node(input: String) -> FnResult<String> {
         files: vec![RenderedFile {
             path: OUTPUT_PATH.to_string(),
             content: STANDARD.encode(&content_bytes),
+            // This fixture declares no format; an empty value is omitted from
+            // the wire, leaving the host to infer format from the extension.
+            format: String::new(),
         }],
         diagnostics: Vec::new(),
     };

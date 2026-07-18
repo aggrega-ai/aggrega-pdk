@@ -32,6 +32,11 @@ const OUTPUT_PATH: &str = "parity.txt";
 /// input produces identical content.
 const CONTENT_PREFIX: &str = "rendered-node:";
 
+/// The format the fixture declares its emitted file was rendered in, so the
+/// host can route the file to a matching parser. A provider that declares no
+/// format leaves the field unset and the host infers it from the extension.
+const OUTPUT_FORMAT: &str = "text";
+
 /// The static `describe()` self-report: a v1alpha1 `provider` plugin whose
 /// `render_node` export the host validates before dispatch.
 fn descriptor() -> PluginDescriptor {
@@ -77,6 +82,7 @@ pub fn render_node(input: String) -> FnResult<String> {
         files: vec![RenderedFile {
             path: OUTPUT_PATH.to_string(),
             content: STANDARD.encode(&content_bytes),
+            format: OUTPUT_FORMAT.to_string(),
         }],
         diagnostics: Vec::new(),
     };
