@@ -15,11 +15,37 @@ on:
       - 'typescript/**'
       - '.github/workflows/pdk.yml'
 
+# The PDK manifests carry local relative path deps to the sibling ABI
+# (go: replace ../../aggrega-abi/go; rust: path ../../aggrega-abi/rust;
+# ts: file:../../aggrega-abi/typescript). Standalone CI has no sibling,
+# so each job recreates the umbrella layout under $GITHUB_WORKSPACE:
+# this repo at aggrega-pdk/ and the ABI at aggrega-abi/, then builds from
+# aggrega-pdk/<lang>/ so ../../aggrega-abi/<lang> resolves. The ABI is a
+# private repo, so it is cloned with a short-lived org GitHub App token.
+
 jobs:
   go-pdk:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Mint org app token for private-ABI access
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.SUBMODULE_APP_ID }}
+          private-key: ${{ secrets.SUBMODULE_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+
+      - name: Checkout PDK
+        uses: actions/checkout@v4
+        with:
+          path: aggrega-pdk
+
+      - name: Checkout ABI (sibling, satisfies the local path replace)
+        uses: actions/checkout@v4
+        with:
+          repository: aggrega-ai/aggrega-abi
+          path: aggrega-abi
+          token: ${{ steps.app-token.outputs.token }}
 
       - name: Install Go
         uses: actions/setup-go@v5
@@ -27,25 +53,43 @@ jobs:
           go-version: '1.26'
 
       - name: Build Go PDK
-        working-directory: go
+        working-directory: aggrega-pdk/go
         run: go build ./...
 
       - name: Test Go PDK
-        working-directory: go
+        working-directory: aggrega-pdk/go
         run: go test ./...
 
       - name: Build Go fixture — mutator
-        working-directory: go/examples/mutator
+        working-directory: aggrega-pdk/go/examples/mutator
         run: bash build.sh
 
       - name: Build Go fixture — policy
-        working-directory: go/examples/policy
+        working-directory: aggrega-pdk/go/examples/policy
         run: bash build.sh
 
   rust-pdk:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Mint org app token for private-ABI access
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.SUBMODULE_APP_ID }}
+          private-key: ${{ secrets.SUBMODULE_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+
+      - name: Checkout PDK
+        uses: actions/checkout@v4
+        with:
+          path: aggrega-pdk
+
+      - name: Checkout ABI (sibling, satisfies the local path dep)
+        uses: actions/checkout@v4
+        with:
+          repository: aggrega-ai/aggrega-abi
+          path: aggrega-abi
+          token: ${{ steps.app-token.outputs.token }}
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -54,7 +98,7 @@ jobs:
           targets: wasm32-unknown-unknown
 
       - name: Verify Rust-1.85-compatible transitive pins
-        working-directory: rust
+        working-directory: aggrega-pdk/rust
         run: |
           # idna_adapter @ 1.2.x requires rustc 1.86 (pulls in
           # icu_normalizer >= 2.2). The Rust PDK targets rustc 1.85
@@ -78,25 +122,43 @@ jobs:
           esac
 
       - name: Build Rust PDK
-        working-directory: rust
+        working-directory: aggrega-pdk/rust
         run: cargo build --release
 
       - name: Test Rust PDK
-        working-directory: rust
+        working-directory: aggrega-pdk/rust
         run: cargo test
 
       - name: Build Rust fixture — mutator
-        working-directory: rust/examples/mutator
+        working-directory: aggrega-pdk/rust/examples/mutator
         run: bash build.sh
 
       - name: Build Rust fixture — policy
-        working-directory: rust/examples/policy
+        working-directory: aggrega-pdk/rust/examples/policy
         run: bash build.sh
 
   typescript-pdk:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Mint org app token for private-ABI access
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.SUBMODULE_APP_ID }}
+          private-key: ${{ secrets.SUBMODULE_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+
+      - name: Checkout PDK
+        uses: actions/checkout@v4
+        with:
+          path: aggrega-pdk
+
+      - name: Checkout ABI (sibling, satisfies the local file dep)
+        uses: actions/checkout@v4
+        with:
+          repository: aggrega-ai/aggrega-abi
+          path: aggrega-abi
+          token: ${{ steps.app-token.outputs.token }}
 
       - name: Install Node
         uses: actions/setup-node@v4
@@ -123,17 +185,17 @@ jobs:
           extism-js --version
 
       - name: Install TS PDK deps
-        working-directory: typescript
+        working-directory: aggrega-pdk/typescript
         run: npm install
 
       - name: Test TS PDK
-        working-directory: typescript
+        working-directory: aggrega-pdk/typescript
         run: npm test
 
       - name: Build TS fixture — mutator
-        working-directory: typescript/examples/mutator
+        working-directory: aggrega-pdk/typescript/examples/mutator
         run: bash build.sh
 
       - name: Build TS fixture — policy
-        working-directory: typescript/examples/policy
+        working-directory: aggrega-pdk/typescript/examples/policy
         run: bash build.sh
