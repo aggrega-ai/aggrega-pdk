@@ -47,6 +47,13 @@ jobs:
           path: aggrega-abi
           token: ${{ steps.app-token.outputs.token }}
 
+      - name: Checkout schemas (sibling, for round-trip schema validation)
+        uses: actions/checkout@v5
+        with:
+          repository: aggrega-ai/aggrega-schemas
+          path: aggrega-schemas
+          token: ${{ steps.app-token.outputs.token }}
+
       - name: Install Go
         uses: actions/setup-go@v6
         with:
@@ -90,6 +97,13 @@ jobs:
         with:
           repository: aggrega-ai/aggrega-abi
           path: aggrega-abi
+          token: ${{ steps.app-token.outputs.token }}
+
+      - name: Checkout schemas (sibling, for round-trip schema validation)
+        uses: actions/checkout@v5
+        with:
+          repository: aggrega-ai/aggrega-schemas
+          path: aggrega-schemas
           token: ${{ steps.app-token.outputs.token }}
 
       - name: Install Rust
@@ -159,6 +173,13 @@ jobs:
         with:
           repository: aggrega-ai/aggrega-abi
           path: aggrega-abi
+          token: ${{ steps.app-token.outputs.token }}
+
+      - name: Checkout schemas (sibling, for round-trip schema validation)
+        uses: actions/checkout@v5
+        with:
+          repository: aggrega-ai/aggrega-schemas
+          path: aggrega-schemas
           token: ${{ steps.app-token.outputs.token }}
 
       - name: Install Node
