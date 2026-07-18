@@ -29,28 +29,29 @@ jobs:
     steps:
       - name: Mint org app token for private-ABI access
         id: app-token
-        uses: actions/create-github-app-token@v1
+        uses: actions/create-github-app-token@v3
         with:
           app-id: ${{ secrets.SUBMODULE_APP_ID }}
           private-key: ${{ secrets.SUBMODULE_APP_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
 
       - name: Checkout PDK
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           path: aggrega-pdk
 
       - name: Checkout ABI (sibling, satisfies the local path replace)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: aggrega-ai/aggrega-abi
           path: aggrega-abi
           token: ${{ steps.app-token.outputs.token }}
 
       - name: Install Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: '1.26'
+          cache-dependency-path: aggrega-pdk/go/go.sum
 
       - name: Build Go PDK
         working-directory: aggrega-pdk/go
@@ -73,19 +74,19 @@ jobs:
     steps:
       - name: Mint org app token for private-ABI access
         id: app-token
-        uses: actions/create-github-app-token@v1
+        uses: actions/create-github-app-token@v3
         with:
           app-id: ${{ secrets.SUBMODULE_APP_ID }}
           private-key: ${{ secrets.SUBMODULE_APP_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
 
       - name: Checkout PDK
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           path: aggrega-pdk
 
       - name: Checkout ABI (sibling, satisfies the local path dep)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: aggrega-ai/aggrega-abi
           path: aggrega-abi
@@ -142,26 +143,26 @@ jobs:
     steps:
       - name: Mint org app token for private-ABI access
         id: app-token
-        uses: actions/create-github-app-token@v1
+        uses: actions/create-github-app-token@v3
         with:
           app-id: ${{ secrets.SUBMODULE_APP_ID }}
           private-key: ${{ secrets.SUBMODULE_APP_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
 
       - name: Checkout PDK
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           path: aggrega-pdk
 
       - name: Checkout ABI (sibling, satisfies the local file dep)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: aggrega-ai/aggrega-abi
           path: aggrega-abi
           token: ${{ steps.app-token.outputs.token }}
 
       - name: Install Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: '22'
 
@@ -183,6 +184,15 @@ jobs:
           chmod +x /tmp/extism-js
           sudo mv /tmp/extism-js /usr/local/bin/extism-js
           extism-js --version
+
+      - name: Build the ABI TypeScript package
+        # The PDK depends on the ABI via `file:../../aggrega-abi/typescript`,
+        # whose package main is the tsc-built `dist/` (gitignored, absent in a
+        # fresh checkout). Build it so the PDK's import resolves.
+        working-directory: aggrega-abi/typescript
+        run: |
+          npm install
+          npm run build
 
       - name: Install TS PDK deps
         working-directory: aggrega-pdk/typescript
