@@ -113,6 +113,20 @@ type (
 	AssemblyNameAnnotation = abi.AssemblyNameAnnotation
 )
 
+// Parser socket. A parser guest turns a foreign source text into a canonical
+// structured tree on the parse export (ParseInput to ParseOutput): it receives
+// the format name, the base64 source bytes, and an optional opaque options
+// document, and returns the tree plus optional diagnostics and source spans. A
+// parser advertises the formats it handles as parse:<format> capabilities in
+// its descriptor.
+type (
+	ParseInput      = abi.ParseInput
+	ParseOutput     = abi.ParseOutput
+	ParseDiagnostic = abi.ParseDiagnostic
+	NodeSpan        = abi.NodeSpan
+	SourceSpan      = abi.SourceSpan
+)
+
 // Cross-boundary edge linking. A guest that wires uses edges whose ends
 // assemble into different dispatch groups implements the link_publish and
 // link_resolve exports, reading the host-assembled LinkEdge and returning the

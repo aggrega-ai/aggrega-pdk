@@ -45,6 +45,7 @@ members = [
     "examples/frp-step-own-patch-compose",
     "examples/link-cross-boundary",
     "examples/mutator",
+    "examples/parse",
     "examples/policy-settings",
     "examples/policy",
     "examples/render-node",

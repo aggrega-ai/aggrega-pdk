@@ -44,7 +44,8 @@ pub use aggrega_abi::{
     LinkPublishOutput,
     LinkResolveInput, LinkResolveOutput, LinterFinding, LinterInput, LinterOutput, Maintainer,
     MutatorGraph,
-    MutatorInput, MutatorNode, MutatorOutput, NarrowingExemption, NodeProvenance,
+    MutatorInput, MutatorNode, MutatorOutput, NarrowingExemption, NodeProvenance, NodeSpan,
+    ParseDiagnostic, ParseInput, ParseOutput,
     PluginCLICommand, PluginCommandFlag, PluginDescriptor, PluginDescriptorMeta, PluginExport,
     Policies,
     PolicyResult,
@@ -52,6 +53,6 @@ pub use aggrega_abi::{
     RenderNodeOutput, RenderedFile, RenderedNode,
     SourceEntry, SourceFile, SourceFileRequest,
     SourceFileResponse, SourceListing, SourcePackRequest, SourcePackResponse, SourceProjection,
-    SubChart, WorkloadProjection,
+    SourceSpan, SubChart, WorkloadProjection,
 };
 pub use version::API_VERSION;
