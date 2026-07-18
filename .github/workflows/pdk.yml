@@ -23,6 +23,10 @@ on:
 # aggrega-pdk/<lang>/ so ../../aggrega-abi/<lang> resolves. The ABI is a
 # private repo, so it is cloned with a short-lived org GitHub App token.
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   go-pdk:
     runs-on: ubuntu-latest
@@ -112,6 +116,11 @@ jobs:
           toolchain: '1.85'
           targets: wasm32-unknown-unknown
 
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: aggrega-pdk/rust
+
       - name: Verify Rust-1.85-compatible transitive pins
         working-directory: aggrega-pdk/rust
         run: |
@@ -186,6 +195,8 @@ jobs:
         uses: actions/setup-node@v5
         with:
           node-version: '22'
+          cache: npm
+          cache-dependency-path: aggrega-pdk/typescript/package-lock.json
 
       - name: Install binaryen
         run: |
