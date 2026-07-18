@@ -85,6 +85,27 @@ func mutate() int32 {
 		return 1
 	}
 
+	// Attachment inputs arrive alongside the graph. Settings is a free-form
+	// object the host hands through verbatim; here the optional "label_value"
+	// key overrides the label the fixture writes, defaulting to the language
+	// constant when no settings are attached. Sources carry the attachment's
+	// declared definition files as {Path, Content} — a real mutator parses them
+	// to drive its labelling; the fixture simply reads them to demonstrate
+	// access. Both are absent unless the attachment declared a `with:` block.
+	labelValue := fixtureLabelValue
+	if len(in.Settings) > 0 {
+		var s struct {
+			LabelValue string `json:"label_value"`
+		}
+		if err := json.Unmarshal(in.Settings, &s); err == nil && s.LabelValue != "" {
+			labelValue = s.LabelValue
+		}
+	}
+	for _, src := range in.Sources {
+		// A real plugin parses src.Content (addressed by src.Path) here.
+		_ = src
+	}
+
 	// Iterate node IDs in sorted order. Go map iteration is
 	// non-deterministic; sorted iteration keeps the emitted patches
 	// byte-identical across runs of identical input — both to match
@@ -100,7 +121,7 @@ func mutate() int32 {
 	for _, nodeID := range nodeIDs {
 		path := fmt.Sprintf("/nodes/%s/labels/%s",
 			escapePointerToken(nodeID), escapePointerToken(fixtureLabelKey))
-		patch := fmt.Sprintf(`[{"op":"add","path":%q,"value":%q}]`, path, fixtureLabelValue)
+		patch := fmt.Sprintf(`[{"op":"add","path":%q,"value":%q}]`, path, labelValue)
 		patches = append(patches, json.RawMessage(patch))
 	}
 

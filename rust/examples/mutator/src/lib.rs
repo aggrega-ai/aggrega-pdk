@@ -71,6 +71,26 @@ pub fn describe() -> FnResult<String> {
 pub fn mutate(input: String) -> FnResult<String> {
     let parsed: MutatorInput = serde_json::from_str(&input)?;
 
+    // Attachment inputs arrive alongside the graph. `settings` is a free-form
+    // object the host passes through verbatim; the optional "label_value" key
+    // overrides the label the fixture writes, defaulting to the language
+    // constant when no settings are attached. `sources` carry the declared
+    // definition files as { path, content } — a real mutator parses them to
+    // drive its labelling; the fixture simply reads them to demonstrate access.
+    // Both are absent unless the attachment declared a `with:` block.
+    let mut label_value = FIXTURE_LABEL_VALUE.to_string();
+    if let Some(raw) = &parsed.settings {
+        if let Ok(s) = serde_json::from_str::<serde_json::Value>(raw.get()) {
+            if let Some(v) = s.get("label_value").and_then(|v| v.as_str()) {
+                label_value = v.to_string();
+            }
+        }
+    }
+    for source in &parsed.sources {
+        // A real plugin parses source.content (addressed by source.path) here.
+        let _ = source;
+    }
+
     // Iterate node IDs in sorted order. `HashMap` iteration is
     // non-deterministic; sorting keeps the emitted patches
     // byte-identical across runs of identical input and matches the
@@ -91,7 +111,7 @@ pub fn mutate(input: String) -> FnResult<String> {
                     escape_pointer_token(node_id),
                     escape_pointer_token(FIXTURE_LABEL_KEY)
                 ),
-                "value": FIXTURE_LABEL_VALUE,
+                "value": label_value,
             }]);
             serde_json::value::to_raw_value(&doc).expect("encode patch")
         })

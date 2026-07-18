@@ -167,6 +167,8 @@ fn mutator_input_round_trip_json_schema() {
                 },
             )]),
         },
+        sources: Vec::new(),
+        settings: None,
     };
 
     let serialised = serde_json::to_value(&fixture).expect("serialize MutatorInput");

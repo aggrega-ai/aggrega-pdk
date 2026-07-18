@@ -29,6 +29,11 @@ interface MutatorNode {
   labels: Record<string, string>;
 }
 
+interface MutatorSource {
+  path: string;
+  content: string;
+}
+
 interface MutatorInput {
   compilation_context: {
     release_name: string;
@@ -37,6 +42,11 @@ interface MutatorInput {
   graph: {
     nodes: Record<string, MutatorNode>;
   };
+  // Attachment inputs, absent unless the attachment declared a `with:` block.
+  // sources carry the declared definition files verbatim; settings is a
+  // free-form object the host passes through.
+  sources?: MutatorSource[];
+  settings?: { label_value?: string };
 }
 
 interface JsonPatchOp {
@@ -82,6 +92,21 @@ function describe(): void {
 function mutate(): void {
   const input: MutatorInput = JSON.parse(Host.inputString());
 
+  // Attachment inputs arrive alongside the graph. settings is a free-form
+  // object the host passes through verbatim; the optional "label_value" key
+  // overrides the label the fixture writes, defaulting to the language constant
+  // when no settings are attached. sources carry the declared definition files
+  // as { path, content } — a real mutator parses them to drive its labelling;
+  // the fixture simply reads them to demonstrate access.
+  let labelValue = FIXTURE_LABEL_VALUE;
+  if (input.settings && typeof input.settings.label_value === "string" && input.settings.label_value) {
+    labelValue = input.settings.label_value;
+  }
+  for (const src of input.sources ?? []) {
+    // A real plugin parses src.content (addressed by src.path) here.
+    void src;
+  }
+
   // Sort node IDs for deterministic patch ordering — Object.keys()
   // returns insertion order, which is stable for a single input but
   // varies across map operations; sorting matches the Aggrega
@@ -94,7 +119,7 @@ function mutate(): void {
       path: `/nodes/${escapePointerToken(nodeId)}/labels/${escapePointerToken(
         FIXTURE_LABEL_KEY,
       )}`,
-      value: FIXTURE_LABEL_VALUE,
+      value: labelValue,
     },
   ]);
 
