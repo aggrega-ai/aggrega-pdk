@@ -6,8 +6,8 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "scripts": {
-    "build": "tsc",
-    "pretest": "npm --prefix ../../aggrega-abi/typescript install && npm --prefix ../../aggrega-abi/typescript run build",
+    "build": "npm --prefix ../../aggrega-abi/typescript install && npm --prefix ../../aggrega-abi/typescript run build && tsc",
+    "pretest": "npm run build",
     "test": "node --test --experimental-strip-types tests/round_trip.test.ts tests/describe.test.ts"
   },
   "dependencies": {
