@@ -35,6 +35,11 @@ standalone checkout) with
 `GOOS=wasip1 GOARCH=wasm go build -buildmode=c-shared`. Requires the
 standard Go toolchain.
 
+The build stamps a version into the guest via the linker, defaulting to
+`1.0.0` and overridable with `AGGREGA_PLUGIN_VERSION`. The guest reports
+that version through `describe()`, and the publish door cross-checks it
+against a Plugin entity's `metadata.version`, so the two stay in lockstep.
+
 The plugin is a WASI reactor: its Go runtime bootstraps under the Aggrega
 loader's deterministic, capability-denied WASI configuration, then
 `step` decodes the keyed document set and emits its patches and side

@@ -29,6 +29,15 @@ else
     fi
 fi
 
+# Version the guest self-reports through describe(). The linker folds this into
+# the descriptor's Metadata, so the running guest announces its own version at
+# load. The publish door cross-checks that self-reported version against a Plugin
+# entity's metadata.version and halts on a mismatch, so the stamp keeps the guest
+# and its entity in lockstep. Commit is deliberately left unstamped: the guard
+# checks only version, and a dynamic commit hash would make the artifact
+# non-deterministic across builds.
+PLUGIN_VERSION="${AGGREGA_PLUGIN_VERSION:-1.0.0}"
+
 mkdir -p "${OUT_DIR}"
 # Built with the standard Go toolchain targeting GOOS=wasip1. The guest is a
 # WASI reactor whose runtime bootstraps under the host's deterministic,
@@ -36,5 +45,7 @@ mkdir -p "${OUT_DIR}"
 # (no main entry, the //go:wasmexport functions are the exports). The standard
 # toolchain's full GC and runtime decode the keyed document set through the
 # generated ABI codec without the collector caveats the bare-Wasm targets carry.
-GOOS=wasip1 GOARCH=wasm go build -buildmode=c-shared -o "${OUT_DIR}/frp-step-go.wasm" ./
+GOOS=wasip1 GOARCH=wasm go build -buildmode=c-shared \
+    -ldflags "-X github.com/aggrega-ai/aggrega-pdk-go/pkg/aggrega.Version=${PLUGIN_VERSION}" \
+    -o "${OUT_DIR}/frp-step-go.wasm" ./
 echo "Wrote ${OUT_DIR}/frp-step-go.wasm"

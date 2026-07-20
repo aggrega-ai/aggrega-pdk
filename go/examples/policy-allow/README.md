@@ -24,3 +24,8 @@ Destination resolution:
 2. The umbrella's `aggrega-cli/internal/wasm/testdata/` directory when
    this PDK is checked out as a submodule of the umbrella.
 3. The PDK's own `testdata/` directory for standalone checkouts.
+
+The build stamps a version into the guest via the linker, defaulting to
+`1.0.0` and overridable with `AGGREGA_PLUGIN_VERSION`. The guest reports
+that version through `describe()`, and the publish door cross-checks it
+against a Plugin entity's `metadata.version`, so the two stay in lockstep.
