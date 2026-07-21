@@ -5,7 +5,10 @@
 
 package aggrega
 
-import "fmt"
+import (
+	"encoding/json"
+	"fmt"
+)
 
 // Log is a no-op off Wasm. The wasip1 build at host_funcs.go declares
 // the //go:wasmimport binding that calls into the Aggrega host's log
@@ -70,4 +73,13 @@ func PackSource(op, path string) (*SourceProjection, error) {
 // the build asymmetry rationale.
 func ReadSourceFile(path string) ([]byte, error) {
 	return nil, fmt.Errorf("aggrega_read_source_file: not available outside the Wasm runtime (requested %q)", path)
+}
+
+// ParseSource returns a not-available error off Wasm. Like PackSource it has a
+// data result, so the off-Wasm stub cannot be a silent no-op; the error keeps the
+// failure loud in host-side unit tests that reach it. The wasip1 build at
+// host_funcs.go declares the //go:wasmimport binding that calls into the Aggrega
+// host's parse-source function.
+func ParseSource(format string, source []byte, options json.RawMessage) (json.RawMessage, error) {
+	return nil, fmt.Errorf("aggrega_parse_source: not available outside the Wasm runtime (requested format %q)", format)
 }

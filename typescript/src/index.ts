@@ -25,6 +25,7 @@ export {
   fetchExternalInput,
   packSource,
   readSourceFile,
+  parseSource,
   writeStdout,
   writeStderr,
   cliArgs,

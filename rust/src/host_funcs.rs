@@ -14,11 +14,12 @@
 //! host-call invocation.
 
 use aggrega_abi::{
-    CLIRunInput, SourceFileRequest, SourceFileResponse, SourcePackRequest, SourcePackResponse,
-    SourceProjection,
+    CLIRunInput, ParseInput, ParseSourceResponse, SourceFileRequest, SourceFileResponse,
+    SourcePackRequest, SourcePackResponse, SourceProjection,
 };
 use base64::Engine as _;
 use extism_pdk::{host_fn, warn, Error, Memory};
+use serde_json::value::RawValue;
 
 #[host_fn("extism:host/user")]
 extern "ExtismHost" {
@@ -27,6 +28,7 @@ extern "ExtismHost" {
     fn aggrega_fetch_external_input(url: String) -> String;
     fn aggrega_pack_source(request: String) -> String;
     fn aggrega_read_source_file(request: String) -> String;
+    fn aggrega_parse_source(request: String) -> String;
 }
 
 // The streaming CLI emitters take an explicit (pointer, length) pair, so they
@@ -176,6 +178,49 @@ pub fn read_source_file(path: &str) -> Result<Vec<u8>, Error> {
     base64::engine::general_purpose::STANDARD
         .decode(response.content.as_bytes())
         .map_err(|e| Error::msg(format!("aggrega_read_source_file: decode content: {e}")))
+}
+
+/// Ask the Aggrega host to obtain a source's canonical structured tree by running
+/// a parser for the given format through the host, and return the tree. `format`
+/// is the syntactic format of the source (for example "json"); `source` is the
+/// raw source bytes; `options` is an optional opaque options document the parser
+/// interprets. The host resolves the parser for the format, runs it, and returns
+/// the tree it produced.
+///
+/// This is the guest side of host-mediated producer consumption: a consumer
+/// plugin obtains a producer's output through the host rather than invoking a
+/// producer guest itself. The host bounds it to a single level — a producer
+/// reached this way that calls `parse_source` again is denied — so a consumer
+/// calls it once per source and may consume many sources in sequence.
+///
+/// Failure is in-band: the host returns an error envelope rather than trapping,
+/// and this wrapper surfaces it as the returned error — a missing parser for the
+/// format, a parse failure, or a denied re-entrant call all arrive as the error's
+/// message. Plugin code should treat a parse-source error as a failure to report,
+/// not a condition to mask.
+pub fn parse_source(
+    format: &str,
+    source: &[u8],
+    options: Option<Box<RawValue>>,
+) -> Result<Box<RawValue>, Error> {
+    let request = serde_json::to_string(&ParseInput {
+        format: format.to_string(),
+        bytes: base64::engine::general_purpose::STANDARD.encode(source),
+        options,
+    })
+    .map_err(|e| Error::msg(format!("aggrega_parse_source: encode request: {e}")))?;
+    let raw = unsafe { aggrega_parse_source(request)? };
+    let response: ParseSourceResponse = serde_json::from_str(&raw)
+        .map_err(|e| Error::msg(format!("aggrega_parse_source: decode response: {e}")))?;
+    if !response.error.is_empty() {
+        return Err(Error::msg(response.error));
+    }
+    match response.tree {
+        Some(tree) => Ok(tree),
+        None => Err(Error::msg(
+            "aggrega_parse_source: response carries neither a tree nor an error",
+        )),
+    }
 }
 
 /// Stream a chunk of bytes to the Aggrega host's standard-output stream for the

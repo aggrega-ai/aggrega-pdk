@@ -19,8 +19,10 @@
 
 import {
   decodeCLIRunInput,
+  decodeParseSourceResponse,
   decodeSourceFileResponse,
   decodeSourcePackResponse,
+  encodeParseInput,
   encodeSourceFileRequest,
   encodeSourcePackRequest,
   type SourceProjection,
@@ -33,6 +35,7 @@ declare module "extism:host" {
     aggrega_fetch_external_input(url_ptr: I64): I64;
     aggrega_pack_source(request_ptr: I64): I64;
     aggrega_read_source_file(request_ptr: I64): I64;
+    aggrega_parse_source(request_ptr: I64): I64;
     aggrega_cli_write_stdout(ptr: I64, len: I64): void;
     aggrega_cli_write_stderr(ptr: I64, len: I64): void;
   }
@@ -171,6 +174,54 @@ export function readSourceFile(path: string): ArrayBuffer {
     throw new Error(response.error);
   }
   return Host.base64ToArrayBuffer(response.content ?? "");
+}
+
+/**
+ * Ask the Aggrega host to obtain a source's canonical structured tree by running
+ * a parser for the given format through the host, and return the tree. `format`
+ * is the syntactic format of the source (for example "json"); `source` is the raw
+ * source bytes; `options` is an optional opaque options document the parser
+ * interprets. The host resolves the parser for the format, runs it, and returns
+ * the tree it produced (a parsed JSON value).
+ *
+ * This is the guest side of host-mediated producer consumption: a consumer plugin
+ * obtains a producer's output through the host rather than invoking a producer
+ * guest itself. The host bounds it to a single level — a producer reached this way
+ * that calls `parseSource` again is denied — so a consumer calls it once per
+ * source and may consume many sources in sequence.
+ *
+ * Failure is in-band: the host returns a JSON envelope carrying either the tree or
+ * an error message naming the failure; this wrapper throws an Error carrying that
+ * message. Plugin code should treat a parse-source error as a failure to report,
+ * not a condition to mask.
+ */
+export function parseSource(
+  format: string,
+  source: ArrayBufferLike,
+  options?: unknown,
+): unknown {
+  const { aggrega_parse_source } = Host.getFunctions();
+  const reqMem = Memory.fromString(
+    encodeParseInput({
+      format,
+      bytes: Host.arrayBufferToBase64(source as ArrayBuffer),
+      options,
+    }),
+  );
+  const offset = aggrega_parse_source(reqMem.offset);
+  if (offset === BigInt(0)) {
+    throw new Error("aggrega_parse_source: host returned no envelope");
+  }
+  const response = decodeParseSourceResponse(Memory.find(offset).readString());
+  if (response.error) {
+    throw new Error(response.error);
+  }
+  if (response.tree === undefined) {
+    throw new Error(
+      "aggrega_parse_source: response carries neither a tree nor an error",
+    );
+  }
+  return response.tree;
 }
 
 /**

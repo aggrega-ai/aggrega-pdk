@@ -26,8 +26,8 @@ pub mod version;
 
 pub use describe::encode_descriptor;
 pub use host_funcs::{
-    cli_args, emit_warning, fetch_external_input, log, pack_source, read_source_file, write_stderr,
-    write_stdout,
+    cli_args, emit_warning, fetch_external_input, log, pack_source, parse_source, read_source_file,
+    write_stderr, write_stdout,
 };
 
 // Every socket type is generated from the canonical schemas into the portable
@@ -54,5 +54,7 @@ pub use aggrega_abi::{
     SourceEntry, SourceFile, SourceFileRequest,
     SourceFileResponse, SourceListing, SourcePackRequest, SourcePackResponse, SourceProjection,
     SourceSpan, SubChart, WorkloadProjection,
+    CandidateSignals, DecisionChoice, DecisionSourceNode, Diagnostic, EmittedEntity,
+    ImportCandidate, ImportDecision, ImportInput, ImportOutput, ImportSource, ScaffoldFile,
 };
 pub use version::API_VERSION;

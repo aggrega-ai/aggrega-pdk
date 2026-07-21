@@ -120,11 +120,33 @@ type (
 // parser advertises the formats it handles as parse:<format> capabilities in
 // its descriptor.
 type (
-	ParseInput      = abi.ParseInput
-	ParseOutput     = abi.ParseOutput
-	ParseDiagnostic = abi.ParseDiagnostic
-	NodeSpan        = abi.NodeSpan
-	SourceSpan      = abi.SourceSpan
+	ParseInput          = abi.ParseInput
+	ParseOutput         = abi.ParseOutput
+	ParseDiagnostic     = abi.ParseDiagnostic
+	NodeSpan            = abi.NodeSpan
+	SourceSpan          = abi.SourceSpan
+	ParseSourceResponse = abi.ParseSourceResponse
+)
+
+// Importer socket. An importer guest turns a foreign infrastructure
+// description into Aggrega entities on the import export (ImportInput to
+// ImportOutput): it receives the source format, the base64 primary bytes, any
+// named sources, and an optional opaque settings document, and returns the
+// emitted entities, the mapping decisions behind them, any diagnostics, and any
+// scaffold files. An importer advertises the formats it handles as
+// import:<format> capabilities in its descriptor.
+type (
+	ImportInput        = abi.ImportInput
+	ImportOutput       = abi.ImportOutput
+	ImportSource       = abi.ImportSource
+	EmittedEntity      = abi.EmittedEntity
+	ImportDecision     = abi.ImportDecision
+	DecisionSourceNode = abi.DecisionSourceNode
+	ImportCandidate    = abi.ImportCandidate
+	CandidateSignals   = abi.CandidateSignals
+	DecisionChoice     = abi.DecisionChoice
+	Diagnostic         = abi.Diagnostic
+	ScaffoldFile       = abi.ScaffoldFile
 )
 
 // Cross-boundary edge linking. A guest that wires uses edges whose ends

@@ -175,6 +175,55 @@ func ReadSourceFile(path string) ([]byte, error) {
 	return resp.Content, nil
 }
 
+// ParseSource asks the Aggrega host to obtain a source's canonical structured
+// tree by running a parser for the given format through the host, and returns the
+// tree. Format is the syntactic format of the source (for example "json"); source
+// is the raw source bytes; options is an optional opaque options document the
+// parser interprets, or nil. The host resolves the parser for the format, runs it,
+// and returns the tree it produced.
+//
+// This is the guest side of host-mediated producer consumption: a consumer plugin
+// obtains a producer's output through the host rather than invoking a producer
+// guest itself. The host bounds it to a single level — a producer reached this way
+// that calls ParseSource again is denied — so a consumer calls it once per source
+// and may consume many sources in sequence.
+//
+// Failure is in-band: the host returns an error envelope rather than trapping,
+// and this wrapper surfaces it as the returned error — a missing parser for the
+// format, a parse failure, or a denied re-entrant call all arrive as the error's
+// message. A guest should treat a parse-source error as a failure to report, not
+// a condition to mask.
+//
+// This is the wasip1 build of the binding; the off-Wasm build at
+// host_funcs_stub.go returns a not-available error.
+func ParseSource(format string, source []byte, options json.RawMessage) (json.RawMessage, error) {
+	reqBytes, err := ParseInput{Format: format, Bytes: source, Options: options}.MarshalJSON()
+	if err != nil {
+		return nil, fmt.Errorf("aggrega_parse_source: encode request: %w", err)
+	}
+	mem := pdk.AllocateString(string(reqBytes))
+	defer mem.Free()
+	offset := aggregaParseSource(uint64(mem.Offset()))
+	if offset == 0 {
+		return nil, errors.New("aggrega_parse_source: host returned no envelope")
+	}
+	respMem := pdk.FindMemory(offset)
+	respBytes := respMem.ReadBytes()
+	respMem.Free()
+
+	var resp ParseSourceResponse
+	if err := resp.UnmarshalJSON(respBytes); err != nil {
+		return nil, fmt.Errorf("aggrega_parse_source: decode response: %w", err)
+	}
+	if resp.Error != "" {
+		return nil, errors.New(resp.Error)
+	}
+	if len(resp.Tree) == 0 {
+		return nil, errors.New("aggrega_parse_source: response carries neither a tree nor an error")
+	}
+	return resp.Tree, nil
+}
+
 // WriteStdout streams a chunk of bytes to the Aggrega host's standard-output
 // stream for the running CLI command. The host copies the bytes out of guest
 // memory and writes them, incrementally, to the terminal's stdout — there is
@@ -258,6 +307,15 @@ func aggregaPackSource(requestPtr uint64) uint64
 //
 //go:wasmimport extism:host/user aggrega_read_source_file
 func aggregaReadSourceFile(requestPtr uint64) uint64
+
+// aggregaParseSource is the host-imported binding for the Aggrega parse-source
+// host function. Signature: (request_ptr i64) -> envelope_ptr i64; the argument
+// addresses a ParseInput JSON document in plugin memory and the returned offset
+// addresses a ParseSourceResponse JSON envelope carrying either the canonical
+// tree or an error. Offset 0 means no envelope was delivered.
+//
+//go:wasmimport extism:host/user aggrega_parse_source
+func aggregaParseSource(requestPtr uint64) uint64
 
 // aggregaEmitWarning is the host-imported binding for the Aggrega
 // warning-emit host function. Signature: (code_ptr i64, message_ptr i64,
