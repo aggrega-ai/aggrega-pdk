@@ -29,7 +29,8 @@ concurrency:
 
 jobs:
   go-pdk:
-    runs-on: ubuntu-latest
+    # Shared self-hosted-runner switch: set the AGGREGA_RUNNER org/repo variable to route here.
+    runs-on: ${{ vars.AGGREGA_RUNNER || 'ubuntu-latest' }}
     steps:
       - name: Mint org app token for private-ABI access
         id: app-token
@@ -81,7 +82,8 @@ jobs:
         run: bash build.sh
 
   rust-pdk:
-    runs-on: ubuntu-latest
+    # Shared self-hosted-runner switch: set the AGGREGA_RUNNER org/repo variable to route here.
+    runs-on: ${{ vars.AGGREGA_RUNNER || 'ubuntu-latest' }}
     steps:
       - name: Mint org app token for private-ABI access
         id: app-token
@@ -162,7 +164,8 @@ jobs:
         run: bash build.sh
 
   typescript-pdk:
-    runs-on: ubuntu-latest
+    # Shared self-hosted-runner switch: set the AGGREGA_RUNNER org/repo variable to route here.
+    runs-on: ${{ vars.AGGREGA_RUNNER || 'ubuntu-latest' }}
     steps:
       - name: Mint org app token for private-ABI access
         id: app-token
