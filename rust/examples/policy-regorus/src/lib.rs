@@ -47,8 +47,7 @@ use regorus::Value;
 fn descriptor() -> PluginDescriptor {
     PluginDescriptor {
         abi_version: API_VERSION.to_string(),
-        plugin_type: "policy".to_string(),
-        stage: "ir".to_string(),
+        plugin_type: "governance".to_string(),
         description:
             "Evaluate operator-supplied Rego policies against the build graph with an embedded Rego engine."
                 .to_string(),

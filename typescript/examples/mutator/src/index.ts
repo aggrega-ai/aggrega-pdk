@@ -67,7 +67,7 @@ const FIXTURE_LABEL_VALUE = "mutator-typescript";
 function descriptor(): PluginDescriptor {
   return {
     abi_version: API_VERSION,
-    plugin_type: "mutator",
+    plugin_type: "governance",
     description: "Append a fixed label to every node in the mutation graph.",
     exports: [{ name: "mutate" }],
     metadata: { author: "aggrega", license: "Apache-2.0" },

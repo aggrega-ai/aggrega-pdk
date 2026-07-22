@@ -20,8 +20,7 @@ use extism_pdk::{plugin_fn, FnResult};
 fn descriptor() -> PluginDescriptor {
     PluginDescriptor {
         abi_version: API_VERSION.to_string(),
-        plugin_type: "policy".to_string(),
-        stage: "ir".to_string(),
+        plugin_type: "governance".to_string(),
         description: "Report deterministic deny and audit policy verdicts over the build graph."
             .to_string(),
         exports: vec![PluginExport {

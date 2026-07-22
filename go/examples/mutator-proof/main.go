@@ -43,7 +43,7 @@ const proofLabelValue = "mutator-proof"
 func descriptor() aggrega.PluginDescriptor {
 	return aggrega.PluginDescriptor{
 		AbiVersion: aggrega.APIVersion,
-		PluginType: "mutator",
+		PluginType: "governance",
 		Exports:    []aggrega.PluginExport{{Name: "mutate"}},
 		Metadata:   &aggrega.PluginDescriptorMeta{Author: "aggrega", License: "Apache-2.0"},
 	}

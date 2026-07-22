@@ -46,7 +46,7 @@ const fixtureLabelValue = "mutator-go"
 func descriptor() aggrega.PluginDescriptor {
 	return aggrega.PluginDescriptor{
 		AbiVersion:  aggrega.APIVersion,
-		PluginType:  "mutator",
+		PluginType:  "governance",
 		Description: "Append a fixed label to every node in the mutation graph.",
 		Exports:     []aggrega.PluginExport{{Name: "mutate"}},
 		Metadata:    &aggrega.PluginDescriptorMeta{Author: "aggrega", License: "Apache-2.0"},

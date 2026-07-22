@@ -54,8 +54,7 @@ type output struct {
 func descriptor() aggrega.PluginDescriptor {
 	return aggrega.PluginDescriptor{
 		AbiVersion:  aggrega.APIVersion,
-		PluginType:  "policy",
-		Stage:       "ir",
+		PluginType:  "governance",
 		Description: "Echo the attachment sources and emit a settings-driven verdict over the build graph.",
 		Exports:     []aggrega.PluginExport{{Name: "validate"}},
 		Metadata:    &aggrega.PluginDescriptorMeta{Author: "aggrega", License: "Apache-2.0"},

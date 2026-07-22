@@ -62,8 +62,7 @@ static POLICY_WASM: &[u8] = include_bytes!("../policy.wasm");
 fn descriptor() -> PluginDescriptor {
     PluginDescriptor {
         abi_version: API_VERSION.to_string(),
-        plugin_type: "policy".to_string(),
-        stage: "ir".to_string(),
+        plugin_type: "governance".to_string(),
         description:
             "Evaluate an OPA-compiled Rego policy against the build graph, driving the baked policy module in-guest."
                 .to_string(),

@@ -32,8 +32,7 @@ interface PolicyOutput {
 function descriptor(): PluginDescriptor {
   return {
     abi_version: API_VERSION,
-    plugin_type: "policy",
-    stage: "ir",
+    plugin_type: "governance",
     description:
       "Report deterministic deny and audit policy verdicts over the build graph.",
     exports: [{ name: "validate" }],

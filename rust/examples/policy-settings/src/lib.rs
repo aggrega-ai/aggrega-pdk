@@ -35,8 +35,7 @@ const SETTINGS_SCHEMA: &str = r#"{"type":"object","properties":{"max_replicas":{
 fn descriptor() -> PluginDescriptor {
     PluginDescriptor {
         abi_version: API_VERSION.to_string(),
-        plugin_type: "policy".to_string(),
-        stage: "ir".to_string(),
+        plugin_type: "governance".to_string(),
         description: "Enforce a typed replica ceiling declared through the attachment settings schema."
             .to_string(),
         exports: vec![PluginExport {

@@ -65,8 +65,7 @@ use serde::{Deserialize, Serialize};
 fn descriptor() -> PluginDescriptor {
     PluginDescriptor {
         abi_version: API_VERSION.to_string(),
-        plugin_type: "policy".to_string(),
-        stage: "render".to_string(),
+        plugin_type: "governance".to_string(),
         description: "Run a Kubewarden-style validating policy over the rendered Kubernetes manifests."
             .to_string(),
         exports: vec![PluginExport {

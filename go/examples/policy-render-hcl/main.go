@@ -54,8 +54,7 @@ type output struct {
 func descriptor() aggrega.PluginDescriptor {
 	return aggrega.PluginDescriptor{
 		AbiVersion:  aggrega.APIVersion,
-		PluginType:  "policy",
-		Stage:       "render",
+		PluginType:  "governance",
 		Description: "Inspect the parsed HCL tree of the rendered artifacts and emit a verdict on the declared resource types.",
 		Exports:     []aggrega.PluginExport{{Name: "validate"}},
 		Metadata:    &aggrega.PluginDescriptorMeta{Author: "aggrega", License: "Apache-2.0"},

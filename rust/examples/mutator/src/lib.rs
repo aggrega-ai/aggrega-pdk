@@ -36,7 +36,7 @@ const FIXTURE_LABEL_VALUE: &str = "mutator-rust";
 fn descriptor() -> PluginDescriptor {
     PluginDescriptor {
         abi_version: API_VERSION.to_string(),
-        plugin_type: "mutator".to_string(),
+        plugin_type: "governance".to_string(),
         description: "Append a fixed label to every node in the mutation graph.".to_string(),
         exports: vec![PluginExport {
             name: "mutate".to_string(),
