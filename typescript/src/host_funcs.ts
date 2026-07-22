@@ -19,6 +19,7 @@
 
 import {
   decodeCLIRunInput,
+  decodeFetchExternalInputResponse,
   decodeParseSourceResponse,
   decodeSourceFileResponse,
   decodeSourcePackResponse,
@@ -27,6 +28,8 @@ import {
   encodeSourcePackRequest,
   type SourceProjection,
 } from "@aggrega-ai/aggrega-abi";
+
+import { HostError } from "./host_error.ts";
 
 declare module "extism:host" {
   interface user {
@@ -97,11 +100,11 @@ export function fetchExternalInput(url: string): ArrayBuffer {
   if (offset === BigInt(0)) {
     throw new Error("aggrega_fetch_external_input: host returned no envelope");
   }
-  const envelope: { content?: string; error?: string } = JSON.parse(
+  const envelope = decodeFetchExternalInputResponse(
     Memory.find(offset).readString(),
   );
   if (envelope.error) {
-    throw new Error(envelope.error);
+    throw new HostError(envelope.error_code ?? "", envelope.error);
   }
   if (envelope.content === undefined) {
     throw new Error(
@@ -138,7 +141,7 @@ export function packSource(op: string, path: string): SourceProjection {
   }
   const response = decodeSourcePackResponse(Memory.find(offset).readString());
   if (response.error) {
-    throw new Error(response.error);
+    throw new HostError(response.error_code ?? "", response.error);
   }
   if (response.source_projection === undefined) {
     throw new Error(
@@ -171,7 +174,7 @@ export function readSourceFile(path: string): ArrayBuffer {
   }
   const response = decodeSourceFileResponse(Memory.find(offset).readString());
   if (response.error) {
-    throw new Error(response.error);
+    throw new HostError(response.error_code ?? "", response.error);
   }
   return Host.base64ToArrayBuffer(response.content ?? "");
 }
@@ -214,7 +217,7 @@ export function parseSource(
   }
   const response = decodeParseSourceResponse(Memory.find(offset).readString());
   if (response.error) {
-    throw new Error(response.error);
+    throw new HostError(response.error_code ?? "", response.error);
   }
   if (response.tree === undefined) {
     throw new Error(

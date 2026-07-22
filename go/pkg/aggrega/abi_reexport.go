@@ -63,26 +63,27 @@ type (
 // bytes (RenderedFile.Content); the host writes them verbatim and runs no
 // serializer.
 type (
-	RenderNodeInput        = abi.RenderNodeInput
-	RenderNodeOutput       = abi.RenderNodeOutput
-	IRNodeProjection       = abi.IRNodeProjection
-	NodeProvenance         = abi.NodeProvenance
-	CatalogProjection      = abi.CatalogProjection
-	SourceProjection       = abi.SourceProjection
-	WorkloadProjection     = abi.WorkloadProjection
-	SourceFile             = abi.SourceFile
-	SourceListing          = abi.SourceListing
-	SourceEntry            = abi.SourceEntry
-	SourcePackRequest      = abi.SourcePackRequest
-	SourcePackResponse     = abi.SourcePackResponse
-	SourceFileRequest      = abi.SourceFileRequest
-	SourceFileResponse     = abi.SourceFileResponse
-	RenderedFile           = abi.RenderedFile
-	AssembleBoundaryInput  = abi.AssembleBoundaryInput
-	AssembleBoundaryOutput = abi.AssembleBoundaryOutput
-	RenderedNode           = abi.RenderedNode
-	RenderEdge             = abi.RenderEdge
-	SubChart               = abi.SubChart
+	RenderNodeInput            = abi.RenderNodeInput
+	RenderNodeOutput           = abi.RenderNodeOutput
+	IRNodeProjection           = abi.IRNodeProjection
+	NodeProvenance             = abi.NodeProvenance
+	CatalogProjection          = abi.CatalogProjection
+	SourceProjection           = abi.SourceProjection
+	WorkloadProjection         = abi.WorkloadProjection
+	SourceFile                 = abi.SourceFile
+	SourceListing              = abi.SourceListing
+	SourceEntry                = abi.SourceEntry
+	SourcePackRequest          = abi.SourcePackRequest
+	SourcePackResponse         = abi.SourcePackResponse
+	SourceFileRequest          = abi.SourceFileRequest
+	SourceFileResponse         = abi.SourceFileResponse
+	FetchExternalInputResponse = abi.FetchExternalInputResponse
+	RenderedFile               = abi.RenderedFile
+	AssembleBoundaryInput      = abi.AssembleBoundaryInput
+	AssembleBoundaryOutput     = abi.AssembleBoundaryOutput
+	RenderedNode               = abi.RenderedNode
+	RenderEdge                 = abi.RenderEdge
+	SubChart                   = abi.SubChart
 )
 
 // CLI socket. A cli plugin extends the compiler's command surface: the host

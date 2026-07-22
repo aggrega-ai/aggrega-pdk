@@ -19,6 +19,7 @@
 export * from "@aggrega-ai/aggrega-abi";
 export { API_VERSION } from "./version.ts";
 export { encodeDescriptor } from "./describe.ts";
+export { HostError } from "./host_error.ts";
 export {
   log,
   emitWarning,

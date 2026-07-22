@@ -27,7 +27,7 @@ pub mod version;
 pub use describe::encode_descriptor;
 pub use host_funcs::{
     cli_args, emit_warning, fetch_external_input, log, pack_source, parse_source, read_source_file,
-    write_stderr, write_stdout,
+    write_stderr, write_stdout, HostError,
 };
 
 // Every socket type is generated from the canonical schemas into the portable
@@ -56,5 +56,17 @@ pub use aggrega_abi::{
     SourceSpan, SubChart, WorkloadProjection,
     CandidateSignals, DecisionChoice, DecisionSourceNode, Diagnostic, EmittedEntity,
     ImportCandidate, ImportDecision, ImportInput, ImportOutput, ImportSource, ScaffoldFile,
+    FetchExternalInputResponse, ParseSourceResponse,
+};
+
+// Host-function error codes, re-exported from aggrega-abi so a plugin author
+// writes aggrega_pdk_rust::CODE_* and matches a HostError's code against the
+// same single-sourced vocabulary the host emits.
+pub use aggrega_abi::{
+    CODE_FETCH_FAILED, CODE_FETCH_INPUT_UNAVAILABLE, CODE_FETCH_REQUEST_UNREADABLE,
+    CODE_NO_PARSER_FOR_FORMAT, CODE_NO_SOURCE_PARSER, CODE_PARSE_FAILED,
+    CODE_PRODUCER_CONSUMPTION_REENTRY, CODE_REQUEST_UNDECODABLE, CODE_REQUEST_UNREADABLE,
+    CODE_SOURCE_ESCAPE, CODE_SOURCE_READ_FAILED, CODE_SOURCE_ROOT_UNAVAILABLE,
+    CODE_UNKNOWN_SELECTION_OP,
 };
 pub use version::API_VERSION;

@@ -19,6 +19,7 @@
 package main
 
 import (
+	"errors"
 	"strings"
 
 	pdk "github.com/extism/go-pdk"
@@ -32,7 +33,7 @@ func probe() int32 {
 
 	indexContent, err := aggrega.ReadSourceFile(indexPath)
 	if err != nil {
-		pdk.OutputString(err.Error())
+		pdk.OutputString(failureOutput(err))
 		return 0
 	}
 
@@ -42,11 +43,26 @@ func probe() int32 {
 	chosen := strings.TrimSpace(string(indexContent))
 	payload, err := aggrega.ReadSourceFile(chosen)
 	if err != nil {
-		pdk.OutputString(err.Error())
+		pdk.OutputString(failureOutput(err))
 		return 0
 	}
 	pdk.Output(payload)
 	return 0
+}
+
+// failureOutput demonstrates a programmatic match on the host error code: when
+// the host reports a coded failure the probe branches on the machine-matchable
+// identity — here recognizing a sandbox-escape refusal by its code — rather than
+// parsing the human message, and emits the code alongside the preserved message.
+func failureOutput(err error) string {
+	var he *aggrega.HostError
+	if !errors.As(err, &he) {
+		return err.Error()
+	}
+	if he.Code == aggrega.CodeSourceEscape {
+		return "code=" + aggrega.CodeSourceEscape + " message=" + he.Error()
+	}
+	return "code=" + he.Code + " message=" + he.Error()
 }
 
 func main() {}

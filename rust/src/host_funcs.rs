@@ -14,8 +14,8 @@
 //! host-call invocation.
 
 use aggrega_abi::{
-    CLIRunInput, ParseInput, ParseSourceResponse, SourceFileRequest, SourceFileResponse,
-    SourcePackRequest, SourcePackResponse, SourceProjection,
+    CLIRunInput, FetchExternalInputResponse, ParseInput, ParseSourceResponse, SourceFileRequest,
+    SourceFileResponse, SourcePackRequest, SourcePackResponse, SourceProjection,
 };
 use base64::Engine as _;
 use extism_pdk::{host_fn, warn, Error, Memory};
@@ -45,15 +45,36 @@ extern "C" {
     fn aggrega_cli_write_stderr(ptr: u64, len: u64);
 }
 
-/// The JSON envelope `aggrega_fetch_external_input` returns. Exactly
-/// one field is populated: `content` carries the fetched bytes in
-/// standard base64 encoding on success; `error` carries a failure
-/// message naming the URL and the remedy.
-#[derive(serde::Deserialize)]
-struct FetchEnvelope {
-    content: Option<String>,
-    error: Option<String>,
+/// The error a host-function wrapper returns when the host reports an in-band
+/// failure: the machine-matchable `code` beside the free-form `message`. The
+/// Display impl is the message, so a consumer that only logs or wraps the error
+/// is unaffected by the added code; a consumer that wants to branch downcasts
+/// and compares `code` against a `CODE_*` constant:
+///
+/// ```ignore
+/// if let Some(he) = err.downcast_ref::<HostError>() {
+///     if he.code == aggrega_pdk_rust::CODE_SOURCE_ESCAPE { /* handle escape */ }
+/// }
+/// ```
+///
+/// Absent- and unknown-code tolerance is built in: an older host that sends no
+/// code leaves `code` empty, and a newer host that sends a code this build
+/// predates leaves `code` set to that unrecognized value — either way a compare
+/// against a known constant does not match and the consumer falls back to the
+/// message, with no panic and no dropped error.
+#[derive(Debug)]
+pub struct HostError {
+    pub code: String,
+    pub message: String,
 }
+
+impl std::fmt::Display for HostError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.message)
+    }
+}
+
+impl std::error::Error for HostError {}
 
 /// Emit a log line to the Aggrega host. `level` is the severity
 /// (0 = trace, 1 = debug, 2 = info, 3 = warn, 4 = error per the
@@ -102,10 +123,13 @@ pub fn emit_warning(code: &str, message: &str, path: &str) {
 /// fetch error as a render failure to report, not a condition to mask.
 pub fn fetch_external_input(url: &str) -> Result<Vec<u8>, Error> {
     let raw = unsafe { aggrega_fetch_external_input(url.to_string())? };
-    let envelope: FetchEnvelope = serde_json::from_str(&raw)
+    let envelope: FetchExternalInputResponse = serde_json::from_str(&raw)
         .map_err(|e| Error::msg(format!("aggrega_fetch_external_input: decode envelope: {e}")))?;
-    if let Some(message) = envelope.error {
-        return Err(Error::msg(message));
+    if !envelope.error.is_empty() {
+        return Err(Error::new(HostError {
+            code: envelope.error_code,
+            message: envelope.error,
+        }));
     }
     match envelope.content {
         Some(content) => base64::engine::general_purpose::STANDARD
@@ -142,7 +166,10 @@ pub fn pack_source(op: &str, path: &str) -> Result<SourceProjection, Error> {
     let response: SourcePackResponse = serde_json::from_str(&raw)
         .map_err(|e| Error::msg(format!("aggrega_pack_source: decode response: {e}")))?;
     if !response.error.is_empty() {
-        return Err(Error::msg(response.error));
+        return Err(Error::new(HostError {
+            code: response.error_code,
+            message: response.error,
+        }));
     }
     match response.source_projection {
         Some(projection) => Ok(*projection),
@@ -173,7 +200,10 @@ pub fn read_source_file(path: &str) -> Result<Vec<u8>, Error> {
     let response: SourceFileResponse = serde_json::from_str(&raw)
         .map_err(|e| Error::msg(format!("aggrega_read_source_file: decode response: {e}")))?;
     if !response.error.is_empty() {
-        return Err(Error::msg(response.error));
+        return Err(Error::new(HostError {
+            code: response.error_code,
+            message: response.error,
+        }));
     }
     base64::engine::general_purpose::STANDARD
         .decode(response.content.as_bytes())
@@ -213,7 +243,10 @@ pub fn parse_source(
     let response: ParseSourceResponse = serde_json::from_str(&raw)
         .map_err(|e| Error::msg(format!("aggrega_parse_source: decode response: {e}")))?;
     if !response.error.is_empty() {
-        return Err(Error::msg(response.error));
+        return Err(Error::new(HostError {
+            code: response.error_code,
+            message: response.error,
+        }));
     }
     match response.tree {
         Some(tree) => Ok(tree),

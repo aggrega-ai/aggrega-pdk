@@ -70,15 +70,12 @@ func FetchExternalInput(url string) ([]byte, error) {
 	envBytes := envMem.ReadBytes()
 	envMem.Free()
 
-	var envelope struct {
-		Content *string `json:"content"`
-		Error   string  `json:"error"`
-	}
-	if err := json.Unmarshal(envBytes, &envelope); err != nil {
+	var envelope FetchExternalInputResponse
+	if err := envelope.UnmarshalJSON(envBytes); err != nil {
 		return nil, fmt.Errorf("aggrega_fetch_external_input: decode envelope: %w", err)
 	}
 	if envelope.Error != "" {
-		return nil, errors.New(envelope.Error)
+		return nil, &HostError{Code: envelope.ErrorCode, Message: envelope.Error}
 	}
 	if envelope.Content == nil {
 		return nil, errors.New("aggrega_fetch_external_input: envelope carries neither content nor error")
@@ -128,7 +125,7 @@ func PackSource(op, path string) (*SourceProjection, error) {
 		return nil, fmt.Errorf("aggrega_pack_source: decode response: %w", err)
 	}
 	if resp.Error != "" {
-		return nil, errors.New(resp.Error)
+		return nil, &HostError{Code: resp.ErrorCode, Message: resp.Error}
 	}
 	if resp.SourceProjection == nil {
 		return nil, errors.New("aggrega_pack_source: response carries neither a source projection nor an error")
@@ -170,7 +167,7 @@ func ReadSourceFile(path string) ([]byte, error) {
 		return nil, fmt.Errorf("aggrega_read_source_file: decode response: %w", err)
 	}
 	if resp.Error != "" {
-		return nil, errors.New(resp.Error)
+		return nil, &HostError{Code: resp.ErrorCode, Message: resp.Error}
 	}
 	return resp.Content, nil
 }
@@ -216,7 +213,7 @@ func ParseSource(format string, source []byte, options json.RawMessage) (json.Ra
 		return nil, fmt.Errorf("aggrega_parse_source: decode response: %w", err)
 	}
 	if resp.Error != "" {
-		return nil, errors.New(resp.Error)
+		return nil, &HostError{Code: resp.ErrorCode, Message: resp.Error}
 	}
 	if len(resp.Tree) == 0 {
 		return nil, errors.New("aggrega_parse_source: response carries neither a tree nor an error")
