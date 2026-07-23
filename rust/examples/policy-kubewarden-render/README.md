@@ -5,7 +5,7 @@ Copyright 2026 Cognitio S.r.l.
 
 # policy-kubewarden-render
 
-A reference render-stage `policy` plugin that runs a
+A reference governance plugin, attached at the `render-verdict` role, that runs a
 [Kubewarden](https://kubewarden.io/)-style validating policy over the rendered
 Kubernetes manifests. It is an *adapter*: it speaks the Aggrega plugin ABI
 outward and absorbs the Kubewarden admission-control contract inward, so the
@@ -51,10 +51,10 @@ Kubewarden policy is called as an ordinary in-guest Rust function,
 
 ## What it does
 
-The plugin exports the two functions the policy socket expects:
+The plugin exports the two functions a verdict-role governance plugin declares:
 
-- `describe()` — reports itself as a `policy` plugin, ABI `v1alpha1`,
-  evaluating the `render` stage, exporting `validate`.
+- `describe()` — reports itself as a `governance` plugin, ABI `v1alpha1`,
+  serving the `render-verdict` role, exporting `validate`.
 - `validate(input)` — receives the render-stage payload (the rendered
   artifacts, plus the attachment's sources and settings), runs the policy over
   each rendered Kubernetes object, and returns the fired verdicts.
@@ -77,13 +77,14 @@ absent `required_label` imposes no requirement.
 
 ## Attaching the policy
 
-An operator attaches the plugin through the plugin socket configuration,
-naming the render-stage policy guest and supplying settings:
+An operator attaches the plugin at the `render-verdict` role in the governance
+socket configuration, supplying settings:
 
 ```yaml
 plugins:
-  policy:
+  governance:
     - uri: <plugin reference>
+      role: render-verdict
       with:
         settings:
           required_label: app.kubernetes.io/name
@@ -120,7 +121,7 @@ This adapter covers **render-stage, Kubernetes output only**. Explicitly out of
 scope:
 
 - The IR stage. This adapter reasons over rendered manifests, not the build
-  graph. A graph-stage policy is a different plugin.
+  graph; a verdict over the build graph is the `ir-verdict` role.
 - Non-Kubernetes render output (for example compose, Terraform, or
   CloudFormation artifacts). Render-stage adapters for other output shapes are
   possible follow-ons.

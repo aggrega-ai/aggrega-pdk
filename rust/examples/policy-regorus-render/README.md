@@ -5,12 +5,12 @@ Copyright 2026 Cognitio S.r.l.
 
 # policy-regorus-render
 
-A reference render-stage `policy` plugin that evaluates
-operator-supplied
+A reference governance plugin, attached at the `render-verdict` role, that
+evaluates operator-supplied
 [Rego](https://www.openpolicyagent.org/docs/latest/policy-language/) policies
 against the compiler's **rendered output artifacts**. It is the render-stage
 sibling of the `policy-regorus` plugin, which evaluates Rego against the build's
-IR graph. The Rego engine is embedded in the guest, so the compiler runs no
+IR graph at the `ir-verdict` role. The Rego engine is embedded in the guest, so the compiler runs no
 policy engine of its own and carries no policy-language or output-format logic.
 
 ## Output-shape independence
@@ -43,26 +43,28 @@ like any non-structured content, surfaces `parse_error`.
 
 ## What it does
 
-The plugin exports the two functions the policy socket expects:
+The plugin exports the two functions a verdict-role governance plugin declares:
 
-- `describe()` — reports itself as a `policy` plugin, ABI
-  `v1alpha1`, evaluating the `render` stage, exporting `validate`.
+- `describe()` — reports itself as a `governance` plugin, ABI
+  `v1alpha1`, serving the `render-verdict` role, exporting `validate`.
 - `validate(input)` — evaluates the attached policies against the rendered
   artifacts the host hands it and returns the fired verdicts.
 
-At the render stage the socket hands `validate` a JSON payload with the rendered
+At the render stage the governance socket hands `validate` a JSON payload with the rendered
 artifacts (each an output path and its content), the policy source files the
 attachment named, and the attachment's free-form settings object.
 
 ## Attaching a policy
 
-An operator attaches a policy through the plugin socket configuration, naming
-the `.rego` files as sources and any tunables as settings:
+An operator attaches the plugin at the `render-verdict` role in the governance
+socket configuration, naming the `.rego` files as sources and any tunables as
+settings:
 
 ```yaml
 plugins:
-  policy:
+  governance:
     - uri: <resolvable-plugin-reference>
+      role: render-verdict
       with:
         sources:
           - ./policies/registry.rego

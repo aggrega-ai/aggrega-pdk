@@ -5,7 +5,8 @@ Copyright 2026 Cognitio S.r.l.
 
 # policy-opa-wasm
 
-A reference `policy` plugin that evaluates a Rego policy with the full
+A reference governance plugin, attached at the `ir-verdict` role, that evaluates
+a Rego policy with the full
 [OPA](https://www.openpolicyagent.org/) engine — the complete builtin surface and
 exact reference-engine semantics — by driving an OPA-compiled WebAssembly module
 inside the guest.
@@ -28,7 +29,7 @@ on every build:
 2. Satisfies the OPA module's own imports — its linear memory and its builtin /
    abort callbacks — with in-guest host functions. The OPA Wasm ABI is absorbed
    entirely here: the compiler host sees only the standard `describe()` /
-   `validate()` policy surface and never learns OPA is involved.
+   `validate()` verdict surface and never learns OPA is involved.
 3. Runs OPA's evaluation sequence over every compiled entrypoint and maps each
    entrypoint's decision back to the socket's verdict shape.
 
@@ -37,8 +38,8 @@ runs, nothing is fetched, and the build stays deterministic and hermetic.
 
 ## What it exports
 
-- `describe()` — reports itself as a `policy` plugin, ABI `v1alpha1`,
-  evaluating the `ir` stage, exporting `validate`.
+- `describe()` — reports itself as a `governance` plugin, ABI `v1alpha1`,
+  serving the `ir-verdict` role, exporting `validate`.
 - `validate(input)` — drives the baked module against the payload the host hands
   it and returns the fired verdicts.
 
@@ -67,14 +68,15 @@ graph declares routing edges.
 
 ## Attaching the policy
 
-An operator attaches the adapter through the plugin socket configuration. The
-policy is baked into the guest, so only settings are supplied — there are no
-`sources`:
+An operator attaches the adapter at the `ir-verdict` role in the governance
+socket configuration. The policy is baked into the guest, so only settings are
+supplied — there are no `sources`:
 
 ```yaml
 plugins:
-  policy:
+  governance:
     - uri: <resolvable-plugin-reference>
+      role: ir-verdict
       with:
         settings:
           max_nodes: 50

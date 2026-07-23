@@ -5,7 +5,8 @@ Copyright 2026 Cognitio S.r.l.
 
 # policy-regorus
 
-A reference `policy` plugin that evaluates operator-supplied
+A reference governance plugin, attached at the `ir-verdict` role, that evaluates
+operator-supplied
 [Rego](https://www.openpolicyagent.org/docs/latest/policy-language/) policies
 against the build's IR graph. The Rego engine is embedded in the plugin, so
 the compiler runs no policy engine of its own and carries no policy-language
@@ -14,26 +15,28 @@ routes the payload in and the verdicts out.
 
 ## What it does
 
-The plugin exports the two functions the policy socket expects:
+The plugin exports the two functions a verdict-role governance plugin declares:
 
-- `describe()` — reports itself as a `policy` plugin, ABI
-  `v1alpha1`, evaluating the `ir` stage, exporting `validate`.
+- `describe()` — reports itself as a `governance` plugin, ABI
+  `v1alpha1`, serving the `ir-verdict` role, exporting `validate`.
 - `validate(input)` — evaluates the attached policies against the payload the
   host hands it and returns the fired verdicts.
 
-On every build the socket hands `validate` a JSON payload with the IR graph,
+On every build the governance socket hands `validate` a JSON payload with the IR graph,
 the precalculated routing paths, the policy source files the attachment named,
 and the attachment's free-form settings object.
 
 ## Attaching a policy
 
-An operator attaches a policy through the plugin socket configuration, naming
-the `.rego` files as sources and any tunables as settings:
+An operator attaches the plugin at the `ir-verdict` role in the governance
+socket configuration, naming the `.rego` files as sources and any tunables as
+settings:
 
 ```yaml
 plugins:
-  policy:
+  governance:
     - uri: <resolvable-plugin-reference>
+      role: ir-verdict
       with:
         sources:
           - ./policies/replicas.rego
@@ -116,12 +119,12 @@ behind a thin adapter plugin:
    implements OPA's own Wasm ABI (its own entrypoints, memory model, and
    builtin-callback protocol).
 
-2. Wrap that module in a `policy` adapter plugin. The adapter
-   absorbs OPA's Wasm ABI entirely inside the guest: it instantiates the
-   OPA-built module, sets the input, invokes the evaluation entrypoint, and
+2. Wrap that module in a governance adapter plugin attached at a verdict role.
+   The adapter absorbs OPA's Wasm ABI entirely inside the guest: it instantiates
+   the OPA-built module, sets the input, invokes the evaluation entrypoint, and
    maps the OPA decision back to the `deny` / `warn` / `audit` verdict shape
    the socket expects. The compiler host sees only the standard
-   `describe()` / `validate()` policy surface; it never learns that
+   `describe()` / `validate()` verdict surface; it never learns that
    OPA is involved and carries no OPA-specific logic.
 
 The adapter keeps the same host contract as this plugin, so switching a policy
