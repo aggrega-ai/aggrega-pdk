@@ -185,7 +185,7 @@ func TestPolicyInput_RoundTripJSONSchema(t *testing.T) {
 	t.Parallel()
 	// The policy schema references ir-v1alpha1 for its graph field, so both
 	// schemas are registered with the compiler to resolve the cross-file $ref.
-	schema := loadSchemaWithRefs(t, "wasm-policy-v1alpha1.schema.json", "ir-v1alpha1.schema.json")
+	schema := loadSchemaWithRefs(t, "wasm-policy-v1alpha1.schema.json", "ir-v1alpha1.schema.json", "wasm-diagnostic-v1alpha1.schema.json")
 
 	// Under b-full the policy input carries the full IR graph (single-sourced
 	// from ir-v1alpha1). The guest IR types use plain maps (the guest reads a
@@ -233,10 +233,10 @@ func TestPolicyOutput_RoundTripJSONSchema(t *testing.T) {
 	t.Parallel()
 	// Compiling the policy schema resolves its graph $ref into ir-v1alpha1, so
 	// the IR schema is registered even though the output payload omits the graph.
-	schema := loadSchemaWithRefs(t, "wasm-policy-v1alpha1.schema.json", "ir-v1alpha1.schema.json")
+	schema := loadSchemaWithRefs(t, "wasm-policy-v1alpha1.schema.json", "ir-v1alpha1.schema.json", "wasm-diagnostic-v1alpha1.schema.json")
 
 	fixture := aggrega.PolicyOutput{
-		Results: []aggrega.PolicyResult{
+		Results: []aggrega.Diagnostic{
 			{Severity: "deny", Message: "version floor violation: payments-db < 15.0.0"},
 			{Severity: "audit", Message: "all labels present"},
 		},

@@ -46,7 +46,7 @@
 
 use aggrega_pdk_rust::{
     encode_descriptor, PluginDescriptor, PluginDescriptorMeta, PluginExport, PolicyOutput,
-    PolicyResult, API_VERSION,
+    Diagnostic, API_VERSION,
 };
 use anyhow::{anyhow, bail, Context};
 use extism_pdk::{plugin_fn, FnResult};
@@ -132,7 +132,7 @@ impl wasmi::core::HostError for OpaAbort {}
 /// for any genuine drive or evaluation failure so the caller surfaces a build
 /// fault; an entrypoint whose decision set is empty is not a failure and simply
 /// contributes no verdict.
-fn evaluate(raw: &str) -> anyhow::Result<Vec<PolicyResult>> {
+fn evaluate(raw: &str) -> anyhow::Result<Vec<Diagnostic>> {
     let payload: serde_json::Value =
         serde_json::from_str(raw).context("policy payload is not valid JSON")?;
 
@@ -175,7 +175,7 @@ fn leaf_severity(entrypoint: &str) -> anyhow::Result<&'static str> {
 /// drive instantiates the baked OPA module inside this guest, satisfies its
 /// imports, and runs the OPA evaluation sequence over every entrypoint the
 /// module declares, returning the fired verdicts.
-fn drive(payload: &str, data_json: &str) -> anyhow::Result<Vec<PolicyResult>> {
+fn drive(payload: &str, data_json: &str) -> anyhow::Result<Vec<Diagnostic>> {
     let engine = Engine::default();
     let module = Module::new(&engine, POLICY_WASM)
         .context("baked policy module is not a valid WebAssembly module")?;
@@ -350,7 +350,7 @@ fn collect(
     result_json: &str,
     severity: &str,
     entrypoint: &str,
-    out: &mut Vec<PolicyResult>,
+    out: &mut Vec<Diagnostic>,
 ) -> anyhow::Result<()> {
     let value: serde_json::Value = serde_json::from_str(result_json)
         .with_context(|| format!("policy entrypoint {entrypoint:?} result is not valid JSON"))?;
@@ -370,9 +370,10 @@ fn collect(
             let text = message.as_str().ok_or_else(|| {
                 anyhow!("policy entrypoint {entrypoint:?} emitted a non-string message: {message}")
             })?;
-            out.push(PolicyResult {
+            out.push(Diagnostic {
                 severity: severity.to_string(),
                 message: text.to_string(),
+                ..Default::default()
             });
         }
     }

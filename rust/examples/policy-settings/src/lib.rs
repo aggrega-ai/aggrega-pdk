@@ -18,7 +18,7 @@
 
 use aggrega_pdk_rust::{
     encode_descriptor, PluginDescriptor, PluginDescriptorMeta, PluginExport, PolicyInput,
-    PolicyOutput, PolicyResult, API_VERSION,
+    PolicyOutput, Diagnostic, API_VERSION,
 };
 use extism_pdk::{plugin_fn, FnResult, WithReturnCode};
 use serde::Deserialize;
@@ -86,12 +86,13 @@ pub fn validate(input: String) -> FnResult<String> {
     let settings: Settings = serde_json::from_str(raw.get())?;
 
     let out = PolicyOutput {
-        results: vec![PolicyResult {
+        results: vec![Diagnostic {
             severity: "audit".to_string(),
             message: format!(
                 "typed settings applied: max_replicas={}",
                 settings.max_replicas
             ),
+            ..Default::default()
         }],
     };
     Ok(serde_json::to_string(&out)?)

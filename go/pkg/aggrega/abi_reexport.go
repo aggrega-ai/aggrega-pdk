@@ -25,7 +25,6 @@ type (
 type (
 	LinterInput        = abi.LinterInput
 	LinterOutput       = abi.LinterOutput
-	LinterFinding      = abi.LinterFinding
 	Policies           = abi.Policies
 	NarrowingExemption = abi.NarrowingExemption
 )
@@ -36,7 +35,6 @@ type (
 type (
 	PolicyInput       = abi.PolicyInput
 	PolicyOutput      = abi.PolicyOutput
-	PolicyResult      = abi.PolicyResult
 	PrecalculatedPath = abi.PrecalculatedPath
 )
 
@@ -123,10 +121,19 @@ type (
 type (
 	ParseInput          = abi.ParseInput
 	ParseOutput         = abi.ParseOutput
-	ParseDiagnostic     = abi.ParseDiagnostic
 	NodeSpan            = abi.NodeSpan
 	SourceSpan          = abi.SourceSpan
 	ParseSourceResponse = abi.ParseSourceResponse
+)
+
+// Shared diagnostic. Every socket that reports issues carries this one shape:
+// a severity and message, optional socket-specific fields (code, rule_id,
+// classification, source_ref, suggest), and an optional Location pinning the
+// issue to a byte span or a structured position.
+type (
+	Diagnostic = abi.Diagnostic
+	Location   = abi.Location
+	Span       = abi.Span
 )
 
 // Importer socket. An importer guest turns a foreign infrastructure
@@ -146,7 +153,6 @@ type (
 	ImportCandidate    = abi.ImportCandidate
 	CandidateSignals   = abi.CandidateSignals
 	DecisionChoice     = abi.DecisionChoice
-	Diagnostic         = abi.Diagnostic
 	ScaffoldFile       = abi.ScaffoldFile
 )
 

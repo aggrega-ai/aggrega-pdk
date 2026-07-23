@@ -54,7 +54,7 @@ use std::collections::{HashMap, HashSet};
 use aggrega_abi::RenderPolicyInput;
 use aggrega_pdk_rust::{
     encode_descriptor, PluginDescriptor, PluginDescriptorMeta, PluginExport, PolicyOutput,
-    PolicyResult, API_VERSION,
+    Diagnostic, API_VERSION,
 };
 use extism_pdk::{plugin_fn, FnResult};
 use serde::{Deserialize, Serialize};
@@ -116,13 +116,14 @@ pub fn validate(input: String) -> FnResult<String> {
             let request = build_request(&value, &settings.required_label);
             let response = evaluate(&request);
             if !response.accepted {
-                results.push(PolicyResult {
+                results.push(Diagnostic {
                     severity: severity.to_string(),
                     message: format!(
                         "{}: {}",
                         object_identity(&value),
                         response.message.unwrap_or_default()
                     ),
+                    ..Default::default()
                 });
             }
         }

@@ -9,8 +9,8 @@
 //! assert exact equality of the emitted shape.
 
 use aggrega_pdk_rust::{
-    encode_descriptor, PluginDescriptor, PluginDescriptorMeta, PluginExport, PolicyOutput,
-    PolicyResult, API_VERSION,
+    encode_descriptor, Diagnostic, PluginDescriptor, PluginDescriptorMeta, PluginExport,
+    PolicyOutput, API_VERSION,
 };
 use extism_pdk::{plugin_fn, FnResult};
 
@@ -47,13 +47,15 @@ pub fn describe() -> FnResult<String> {
 pub fn validate(_input: String) -> FnResult<String> {
     let out = PolicyOutput {
         results: vec![
-            PolicyResult {
+            Diagnostic {
                 severity: "deny".to_string(),
                 message: "fixture rule B: deliberate fail for end-to-end coverage".to_string(),
+                ..Default::default()
             },
-            PolicyResult {
+            Diagnostic {
                 severity: "audit".to_string(),
                 message: "fixture rule A: audit note".to_string(),
+                ..Default::default()
             },
         ],
     };

@@ -83,7 +83,7 @@
 use aggrega_abi::RenderPolicyInput;
 use aggrega_pdk_rust::{
     encode_descriptor, PluginDescriptor, PluginDescriptorMeta, PluginExport, PolicyOutput,
-    PolicyResult, API_VERSION,
+    Diagnostic, API_VERSION,
 };
 use extism_pdk::{plugin_fn, FnResult};
 use regorus::Value;
@@ -293,7 +293,7 @@ fn eval_package(engine: &mut regorus::Engine, package: &str) -> anyhow::Result<V
 /// verdict of the given severity for each message it holds. An absent or
 /// undefined key yields nothing; a key that is neither a set nor an array of
 /// strings is a malformed policy and fails loudly.
-fn collect(package_obj: &Value, severity: &str, out: &mut Vec<PolicyResult>) -> anyhow::Result<()> {
+fn collect(package_obj: &Value, severity: &str, out: &mut Vec<Diagnostic>) -> anyhow::Result<()> {
     let obj = match package_obj.as_object() {
         Ok(o) => o,
         Err(_) => return Ok(()),
@@ -322,13 +322,14 @@ fn collect(package_obj: &Value, severity: &str, out: &mut Vec<PolicyResult>) -> 
     anyhow::bail!("policy key {severity} must be a set or array of message strings")
 }
 
-/// verdict builds one PolicyResult from a message value, requiring the message
+/// verdict builds one Diagnostic from a message value, requiring the message
 /// to be a string so a malformed collection surfaces loudly rather than as a
 /// dropped or stringified verdict.
-fn verdict(severity: &str, message: &Value) -> anyhow::Result<PolicyResult> {
-    Ok(PolicyResult {
+fn verdict(severity: &str, message: &Value) -> anyhow::Result<Diagnostic> {
+    Ok(Diagnostic {
         severity: severity.to_string(),
         message: message.as_string()?.to_string(),
+        ..Default::default()
     })
 }
 
