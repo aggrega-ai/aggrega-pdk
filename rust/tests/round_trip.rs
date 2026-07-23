@@ -26,10 +26,9 @@
 use std::path::PathBuf;
 
 use aggrega_pdk_rust::{
-    CLIRunInput, CompilationContext, IREdge, IRGraph, IRMetadata, IRNode, IRProvenance, IRSpec,
-    LinterFinding,
-    LinterInput, LinterOutput, MutatorGraph, MutatorInput, MutatorNode, MutatorOutput,
-    NarrowingExemption, Policies, PolicyResult, PolicyInput, PolicyOutput,
+    CLIRunInput, CompilationContext, Diagnostic, IREdge, IRGraph, IRMetadata, IRNode, IRProvenance,
+    IRSpec, LinterInput, LinterOutput, MutatorGraph, MutatorInput, MutatorNode, MutatorOutput,
+    NarrowingExemption, Policies, PolicyInput, PolicyOutput,
     PrecalculatedPath, API_VERSION,
 };
 use std::collections::BTreeMap;
@@ -76,24 +75,18 @@ fn validate(path: &PathBuf, instance: &serde_json::Value) -> Result<(), String> 
         .map_err(|e| format!("validation failed: {e}"))
 }
 
-/// validate_with_ref validates an instance against `path`, registering the
-/// referenced schema at `ref_path` under its $id so a cross-file $ref (the
-/// policy schema's graph referencing ir-v1alpha1) resolves without a network
-/// loader.
-fn validate_with_ref(path: &PathBuf, ref_path: &PathBuf, instance: &serde_json::Value) -> Result<(), String> {
-    let main_value: serde_json::Value = serde_json::from_slice(
-        &std::fs::read(path).map_err(|e| format!("read schema: {e}"))?,
-    )
-    .map_err(|e| format!("parse schema: {e}"))?;
-    let ref_value: serde_json::Value = serde_json::from_slice(
-        &std::fs::read(ref_path).map_err(|e| format!("read ref schema: {e}"))?,
-    )
-    .map_err(|e| format!("parse ref schema: {e}"))?;
-    let ref_id = ref_value
-        .get("$id")
-        .and_then(|v| v.as_str())
-        .ok_or("ref schema missing $id")?
-        .to_string();
+/// validate_with_refs validates an instance against `path`, registering each
+/// named referenced schema under its $id so cross-file $refs (the policy
+/// schema's graph referencing ir-v1alpha1, and every socket output referencing
+/// the shared wasm-diagnostic) resolve without a network loader.
+fn validate_with_refs(
+    path: &PathBuf,
+    ref_names: &[&str],
+    instance: &serde_json::Value,
+) -> Result<(), String> {
+    let main_value: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(path).map_err(|e| format!("read schema: {e}"))?)
+            .map_err(|e| format!("parse schema: {e}"))?;
     let main_id = main_value
         .get("$id")
         .and_then(|v| v.as_str())
@@ -101,9 +94,20 @@ fn validate_with_ref(path: &PathBuf, ref_path: &PathBuf, instance: &serde_json::
         .to_string();
 
     let mut compiler = boon::Compiler::new();
-    compiler
-        .add_resource(&ref_id, ref_value)
-        .map_err(|e| format!("add ref schema: {e}"))?;
+    for name in ref_names {
+        let ref_value: serde_json::Value = serde_json::from_slice(
+            &std::fs::read(schema_path(name)).map_err(|e| format!("read ref schema: {e}"))?,
+        )
+        .map_err(|e| format!("parse ref schema: {e}"))?;
+        let ref_id = ref_value
+            .get("$id")
+            .and_then(|v| v.as_str())
+            .ok_or("ref schema missing $id")?
+            .to_string();
+        compiler
+            .add_resource(&ref_id, ref_value)
+            .map_err(|e| format!("add ref schema: {e}"))?;
+    }
     compiler
         .add_resource(&main_id, main_value)
         .map_err(|e| format!("add schema: {e}"))?;
@@ -186,6 +190,7 @@ fn mutator_output_round_trip_json_schema() {
             .unwrap();
     let fixture = MutatorOutput {
         patches: vec![patch],
+        ..Default::default()
     };
 
     let serialised = serde_json::to_value(&fixture).expect("serialize MutatorOutput");
@@ -197,7 +202,6 @@ fn policy_input_round_trip_json_schema() {
     // Under b-full the policy input carries the full IR graph; the schema
     // references ir-v1alpha1 for the graph field, so both schemas are registered.
     let schema = schema_path("wasm-policy-v1alpha1.schema.json");
-    let ir_schema = schema_path("ir-v1alpha1.schema.json");
 
     let mut labels = BTreeMap::new();
     labels.insert("team".to_string(), "payments".to_string());
@@ -251,7 +255,7 @@ fn policy_input_round_trip_json_schema() {
     };
 
     let serialised = serde_json::to_value(&fixture).expect("serialize PolicyInput");
-    validate_with_ref(&schema, &ir_schema, &serialised).expect("schema validation");
+    validate_with_refs(&schema, &["ir-v1alpha1.schema.json", "wasm-diagnostic-v1alpha1.schema.json"], &serialised).expect("schema validation");
 
     // The abi types do not derive PartialEq (RawValue lacks it); compare the
     // re-serialized wire instead.
@@ -266,23 +270,25 @@ fn policy_input_round_trip_json_schema() {
 #[test]
 fn policy_output_round_trip_json_schema() {
     let schema = schema_path("wasm-policy-v1alpha1.schema.json");
-    let ir_schema = schema_path("ir-v1alpha1.schema.json");
 
     let fixture = PolicyOutput {
         results: vec![
-            PolicyResult {
+            Diagnostic {
                 severity: "deny".to_string(),
                 message: "version floor violation: payments-db < 15.0.0".to_string(),
+                ..Default::default()
             },
-            PolicyResult {
+            Diagnostic {
                 severity: "audit".to_string(),
                 message: "all labels present".to_string(),
+                ..Default::default()
             },
         ],
+        ..Default::default()
     };
 
     let serialised = serde_json::to_value(&fixture).expect("serialize PolicyOutput");
-    validate_with_ref(&schema, &ir_schema, &serialised).expect("schema validation");
+    validate_with_refs(&schema, &["ir-v1alpha1.schema.json", "wasm-diagnostic-v1alpha1.schema.json"], &serialised).expect("schema validation");
 
     let round: PolicyOutput =
         serde_json::from_value(serialised).expect("deserialize PolicyOutput");
@@ -295,6 +301,7 @@ fn policy_output_round_trip_json_schema() {
 #[test]
 fn linter_input_round_trip_json_schema() {
     let schema = schema_path("wasm-linter-v1alpha1.schema.json");
+    let linter_refs = ["wasm-diagnostic-v1alpha1.schema.json"];
 
     let fixture = LinterInput {
         rule_id: "schema-evolution".to_string(),
@@ -326,33 +333,37 @@ fn linter_input_round_trip_json_schema() {
     };
 
     let serialised = serde_json::to_value(&fixture).expect("serialize LinterInput");
-    validate(&schema, &serialised).expect("schema validation");
+    validate_with_refs(&schema, &linter_refs, &serialised).expect("schema validation");
     let _round: LinterInput = serde_json::from_value(serialised).expect("deserialize LinterInput");
 }
 
 #[test]
 fn linter_output_round_trip_json_schema() {
     let schema = schema_path("wasm-linter-v1alpha1.schema.json");
+    let linter_refs = ["wasm-diagnostic-v1alpha1.schema.json"];
 
     let fixture = LinterOutput {
         findings: vec![
-            LinterFinding {
+            Diagnostic {
                 rule_id: "schema-evolution".to_string(),
                 severity: "error".to_string(),
                 classification: "MAJOR".to_string(),
                 message: "field spec.schema.values.port removed".to_string(),
+                ..Default::default()
             },
-            LinterFinding {
+            Diagnostic {
                 rule_id: "unknown_rule".to_string(),
                 severity: "error".to_string(),
                 classification: String::new(),
                 message: "rule_id not implemented".to_string(),
+                ..Default::default()
             },
         ],
+        ..Default::default()
     };
 
     let serialised = serde_json::to_value(&fixture).expect("serialize LinterOutput");
-    validate(&schema, &serialised).expect("schema validation");
+    validate_with_refs(&schema, &linter_refs, &serialised).expect("schema validation");
     let _round: LinterOutput =
         serde_json::from_value(serialised).expect("deserialize LinterOutput");
 }

@@ -117,7 +117,10 @@ pub fn mutate(input: String) -> FnResult<String> {
         })
         .collect();
 
-    let out = MutatorOutput { patches };
+    let out = MutatorOutput {
+        patches,
+        ..Default::default()
+    };
     Ok(serde_json::to_string(&out)?)
 }
 

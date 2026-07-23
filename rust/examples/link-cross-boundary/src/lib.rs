@@ -113,6 +113,7 @@ pub fn render_node(_input: String) -> FnResult<String> {
     let out = RenderNodeOutput {
         files: Vec::new(),
         diagnostics: Vec::new(),
+        ..Default::default()
     };
     Ok(serde_json::to_string(&out)?)
 }

@@ -172,7 +172,10 @@ fn evaluate(raw: &str) -> anyhow::Result<PolicyOutput> {
         collect(&obj, "warn", &mut results)?;
         collect(&obj, "audit", &mut results)?;
     }
-    Ok(PolicyOutput { results })
+    Ok(PolicyOutput {
+        results,
+        ..Default::default()
+    })
 }
 
 /// build_input assembles the Rego input document: each artifact carries its

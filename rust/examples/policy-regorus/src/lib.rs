@@ -127,7 +127,10 @@ fn evaluate(raw: &str) -> anyhow::Result<PolicyOutput> {
         collect(&obj, "warn", &mut results)?;
         collect(&obj, "audit", &mut results)?;
     }
-    Ok(PolicyOutput { results })
+    Ok(PolicyOutput {
+        results,
+        ..Default::default()
+    })
 }
 
 /// eval_package evaluates a package reference to its object value. A reference

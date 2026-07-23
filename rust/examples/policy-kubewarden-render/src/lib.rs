@@ -128,7 +128,10 @@ pub fn validate(input: String) -> FnResult<String> {
             }
         }
     }
-    Ok(serde_json::to_string(&PolicyOutput { results })?)
+    Ok(serde_json::to_string(&PolicyOutput {
+        results,
+        ..Default::default()
+    })?)
 }
 
 /// AdapterSettings is the attachment's free-form settings object as this

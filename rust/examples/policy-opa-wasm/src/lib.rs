@@ -92,7 +92,10 @@ pub fn describe() -> FnResult<String> {
 #[plugin_fn]
 pub fn validate(input: String) -> FnResult<String> {
     let results = evaluate(&input)?;
-    Ok(serde_json::to_string(&PolicyOutput { results })?)
+    Ok(serde_json::to_string(&PolicyOutput {
+        results,
+        ..Default::default()
+    })?)
 }
 
 /// ExternalBuiltinInvoked reports a baked policy reaching for a host-provided

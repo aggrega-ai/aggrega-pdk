@@ -85,6 +85,7 @@ pub fn render_node(input: String) -> FnResult<String> {
             format: OUTPUT_FORMAT.to_string(),
         }],
         diagnostics: Vec::new(),
+        ..Default::default()
     };
     Ok(serde_json::to_string(&out)?)
 }

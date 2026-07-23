@@ -58,6 +58,7 @@ pub fn validate(_input: String) -> FnResult<String> {
                 ..Default::default()
             },
         ],
+        ..Default::default()
     };
     Ok(serde_json::to_string(&out)?)
 }

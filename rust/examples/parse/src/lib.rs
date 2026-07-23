@@ -79,6 +79,7 @@ pub fn parse(input: String) -> FnResult<String> {
         tree,
         diagnostics: Vec::new(),
         spans: Vec::new(),
+        error: String::new(),
     };
 
     Ok(serde_json::to_string(&out)?)
