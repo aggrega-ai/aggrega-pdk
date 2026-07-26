@@ -65,8 +65,9 @@ function makeValidator(schemaName: string) {
 }
 
 // makeValidatorWithRefs compiles the primary schema with the referenced schemas
-// registered (Ajv keys them by their $id), so a cross-file $ref (the policy
-// schema's graph referencing ir-v1alpha1) resolves without a network loader.
+// registered (Ajv keys them by their $id), so a cross-file $ref resolves without
+// a network loader. Every schema the primary reaches transitively must be listed:
+// an unregistered target aborts compilation with "can't resolve reference".
 function makeValidatorWithRefs(schemaName: string, ...refNames: string[]) {
   const ajv = new Ajv({ strict: false });
   for (const r of refNames) {
@@ -140,11 +141,13 @@ test("MutatorOutput round-trips through wasm-mutator schema", () => {
 });
 
 test("PolicyInput round-trips through wasm-policy schema", () => {
-  // Under b-full the policy input carries the full IR graph; the schema
-  // references ir-v1alpha1 for the graph field, so both schemas are registered.
+  // The policy input carries the full IR graph, and the policy schema references
+  // ir-v1alpha1 for that graph field and wasm-diagnostic-v1alpha1 for its result
+  // entries, so both referenced schemas are registered.
   const validate = makeValidatorWithRefs(
     "wasm-policy-v1alpha1.schema.json",
     "ir-v1alpha1.schema.json",
+    "wasm-diagnostic-v1alpha1.schema.json",
   );
 
   const fixture: PolicyInput = {
@@ -167,7 +170,6 @@ test("PolicyInput round-trips through wasm-policy schema", () => {
         values_mapping: {},
         infra_mapping: {},
         feature_values_mapping: {},
-        secrets: {},
         provenance: {
           schema_version: "v1alpha1",
           compiler_version: "test",
@@ -199,6 +201,7 @@ test("PolicyOutput round-trips through wasm-policy schema", () => {
   const validate = makeValidatorWithRefs(
     "wasm-policy-v1alpha1.schema.json",
     "ir-v1alpha1.schema.json",
+    "wasm-diagnostic-v1alpha1.schema.json",
   );
 
   const fixture: PolicyOutput = {

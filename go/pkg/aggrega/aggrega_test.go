@@ -208,7 +208,6 @@ func TestPolicyInput_RoundTripJSONSchema(t *testing.T) {
 				ValuesMapping:        map[string]json.RawMessage{},
 				InfraMapping:         map[string]json.RawMessage{},
 				FeatureValuesMapping: map[string]map[string]aggrega.IRFeatureEntry{},
-				Secrets:              map[string]map[string]aggrega.IRFeatureEntry{},
 				Provenance: aggrega.IRProvenance{
 					SchemaVersion: "v1alpha1", CompilerVersion: "test", AggregateVersion: "1.0.0",
 					ManifestVersion: "1.0.0", ReleaseVersion: "1.0.0", SourceIdentifiers: []string{"x"},

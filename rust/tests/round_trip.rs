@@ -233,7 +233,6 @@ fn policy_input_round_trip_json_schema() {
                 values_mapping: BTreeMap::new(),
                 infra_mapping: BTreeMap::new(),
                 feature_values_mapping: BTreeMap::new(),
-                secrets: BTreeMap::new(),
                 boundary_features: BTreeMap::new(),
                 provenance: IRProvenance {
                     schema_version: "v1alpha1".to_string(),

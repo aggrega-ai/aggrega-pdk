@@ -398,6 +398,7 @@ resource "aws_db_instance" "db" {
             artifacts: vec![RenderedArtifact {
                 path: path.to_string(),
                 content: content.to_string(),
+                ..Default::default()
             }],
             ..Default::default()
         }
