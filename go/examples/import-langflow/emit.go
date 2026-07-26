@@ -237,7 +237,7 @@ func draftComponentBody(name, format string, node sourceNode) string {
 	}
 	b.WriteString("spec:\n")
 	if len(node.secrets) > 0 {
-		b.WriteString("  secretsSchema:\n")
+		b.WriteString("  featuresSchema:\n")
 		for _, s := range node.secrets {
 			b.WriteString("    " + s + ":\n")
 			b.WriteString("      required: true\n")
