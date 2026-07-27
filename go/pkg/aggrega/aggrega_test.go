@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 
 	jsonschema "github.com/santhosh-tekuri/jsonschema/v6"
@@ -15,46 +16,36 @@ import (
 	"github.com/aggrega-ai/aggrega-pdk-go/pkg/aggrega"
 )
 
-// loadSchema reads the JSON Schema at the given relative path
-// (resolved from this test file's directory) and compiles a
-// jsonschema.Schema for validation. Returns nil after a t.Skipf when
-// the file is not reachable, so the test suite stays clean on
-// consumer checkouts that do not vendor the schemas alongside.
+// loadSchema compiles the named JSON Schema for validation, with every schema
+// in the sibling aggrega-schemas json directory registered alongside it. The
+// registration set is derived by reading that directory, so a cross-file $ref
+// resolves locally without a network loader and without any per-caller list of
+// referenced schemas to keep in step with the schemas themselves.
+//
+// Each schema registers under its $id when it declares one, falling back to its
+// file name: a relative cross-file $ref resolves against the referring schema's
+// base URI, which is its absolute $id URL, so the target must be reachable under
+// that URL rather than under its file name. The named schema is compiled by the
+// same identity it was registered under.
+//
+// Returns nil after a t.Skipf when the directory or one of its schemas is not
+// reachable, so the test suite stays clean on consumer checkouts that do not
+// vendor the schemas alongside.
 func loadSchema(t *testing.T, schemaFile string) *jsonschema.Schema {
 	t.Helper()
-	schemaPath := filepath.Join("..", "..", "..", "..", "aggrega-schemas", "json", schemaFile)
-	schemaBytes, err := os.ReadFile(schemaPath)
+	dir := filepath.Join("..", "..", "..", "..", "aggrega-schemas", "json")
+	entries, err := os.ReadDir(dir)
 	if err != nil {
-		t.Skipf("schema not reachable at %s: %v", schemaPath, err)
-	}
-	var raw any
-	if err := json.Unmarshal(schemaBytes, &raw); err != nil {
-		t.Fatalf("unmarshal schema %s: %v", schemaFile, err)
+		t.Skipf("schemas not reachable at %s: %v", dir, err)
 	}
 	c := jsonschema.NewCompiler()
-	if err := c.AddResource(schemaFile, raw); err != nil {
-		t.Fatalf("AddResource: %v", err)
-	}
-	schema, err := c.Compile(schemaFile)
-	if err != nil {
-		t.Fatalf("Compile schema %s: %v", schemaFile, err)
-	}
-	return schema
-}
-
-// loadSchemaWithRefs compiles the primary schema with one or more additional
-// schemas registered under their filenames, so a cross-file $ref (e.g. the
-// policy schema's graph referencing ir-v1alpha1.schema.json) resolves locally
-// without a network loader. The first name is the schema compiled and returned.
-func loadSchemaWithRefs(t *testing.T, primary string, refs ...string) *jsonschema.Schema {
-	t.Helper()
-	c := jsonschema.NewCompiler()
-	// add registers a schema resource under both its filename and, when present,
-	// its $id URL — the policy schema's graph $ref resolves to ir-v1alpha1's $id
-	// (an absolute https URL), so the referenced schema must be registered under
-	// that URL for the cross-file ref to resolve without a network loader.
-	add := func(name string) string {
-		schemaPath := filepath.Join("..", "..", "..", "..", "aggrega-schemas", "json", name)
+	ids := make(map[string]string, len(entries))
+	for _, e := range entries {
+		name := e.Name()
+		if e.IsDir() || !strings.HasSuffix(name, ".schema.json") {
+			continue
+		}
+		schemaPath := filepath.Join(dir, name)
 		schemaBytes, err := os.ReadFile(schemaPath)
 		if err != nil {
 			t.Skipf("schema not reachable at %s: %v", schemaPath, err)
@@ -72,15 +63,15 @@ func loadSchemaWithRefs(t *testing.T, primary string, refs ...string) *jsonschem
 		if err := c.AddResource(id, raw); err != nil {
 			t.Fatalf("AddResource %s: %v", id, err)
 		}
-		return id
+		ids[name] = id
 	}
-	for _, r := range refs {
-		add(r)
+	id, ok := ids[schemaFile]
+	if !ok {
+		t.Fatalf("schema %s not found in %s", schemaFile, dir)
 	}
-	primaryID := add(primary)
-	schema, err := c.Compile(primaryID)
+	schema, err := c.Compile(id)
 	if err != nil {
-		t.Fatalf("Compile schema %s: %v", primary, err)
+		t.Fatalf("Compile schema %s: %v", schemaFile, err)
 	}
 	return schema
 }
@@ -183,9 +174,10 @@ func TestMutatorOutput_RoundTripJSONSchema(t *testing.T) {
 
 func TestPolicyInput_RoundTripJSONSchema(t *testing.T) {
 	t.Parallel()
-	// The policy schema references ir-v1alpha1 for its graph field, so both
-	// schemas are registered with the compiler to resolve the cross-file $ref.
-	schema := loadSchemaWithRefs(t, "wasm-policy-v1alpha1.schema.json", "ir-v1alpha1.schema.json", "wasm-diagnostic-v1alpha1.schema.json")
+	// The policy schema references ir-v1alpha1 for its graph field and
+	// wasm-diagnostic-v1alpha1 for its result entries; both resolve because the
+	// whole schema directory is registered with the compiler.
+	schema := loadSchema(t, "wasm-policy-v1alpha1.schema.json")
 
 	// Under b-full the policy input carries the full IR graph (single-sourced
 	// from ir-v1alpha1). The guest IR types use plain maps (the guest reads a
@@ -230,9 +222,10 @@ func TestPolicyInput_RoundTripJSONSchema(t *testing.T) {
 
 func TestPolicyOutput_RoundTripJSONSchema(t *testing.T) {
 	t.Parallel()
-	// Compiling the policy schema resolves its graph $ref into ir-v1alpha1, so
-	// the IR schema is registered even though the output payload omits the graph.
-	schema := loadSchemaWithRefs(t, "wasm-policy-v1alpha1.schema.json", "ir-v1alpha1.schema.json", "wasm-diagnostic-v1alpha1.schema.json")
+	// Compiling the policy schema resolves its graph $ref into ir-v1alpha1 even
+	// though the output payload omits the graph, so the cross-file targets must
+	// be registered here too.
+	schema := loadSchema(t, "wasm-policy-v1alpha1.schema.json")
 
 	fixture := aggrega.PolicyOutput{
 		Results: []aggrega.Diagnostic{

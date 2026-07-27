@@ -23,7 +23,7 @@
 //! cargo test --workspace -- --skip round_trip
 //! ```
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use aggrega_pdk_rust::{
     CLIRunInput, CompilationContext, Diagnostic, IREdge, IRGraph, IRMetadata, IRNode, IRProvenance,
@@ -33,18 +33,33 @@ use aggrega_pdk_rust::{
 };
 use std::collections::BTreeMap;
 
+/// schema_dir resolves the absolute path to the sibling aggrega-schemas
+/// repository's json directory. Panics if the directory is unreachable — see the
+/// file-level comment for the rationale and the disconnected-dev opt-out via
+/// `cargo test -- --skip round_trip`.
+fn schema_dir() -> PathBuf {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let dir = manifest_dir
+        .join("..")
+        .join("..")
+        .join("aggrega-schemas")
+        .join("json");
+    assert!(
+        dir.is_dir(),
+        "schemas not reachable at {}: this test requires the umbrella checkout layout \
+         (aggrega-pdk/ and aggrega-schemas/ as siblings). Disconnected dev opts out via \
+         `cargo test -- --skip round_trip`.",
+        dir.display()
+    );
+    dir
+}
+
 /// schema_path resolves the absolute path to a JSON Schema file in the
 /// sibling aggrega-schemas repository. Panics if the file is unreachable —
 /// see the file-level comment for the rationale and the disconnected-dev
 /// opt-out via `cargo test -- --skip round_trip`.
 fn schema_path(name: &str) -> PathBuf {
-    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let path = manifest_dir
-        .join("..")
-        .join("..")
-        .join("aggrega-schemas")
-        .join("json")
-        .join(name);
+    let path = schema_dir().join(name);
     assert!(
         path.exists(),
         "schema {name} not reachable at {}: this test requires the umbrella checkout layout \
@@ -55,65 +70,59 @@ fn schema_path(name: &str) -> PathBuf {
     path
 }
 
-/// validate validates `instance` against the JSON Schema at `path`.
-fn validate(path: &PathBuf, instance: &serde_json::Value) -> Result<(), String> {
-    let schema_bytes = std::fs::read(path).map_err(|e| format!("read schema: {e}"))?;
-    let schema_value: serde_json::Value =
-        serde_json::from_slice(&schema_bytes).map_err(|e| format!("parse schema: {e}"))?;
+/// validate validates `instance` against the JSON Schema at `path`, with every
+/// schema in the sibling json directory registered alongside it. The registration
+/// set is derived by reading that directory, so a cross-file $ref resolves without
+/// a network loader and without any per-caller list of referenced schemas to keep
+/// in step with the schemas themselves — an unregistered ref target does not
+/// produce a wrong answer, it aborts compilation and masks every assertion that
+/// follows.
+///
+/// Each schema registers under its $id when it declares one, falling back to its
+/// file name: a relative cross-file $ref resolves against the referring schema's
+/// base URI, which is its absolute $id URL, so the target must be reachable under
+/// that URL rather than under its file name. The schema at `path` is compiled by
+/// the same identity it was registered under.
+fn validate(path: &Path, instance: &serde_json::Value) -> Result<(), String> {
+    let dir = schema_dir();
+    let mut names: Vec<String> = std::fs::read_dir(&dir)
+        .map_err(|e| format!("read schema dir {}: {e}", dir.display()))?
+        .filter_map(|entry| entry.ok())
+        .map(|entry| entry.file_name().to_string_lossy().into_owned())
+        .filter(|name| name.ends_with(".schema.json"))
+        .collect();
+    names.sort();
+
+    let primary = path
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .ok_or_else(|| format!("schema path {} has no file name", path.display()))?;
 
     let mut compiler = boon::Compiler::new();
-    compiler
-        .add_resource("schema.json", schema_value)
-        .map_err(|e| format!("add schema: {e}"))?;
-    let mut schemas = boon::Schemas::new();
-    let schema_idx = compiler
-        .compile("schema.json", &mut schemas)
-        .map_err(|e| format!("compile schema: {e}"))?;
-
-    schemas
-        .validate(instance, schema_idx)
-        .map_err(|e| format!("validation failed: {e}"))
-}
-
-/// validate_with_refs validates an instance against `path`, registering each
-/// named referenced schema under its $id so cross-file $refs (the policy
-/// schema's graph referencing ir-v1alpha1, and every socket output referencing
-/// the shared wasm-diagnostic) resolve without a network loader.
-fn validate_with_refs(
-    path: &PathBuf,
-    ref_names: &[&str],
-    instance: &serde_json::Value,
-) -> Result<(), String> {
-    let main_value: serde_json::Value =
-        serde_json::from_slice(&std::fs::read(path).map_err(|e| format!("read schema: {e}"))?)
-            .map_err(|e| format!("parse schema: {e}"))?;
-    let main_id = main_value
-        .get("$id")
-        .and_then(|v| v.as_str())
-        .ok_or("main schema missing $id")?
-        .to_string();
-
-    let mut compiler = boon::Compiler::new();
-    for name in ref_names {
-        let ref_value: serde_json::Value = serde_json::from_slice(
-            &std::fs::read(schema_path(name)).map_err(|e| format!("read ref schema: {e}"))?,
+    let mut primary_id: Option<String> = None;
+    for name in &names {
+        let value: serde_json::Value = serde_json::from_slice(
+            &std::fs::read(dir.join(name)).map_err(|e| format!("read schema {name}: {e}"))?,
         )
-        .map_err(|e| format!("parse ref schema: {e}"))?;
-        let ref_id = ref_value
+        .map_err(|e| format!("parse schema {name}: {e}"))?;
+        let id = value
             .get("$id")
             .and_then(|v| v.as_str())
-            .ok_or("ref schema missing $id")?
-            .to_string();
+            .map(|s| s.to_string())
+            .unwrap_or_else(|| name.clone());
+        if *name == primary {
+            primary_id = Some(id.clone());
+        }
         compiler
-            .add_resource(&ref_id, ref_value)
-            .map_err(|e| format!("add ref schema: {e}"))?;
+            .add_resource(&id, value)
+            .map_err(|e| format!("add schema {id}: {e}"))?;
     }
-    compiler
-        .add_resource(&main_id, main_value)
-        .map_err(|e| format!("add schema: {e}"))?;
+    let primary_id =
+        primary_id.ok_or_else(|| format!("schema {primary} not found in {}", dir.display()))?;
+
     let mut schemas = boon::Schemas::new();
     let idx = compiler
-        .compile(&main_id, &mut schemas)
+        .compile(&primary_id, &mut schemas)
         .map_err(|e| format!("compile schema: {e}"))?;
     schemas
         .validate(instance, idx)
@@ -254,7 +263,7 @@ fn policy_input_round_trip_json_schema() {
     };
 
     let serialised = serde_json::to_value(&fixture).expect("serialize PolicyInput");
-    validate_with_refs(&schema, &["ir-v1alpha1.schema.json", "wasm-diagnostic-v1alpha1.schema.json"], &serialised).expect("schema validation");
+    validate(&schema, &serialised).expect("schema validation");
 
     // The abi types do not derive PartialEq (RawValue lacks it); compare the
     // re-serialized wire instead.
@@ -287,7 +296,7 @@ fn policy_output_round_trip_json_schema() {
     };
 
     let serialised = serde_json::to_value(&fixture).expect("serialize PolicyOutput");
-    validate_with_refs(&schema, &["ir-v1alpha1.schema.json", "wasm-diagnostic-v1alpha1.schema.json"], &serialised).expect("schema validation");
+    validate(&schema, &serialised).expect("schema validation");
 
     let round: PolicyOutput =
         serde_json::from_value(serialised).expect("deserialize PolicyOutput");
@@ -300,7 +309,6 @@ fn policy_output_round_trip_json_schema() {
 #[test]
 fn linter_input_round_trip_json_schema() {
     let schema = schema_path("wasm-linter-v1alpha1.schema.json");
-    let linter_refs = ["wasm-diagnostic-v1alpha1.schema.json"];
 
     let fixture = LinterInput {
         rule_id: "schema-evolution".to_string(),
@@ -332,14 +340,13 @@ fn linter_input_round_trip_json_schema() {
     };
 
     let serialised = serde_json::to_value(&fixture).expect("serialize LinterInput");
-    validate_with_refs(&schema, &linter_refs, &serialised).expect("schema validation");
+    validate(&schema, &serialised).expect("schema validation");
     let _round: LinterInput = serde_json::from_value(serialised).expect("deserialize LinterInput");
 }
 
 #[test]
 fn linter_output_round_trip_json_schema() {
     let schema = schema_path("wasm-linter-v1alpha1.schema.json");
-    let linter_refs = ["wasm-diagnostic-v1alpha1.schema.json"];
 
     let fixture = LinterOutput {
         findings: vec![
@@ -362,7 +369,7 @@ fn linter_output_round_trip_json_schema() {
     };
 
     let serialised = serde_json::to_value(&fixture).expect("serialize LinterOutput");
-    validate_with_refs(&schema, &linter_refs, &serialised).expect("schema validation");
+    validate(&schema, &serialised).expect("schema validation");
     let _round: LinterOutput =
         serde_json::from_value(serialised).expect("deserialize LinterOutput");
 }

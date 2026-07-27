@@ -19,7 +19,7 @@
 
 import { test } from "node:test";
 import { strict as assert } from "node:assert";
-import { readFileSync, existsSync } from "node:fs";
+import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import Ajv from "ajv/dist/2020.js";
@@ -38,42 +38,52 @@ import {
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-function loadSchema(name: string): object {
-  const schemaPath = join(
-    __dirname,
-    "..",
-    "..",
-    "..",
-    "aggrega-schemas",
-    "json",
-    name,
-  );
-  if (!existsSync(schemaPath)) {
+// makeValidator compiles the named schema with every schema in the sibling
+// aggrega-schemas json directory registered alongside it. The registration set is
+// derived by reading that directory, so a cross-file $ref resolves without a
+// network loader and without any per-caller list of referenced schemas to keep in
+// step with the schemas themselves — an unregistered ref target does not produce a
+// wrong answer, it aborts compilation and masks every assertion that follows.
+//
+// Each schema registers under its $id when it declares one, falling back to its
+// file name: a relative cross-file $ref resolves against the referring schema's
+// base URI, which is its absolute $id URL, so the target must be reachable under
+// that URL rather than under its file name. The named schema is retrieved by the
+// same identity it was registered under.
+function makeValidator(schemaName: string) {
+  const schemaDir = join(__dirname, "..", "..", "..", "aggrega-schemas", "json");
+  if (!existsSync(schemaDir)) {
     throw new Error(
-      `schema ${name} not reachable at ${schemaPath}: this test requires ` +
+      `schemas not reachable at ${schemaDir}: this test requires ` +
         `the umbrella checkout layout (aggrega-pdk/ and aggrega-schemas/ ` +
         `as siblings). Skip with --test-skip-pattern=round_trip.`,
     );
   }
-  return JSON.parse(readFileSync(schemaPath, "utf-8"));
-}
 
-function makeValidator(schemaName: string) {
   const ajv = new Ajv({ strict: false });
-  const schema = loadSchema(schemaName);
-  return ajv.compile(schema);
-}
-
-// makeValidatorWithRefs compiles the primary schema with the referenced schemas
-// registered (Ajv keys them by their $id), so a cross-file $ref resolves without
-// a network loader. Every schema the primary reaches transitively must be listed:
-// an unregistered target aborts compilation with "can't resolve reference".
-function makeValidatorWithRefs(schemaName: string, ...refNames: string[]) {
-  const ajv = new Ajv({ strict: false });
-  for (const r of refNames) {
-    ajv.addSchema(loadSchema(r) as object);
+  let schemaKey: string | undefined;
+  for (const name of readdirSync(schemaDir)
+    .filter((n) => n.endsWith(".schema.json"))
+    .sort()) {
+    const schema = JSON.parse(
+      readFileSync(join(schemaDir, name), "utf-8"),
+    ) as { $id?: string };
+    const id =
+      typeof schema.$id === "string" && schema.$id !== "" ? schema.$id : name;
+    ajv.addSchema(schema, id);
+    if (name === schemaName) {
+      schemaKey = id;
+    }
   }
-  return ajv.compile(loadSchema(schemaName));
+  if (schemaKey === undefined) {
+    throw new Error(`schema ${schemaName} not found in ${schemaDir}`);
+  }
+
+  const validate = ajv.getSchema(schemaKey);
+  if (validate === undefined) {
+    throw new Error(`schema ${schemaName} not resolvable as ${schemaKey}`);
+  }
+  return validate;
 }
 
 test("API_VERSION is the v1alpha1 contract floor", () => {
@@ -143,12 +153,8 @@ test("MutatorOutput round-trips through wasm-mutator schema", () => {
 test("PolicyInput round-trips through wasm-policy schema", () => {
   // The policy input carries the full IR graph, and the policy schema references
   // ir-v1alpha1 for that graph field and wasm-diagnostic-v1alpha1 for its result
-  // entries, so both referenced schemas are registered.
-  const validate = makeValidatorWithRefs(
-    "wasm-policy-v1alpha1.schema.json",
-    "ir-v1alpha1.schema.json",
-    "wasm-diagnostic-v1alpha1.schema.json",
-  );
+  // entries; both resolve because the whole schema directory is registered.
+  const validate = makeValidator("wasm-policy-v1alpha1.schema.json");
 
   const fixture: PolicyInput = {
     graph: {
@@ -198,11 +204,7 @@ test("PolicyInput round-trips through wasm-policy schema", () => {
 });
 
 test("PolicyOutput round-trips through wasm-policy schema", () => {
-  const validate = makeValidatorWithRefs(
-    "wasm-policy-v1alpha1.schema.json",
-    "ir-v1alpha1.schema.json",
-    "wasm-diagnostic-v1alpha1.schema.json",
-  );
+  const validate = makeValidator("wasm-policy-v1alpha1.schema.json");
 
   const fixture: PolicyOutput = {
     results: [
