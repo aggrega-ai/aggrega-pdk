@@ -5,12 +5,13 @@
 //
 // It attaches at a verdict role and reasons over the ATTACHMENTS the IR graph
 // carries, rather than over node labels or rendered content. Every fact it
-// reads comes off the wire: each attachment's verbatim catalog labels, whether
-// the attachment fills a declared slot or is free, and the per-delivery-key
-// sensitivity marking. The host supplies those facts and makes no judgement
-// about them; each rule below is this plugin's own judgement.
+// reads comes off the wire: each attachment's verbatim catalog labels, its
+// verbatim catalog annotations, whether the attachment fills a declared slot or
+// is free, and the per-delivery-key sensitivity marking. The host supplies those
+// facts and makes no judgement about them; each rule below is this plugin's own
+// judgement.
 //
-// Four rules, selected by the attachment's settings.rule:
+// Five rules, selected by the attachment's settings.rule:
 //
 //   - no-free-attachments — deny a build carrying an attachment that fills no
 //     declared slot. This is the rule an operator writes when free-form
@@ -23,6 +24,11 @@
 //     labels mark it as handling secret material. The judgement is computed
 //     from the labels alone, which is what makes a label-carrying wire a
 //     superset of a host-computed credential verdict.
+//   - deny-unreviewed-attachment — deny a build carrying an attachment whose
+//     attached Feature's catalog annotations say its review is outstanding.
+//     This is the annotations counterpart of deny-secret-kind, and it reads a
+//     key in a namespace of the catalog author's own choosing, which is the
+//     only kind of key that can show the annotations arrived unfiltered.
 //   - observe — emit one audit verdict per attachment reporting every fact
 //     the guest decoded, so a payload can be read at the point it arrives.
 //
@@ -66,16 +72,25 @@ type input struct {
 
 // attachment is one entry of the graph's per-node attachment map, projected to
 // the facts these rules judge. Labels are the attached Feature's catalog labels
-// as the catalog author wrote them; Binding is the declared slot the attachment
-// fills or "free"; SensitiveInject maps a delivery mechanism to the delivery
-// keys carrying declared-sensitive material, valued by the provides key each
-// inherited its marking from.
+// as the catalog author wrote them; CatalogAnnotations are that same entity's
+// catalog annotations, also as written; Binding is the declared slot the
+// attachment fills or "free"; SensitiveInject maps a delivery mechanism to the
+// delivery keys carrying declared-sensitive material, valued by the provides key
+// each inherited its marking from.
+//
+// CatalogAnnotations is held as raw wire bytes rather than decoded into a map,
+// which is deliberate and is about ORDER. The wire carries the annotations in the
+// order the catalog entity declares them; a Go map has no order to hold, so
+// decoding on arrival would destroy exactly the property the wire promises and
+// the observe rule below could no longer report it. Rules that need one key's
+// value decode locally instead.
 type attachment struct {
-	Type            string                       `json:"type"`
-	Labels          map[string]string            `json:"labels"`
-	Binding         string                       `json:"binding"`
-	Sensitive       bool                         `json:"sensitive"`
-	SensitiveInject map[string]map[string]string `json:"sensitive_inject"`
+	Type               string                       `json:"type"`
+	Labels             map[string]string            `json:"labels"`
+	CatalogAnnotations json.RawMessage              `json:"catalog_annotations,omitempty"`
+	Binding            string                       `json:"binding"`
+	Sensitive          bool                         `json:"sensitive"`
+	SensitiveInject    map[string]map[string]string `json:"sensitive_inject"`
 }
 
 type result struct {
@@ -104,6 +119,17 @@ const bindingFree = "free"
 const (
 	secretKindLabel = "feature.aggrega.ai/kind"
 	secretKindValue = "secret"
+)
+
+// reviewAnnotation and reviewOutstandingValue are a catalog annotation in a
+// namespace the fixture catalog author invented. Nothing in the compiler knows
+// this key exists, which is what makes a rule keyed on it evidence that the
+// annotations crossed the boundary verbatim: a rule keyed on a reserved-namespace
+// key would keep firing even if the host filtered the set down to its own
+// namespace.
+const (
+	reviewAnnotation       = "governance.example/review-ticket"
+	reviewOutstandingValue = "none"
 )
 
 // descriptor is the static describe() self-report: a v1alpha1 governance plugin
@@ -177,6 +203,13 @@ walk:
 						nodeID, name, secretKindLabel, secretKindValue, echo(a, in.Settings.EchoLabel))})
 					break walk
 				}
+			case "deny-unreviewed-attachment":
+				if annotationValue(a, reviewAnnotation) == reviewOutstandingValue {
+					results = append(results, result{Severity: severity, Message: fmt.Sprintf(
+						"governance rule: node %q attachment %q has an outstanding review per its catalog annotation %s=%s; an unreviewed attachment is not permitted%s",
+						nodeID, name, reviewAnnotation, reviewOutstandingValue, echo(a, in.Settings.EchoLabel))})
+					break walk
+				}
 			case "observe":
 				facts, err := json.Marshal(a)
 				if err != nil {
@@ -202,6 +235,22 @@ func firstMarkedDelivery(a attachment) (mechanism, deliveryKey, providesKey stri
 		}
 	}
 	return "", "", "", false
+}
+
+// annotationValue decodes the attachment's verbatim catalog annotations and
+// returns one key's value, or the empty string when the attachment carries no
+// annotations, when the bytes do not decode, or when the key is absent. A rule
+// keyed on a specific value therefore cannot fire on an attachment that carried
+// nothing.
+func annotationValue(a attachment, key string) string {
+	if len(a.CatalogAnnotations) == 0 {
+		return ""
+	}
+	var annotations map[string]string
+	if err := json.Unmarshal(a.CatalogAnnotations, &annotations); err != nil {
+		return ""
+	}
+	return annotations[key]
 }
 
 // echo renders the requested label's key and value for the verdict message. A
