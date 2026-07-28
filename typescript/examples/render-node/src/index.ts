@@ -4,13 +4,18 @@
 /**
  * Fixture provider render plugin for the Aggrega Wasm runtime.
  *
- * Applies one trivial, deterministic transform — emits a single output
- * file at a fixed path whose bytes are `rendered-node:` followed by the
- * node id — and returns it as the sole RenderedFile of a RenderNodeOutput.
- * The transform is identical across the per-language render fixtures, so
- * the same RenderNodeInput yields equivalent output whichever language
- * rendered it. The host verifies end-to-end that input JSON deserialised,
- * the render transform ran against the node projection, and output JSON
+ * Applies two trivial, deterministic transforms and returns each as a
+ * RenderedFile of a RenderNodeOutput: one file whose bytes are
+ * `rendered-node:` followed by the node id, and one reporting the node's
+ * attachments as `alias=sensitive|plain` in the order this guest observes
+ * them. The first transform is identical across the per-language render
+ * fixtures, so the same RenderNodeInput yields the same node-id echo
+ * whichever language rendered it. The second is deliberately allowed to
+ * differ: it reports what this language's own map container does with an
+ * author-ordered map, which is a property of the language rather than of
+ * the socket. The host verifies end-to-end that input JSON deserialised,
+ * the render transform ran against the node projection, an attachment's
+ * sensitivity marking is readable from the payload alone, and output JSON
  * serialised to a shape whose file content round-trips through the render
  * socket's base64 wire encoding.
  *
@@ -25,8 +30,18 @@ import {
   type PluginDescriptor,
 } from "@aggrega-ai/aggrega-pdk-typescript";
 
+// A deliberately narrow view of the node projection: the fixture reads only
+// what it echoes. The attachment entry is typed to the one field this fixture
+// reports — the sensitivity marking the IR feature-entry shape declares — rather
+// than to the whole entry, so the fixture stays legible while still reading the
+// marking from the payload instead of guessing it from the alias.
+interface IRFeatureEntryView {
+  sensitive?: boolean;
+}
+
 interface IRNodeProjection {
   id: string;
+  features?: Record<string, IRFeatureEntryView>;
 }
 
 interface RenderNodeInput {
@@ -43,9 +58,15 @@ interface RenderNodeOutput {
   files: RenderedFile[];
 }
 
-// The fixed on-disk path the fixture emits its single file at. Constant
+// The fixed on-disk path the fixture emits its node-id echo at. Constant
 // across the per-language render fixtures so their outputs compare equal.
 const OUTPUT_PATH = "parity.txt";
+
+// The fixed on-disk path the fixture emits its attachment echo at. Constant
+// across the per-language render fixtures; the CONTENT is deliberately allowed
+// to differ per language, because it reports what this language's own map
+// container did with an author-ordered attachment map.
+const ATTACHMENTS_PATH = "attachments.txt";
 
 // The fixed prefix prepended to the node id to form the emitted file's
 // bytes. Constant across the per-language render fixtures so identical
@@ -64,7 +85,7 @@ function descriptor(): PluginDescriptor {
     abi_version: API_VERSION,
     plugin_type: "provider",
     description:
-      "Render one IR node to a single output file whose bytes are the node id under a fixed prefix.",
+      "Render one IR node to a node-id echo file and an attachment-report file.",
     capabilities: ["parity"],
     exports: [
       { name: "render_node", input_pattern: "b", stability: "experimental" },
@@ -120,6 +141,15 @@ function describe(): void {
   Host.outputString(encodeDescriptor(descriptor()));
 }
 
+// attachmentEcho reports the node's attachments as `alias=sensitive|plain`,
+// comma-joined, in the order this guest observes them.
+function attachmentEcho(input: RenderNodeInput): string {
+  const features = input.node.features ?? {};
+  return Object.keys(features)
+    .map((alias) => `${alias}=${features[alias].sensitive ? "sensitive" : "plain"}`)
+    .join(",");
+}
+
 function render_node(): void {
   const input: RenderNodeInput = JSON.parse(Host.inputString());
   const content = CONTENT_PREFIX + input.node.id;
@@ -128,6 +158,11 @@ function render_node(): void {
       {
         path: OUTPUT_PATH,
         content: base64Encode(utf8Bytes(content)),
+        format: OUTPUT_FORMAT,
+      },
+      {
+        path: ATTACHMENTS_PATH,
+        content: base64Encode(utf8Bytes(attachmentEcho(input))),
         format: OUTPUT_FORMAT,
       },
     ],

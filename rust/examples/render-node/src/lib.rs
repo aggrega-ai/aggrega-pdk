@@ -3,29 +3,40 @@
 
 //! Fixture provider plugin for the Aggrega Wasm runtime's render socket.
 //!
-//! Applies one trivial, deterministic transform — emits a single output
-//! file at a fixed path whose bytes are `rendered-node:` followed by the
-//! node id — and returns it as the sole [`RenderedFile`] of a
-//! [`RenderNodeOutput`]. The transform is identical across the per-language
-//! render fixtures, so the same [`RenderNodeInput`] yields equivalent output
-//! whichever language rendered it. The host verifies end-to-end that:
+//! Applies two trivial, deterministic transforms and returns each as a
+//! [`RenderedFile`] of a [`RenderNodeOutput`]: one file whose bytes are
+//! `rendered-node:` followed by the node id, and one reporting the node's
+//! attachments as `alias=sensitive|plain` in the order this guest observes them.
+//! The first transform is identical across the per-language render fixtures, so
+//! the same [`RenderNodeInput`] yields the same node-id echo whichever language
+//! rendered it. The second is deliberately allowed to differ: it reports what
+//! this language's generated codec does with an author-ordered map, which is a
+//! property of the language's own map container rather than of the socket.
+//! The host verifies end-to-end that:
 //!
 //!  - The plugin loaded successfully via the Aggrega Wasm loader.
 //!  - Input JSON deserialised to [`RenderNodeInput`].
 //!  - The render transform ran against the node projection.
+//!  - An attachment's sensitivity marking is readable from the payload alone.
 //!  - Output JSON serialises to a [`RenderNodeOutput`] whose file content
 //!    round-trips through the render socket's base64 wire encoding.
 
 use aggrega_pdk_rust::{
-    encode_descriptor, PluginDescriptor, PluginDescriptorMeta, PluginExport, RenderNodeInput,
-    RenderNodeOutput, RenderedFile, API_VERSION,
+    encode_descriptor, IRFeatureEntry, PluginDescriptor, PluginDescriptorMeta, PluginExport,
+    RenderNodeInput, RenderNodeOutput, RenderedFile, API_VERSION,
 };
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 use extism_pdk::{plugin_fn, FnResult};
 
-/// The fixed on-disk path the fixture emits its single file at. Constant
+/// The fixed on-disk path the fixture emits its node-id echo at. Constant
 /// across the per-language render fixtures so their outputs compare equal.
 const OUTPUT_PATH: &str = "parity.txt";
+
+/// The fixed on-disk path the fixture emits its attachment echo at. Constant
+/// across the per-language render fixtures; the CONTENT is deliberately allowed
+/// to differ per language, because it reports what this language's generated
+/// codec actually did with an author-ordered attachment map.
+const ATTACHMENTS_PATH: &str = "attachments.txt";
 
 /// The fixed prefix prepended to the node id to form the emitted file's
 /// bytes. Constant across the per-language render fixtures so identical
@@ -44,7 +55,7 @@ fn descriptor() -> PluginDescriptor {
         abi_version: API_VERSION.to_string(),
         plugin_type: "provider".to_string(),
         description:
-            "Render one IR node to a single output file whose bytes are the node id under a fixed prefix."
+            "Render one IR node to a node-id echo file and an attachment-report file."
                 .to_string(),
         capabilities: vec!["parity".to_string()],
         exports: vec![PluginExport {
@@ -69,6 +80,30 @@ pub fn describe() -> FnResult<String> {
     Ok(encode_descriptor(&descriptor()))
 }
 
+/// Reports the node's attachments as `alias=sensitive|plain`, comma-joined, in
+/// the order this guest observes them. The attachment entry arrives opaque at the
+/// render socket's own layer, so it is decoded through the IR wire contract's
+/// feature-entry shape — which is where the sensitivity marking is declared — and
+/// the marking is read from there rather than guessed from the alias.
+fn attachment_echo(parsed: &RenderNodeInput) -> String {
+    parsed
+        .node
+        .features
+        .iter()
+        .map(|(alias, raw)| {
+            let sensitive = serde_json::from_str::<IRFeatureEntry>(raw.get())
+                .map(|entry| entry.sensitive)
+                .unwrap_or(false);
+            format!(
+                "{}={}",
+                alias,
+                if sensitive { "sensitive" } else { "plain" }
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(",")
+}
+
 #[plugin_fn]
 pub fn render_node(input: String) -> FnResult<String> {
     let parsed: RenderNodeInput = serde_json::from_str(&input)?;
@@ -77,13 +112,21 @@ pub fn render_node(input: String) -> FnResult<String> {
     // socket carries file content as base64 on the JSON wire, so the
     // guest base64-encodes the raw bytes; the host decodes them verbatim.
     let content_bytes = format!("{}{}", CONTENT_PREFIX, parsed.node.id).into_bytes();
+    let attachment_bytes = attachment_echo(&parsed).into_bytes();
 
     let out = RenderNodeOutput {
-        files: vec![RenderedFile {
-            path: OUTPUT_PATH.to_string(),
-            content: STANDARD.encode(&content_bytes),
-            format: OUTPUT_FORMAT.to_string(),
-        }],
+        files: vec![
+            RenderedFile {
+                path: OUTPUT_PATH.to_string(),
+                content: STANDARD.encode(&content_bytes),
+                format: OUTPUT_FORMAT.to_string(),
+            },
+            RenderedFile {
+                path: ATTACHMENTS_PATH.to_string(),
+                content: STANDARD.encode(&attachment_bytes),
+                format: OUTPUT_FORMAT.to_string(),
+            },
+        ],
         diagnostics: Vec::new(),
         ..Default::default()
     };
