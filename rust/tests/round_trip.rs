@@ -28,7 +28,7 @@ use std::path::{Path, PathBuf};
 use aggrega_pdk_rust::{
     CLIRunInput, CompilationContext, Diagnostic, IREdge, IRGraph, IRMetadata, IRNode, IRProvenance,
     IRSpec, LinterInput, LinterOutput, MutatorGraph, MutatorInput, MutatorNode, MutatorOutput,
-    NarrowingExemption, Policies, PolicyInput, PolicyOutput,
+    Policies, PolicyInput, PolicyOutput,
     PrecalculatedPath, API_VERSION,
 };
 use std::collections::BTreeMap;
@@ -320,16 +320,9 @@ fn linter_input_round_trip_json_schema() {
         previous: Some(
             serde_json::value::RawValue::from_string(r#"{"kind":"Component"}"#.into()).unwrap(),
         ),
-        parent: None,
         source_path: "core/compute/api-server/api-server.yaml".to_string(),
         policies: Policies {
-            enforce_monotonic_narrowing: true,
             enforce_immutability: true,
-            narrowing_exemptions: vec![NarrowingExemption {
-                entity: "core/legacy-api".to_string(),
-                paths: vec!["spec.schema.values.timeout".to_string()],
-                reason: "documented exemption pending refactor".to_string(),
-            }],
             allow_dynamic_refs: false,
             allow_id_overrides: false,
             allow_direct_x_aggrega_extensions: false,

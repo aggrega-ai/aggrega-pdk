@@ -23,10 +23,9 @@ type (
 
 // Linter socket.
 type (
-	LinterInput        = abi.LinterInput
-	LinterOutput       = abi.LinterOutput
-	Policies           = abi.Policies
-	NarrowingExemption = abi.NarrowingExemption
+	LinterInput  = abi.LinterInput
+	LinterOutput = abi.LinterOutput
+	Policies     = abi.Policies
 )
 
 // Policy socket. The graph is the full capability-agnostic IR graph; the

@@ -44,7 +44,7 @@ pub use aggrega_abi::{
     LinkPublishOutput,
     LinkResolveInput, LinkResolveOutput, LinterInput, LinterOutput, Location, Maintainer,
     MutatorGraph,
-    MutatorInput, MutatorNode, MutatorOutput, NarrowingExemption, NodeProvenance, NodeSpan,
+    MutatorInput, MutatorNode, MutatorOutput, NodeProvenance, NodeSpan,
     ParseInput, ParseOutput,
     PluginCLICommand, PluginCommandFlag, PluginDescriptor, PluginDescriptorMeta, PluginExport,
     Policies,
