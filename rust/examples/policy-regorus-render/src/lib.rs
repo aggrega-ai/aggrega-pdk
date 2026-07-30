@@ -38,13 +38,12 @@
 //!   - `input.artifacts[_].path`        — the artifact's output path.
 //!   - `input.artifacts[_].content`     — the raw rendered text, verbatim.
 //!   - `input.artifacts[_].documents`   — the parsed documents at that path, in
-//!                                        document order: YAML/JSON documents for
-//!                                        a YAML/JSON artifact, or the single
-//!                                        projected object for a native `.tf`.
+//!     document order: YAML/JSON documents for a YAML/JSON artifact, or the
+//!     single projected object for a native `.tf`.
 //!   - `input.artifacts[_].parse_error` — present only when the content did not
-//!                                        parse; carries the parser's message.
+//!     parse; carries the parser's message.
 //!   - `input.sources`, `input.settings` — the attachment's own sources and
-//!                                        settings, carried through verbatim.
+//!     settings, carried through verbatim.
 //!
 //! Each attached source is loaded as a Rego module; the attachment's `settings`
 //! object becomes the Rego `data` document, so a policy reads an operator
