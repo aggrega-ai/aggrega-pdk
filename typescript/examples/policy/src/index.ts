@@ -14,17 +14,10 @@
 import {
   API_VERSION,
   encodeDescriptor,
+  type Diagnostic,
   type PluginDescriptor,
+  type PolicyOutput,
 } from "@aggrega-ai/aggrega-pdk-typescript";
-
-interface PolicyResult {
-  severity: string;
-  message: string;
-}
-
-interface PolicyOutput {
-  results: PolicyResult[];
-}
 
 // The static describe() self-report: a v1alpha1 policy plugin
 // evaluating the ir stage, whose validate export the host validates before
@@ -52,12 +45,15 @@ function validate(): void {
   // the input value is discarded.
   Host.inputString();
 
-  const out: PolicyOutput = {
-    results: [
-      { severity: "deny", message: "fixture rule B: deliberate fail for end-to-end coverage" },
-      { severity: "audit", message: "fixture rule A: audit note" },
-    ],
-  };
+  // Each verdict is one shared diagnostic. severity and message are the
+  // required pair; code, rule_id, source_ref, location and suggest are
+  // available on the same entry and stay unset because this fixture
+  // offers none of them.
+  const results: Diagnostic[] = [
+    { severity: "deny", message: "fixture rule B: deliberate fail for end-to-end coverage" },
+    { severity: "audit", message: "fixture rule A: audit note" },
+  ];
+  const out: PolicyOutput = { results };
   Host.outputString(JSON.stringify(out));
 }
 
