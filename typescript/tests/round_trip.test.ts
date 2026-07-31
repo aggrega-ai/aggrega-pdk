@@ -170,7 +170,12 @@ test("PolicyInput round-trips through wasm-policy schema", () => {
           },
         },
         edges: [
-          { source: "payments-api", target: "payments-db", socket: "databases" },
+          {
+            source: "payments-api",
+            target: "payments-db",
+            socket: "databases",
+            socket_declaration: "declared",
+          },
         ],
         feature_markers: [],
         values_mapping: {},

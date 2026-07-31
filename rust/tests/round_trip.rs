@@ -236,6 +236,7 @@ fn policy_input_round_trip_json_schema() {
                     source: "payments-api".to_string(),
                     target: "payments-db".to_string(),
                     socket: "databases".to_string(),
+                    socket_declaration: "declared".to_string(),
                     ..Default::default()
                 }],
                 feature_markers: vec![],
