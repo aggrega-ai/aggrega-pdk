@@ -195,7 +195,10 @@ func TestPolicyInput_RoundTripJSONSchema(t *testing.T) {
 						Labels:          map[string]string{"team": "payments"},
 					},
 				},
-				Edges:                []aggrega.IREdge{{Source: "payments-api", Target: "payments-db", Socket: "databases"}},
+				Edges: []aggrega.IREdge{{
+					Source: "payments-api", Target: "payments-db", Socket: "databases",
+					SocketDeclaration: "declared",
+				}},
 				FeatureMarkers:       []string{},
 				ValuesMapping:        map[string]json.RawMessage{},
 				InfraMapping:         map[string]json.RawMessage{},
