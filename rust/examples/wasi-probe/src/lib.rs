@@ -100,8 +100,8 @@ pub extern "C" fn probe_wasi_stubs() -> u32 {
         let errno = fd_write(STDOUT_FD, iovs_offset, 1, PROBE_OUTPUT_OFFSET + 24);
         let errno_bytes = errno.to_le_bytes();
         let dst = (PROBE_OUTPUT_OFFSET + 28) as *mut u8;
-        for i in 0..4 {
-            *dst.add(i) = errno_bytes[i];
+        for (i, b) in errno_bytes.iter().enumerate() {
+            *dst.add(i) = *b;
         }
     }
 
