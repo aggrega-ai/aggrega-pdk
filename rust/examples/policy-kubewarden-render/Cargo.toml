@@ -8,11 +8,12 @@ edition = "2021"
 publish = false
 
 # This crate is a self-contained workspace root: its own [workspace] table
-# detaches it from the parent, its own rust-toolchain.toml selects the current
-# stable toolchain, and its own Cargo.lock resolves its tree independently. The
-# parent workspace excludes this path, so this example's dependency resolution
-# never perturbs the parent workspace's deliberate toolchain floor or shared
-# lockfile.
+# detaches it from the parent and its own Cargo.lock resolves its tree
+# independently. It carries no rust-toolchain.toml and needs none — its exclusion
+# turns on that independent dependency resolution, not on a toolchain
+# requirement, so it builds under the default toolchain. The parent workspace
+# excludes this path, so this example's dependency resolution never perturbs the
+# parent workspace's deliberate toolchain floor or shared lockfile.
 [workspace]
 
 [lib]
