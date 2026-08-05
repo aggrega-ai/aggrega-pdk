@@ -129,9 +129,44 @@ fn validate(path: &Path, instance: &serde_json::Value) -> Result<(), String> {
         .map_err(|e| format!("validation failed: {e}"))
 }
 
+/// schema_declared_abi_version reads the plugin ABI version out of the descriptor
+/// schema in the sibling aggrega-schemas repository — the single-valued const the
+/// schema declares for a descriptor's `abi_version`. Reading the declaration
+/// rather than repeating its value is the whole point: a literal here would pin
+/// this kit's constant against a second copy living in this same repository,
+/// which is the divergence that generating the constant from the schema exists to
+/// remove.
+fn schema_declared_abi_version() -> String {
+    let path = schema_path("wasm-describe-v1alpha1.schema.json");
+    let value: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(&path).expect("read describe schema"))
+            .expect("parse describe schema");
+    let declared = value
+        .pointer("/$defs/PluginDescriptor/properties/abi_version/const")
+        .and_then(|v| v.as_str());
+    // A missing read means the declaration moved, not that the two versions
+    // agree. Panicking keeps a silent absence from being reported as a match.
+    match declared {
+        Some(s) => s.to_string(),
+        None => panic!(
+            "no abi_version const found at /$defs/PluginDescriptor/properties in {}: \
+             the declaration moved, so this assertion is no longer reading it",
+            path.display()
+        ),
+    }
+}
+
+/// Checks this kit's exported constant against the schema that declares the
+/// version, which is the one artifact upstream of every language's copy.
 #[test]
-fn api_version_v1alpha1_contract_floor() {
-    assert_eq!(API_VERSION, "v1alpha1");
+fn api_version_matches_schema_declaration() {
+    let want = schema_declared_abi_version();
+    assert_eq!(
+        API_VERSION, want,
+        "API_VERSION does not match the abi_version the descriptor schema declares; \
+         this constant is generated from that declaration, so a mismatch means the \
+         generated const is stale — regenerate it"
+    );
 }
 
 #[test]

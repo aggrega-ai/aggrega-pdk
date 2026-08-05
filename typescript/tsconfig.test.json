@@ -1,0 +1,33 @@
+{
+  // Type-checks the test corpus, which the package's own tsconfig.json cannot:
+  // that config sets rootDir to src so the emitted dist/ mirrors the source tree,
+  // and a file outside rootDir is an error there rather than something to include.
+  // This config emits nothing, so the test corpus is checked without any test
+  // JavaScript reaching the published dist/.
+  //
+  // Every key below that repeats the base config is deliberate. "exclude" is
+  // restated because it is inherited whole, and the inherited value names tests,
+  // which would filter the corpus straight back out of the program and leave this
+  // config reporting success over nothing. "rootDir" is widened to the package root
+  // because the inherited src value makes a test file an error for being outside it
+  // — a check that runs even when nothing is emitted. "module" is restated because
+  // the base pair resolves these files as CommonJS, where import.meta is an error;
+  // the test files read import.meta.url, and the runner treats them as ES modules.
+  // "types" and "lib" are restated because the base config narrows both to what a
+  // Wasm guest sees, and the tests additionally run on Node against the standard
+  // library.
+  //
+  // noEmit is what keeps this config out of the published output: it is the reason
+  // widening rootDir here cannot place test JavaScript in dist/.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "rootDir": ".",
+    "module": "preserve",
+    "moduleResolution": "bundler",
+    "types": ["node", "@extism/js-pdk"],
+    "lib": ["es2022"]
+  },
+  "include": ["src/**/*", "tests/**/*"],
+  "exclude": ["node_modules", "dist", "examples"]
+}

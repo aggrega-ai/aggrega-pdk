@@ -91,10 +91,57 @@ func jsonInstance(t *testing.T, v any) any {
 	return inst
 }
 
-func TestAPIVersion_v1alpha1ContractFloor(t *testing.T) {
+// schemaDeclaredABIVersion reads the plugin ABI version out of the descriptor
+// schema in the sibling aggrega-schemas repository — the single-valued const the
+// schema declares for a descriptor's abi_version. Reading the declaration rather
+// than repeating its value is the whole point: a literal here would pin this
+// kit's constant against a second copy living in this same repository, which is
+// the divergence that generating the constant from the schema exists to remove.
+//
+// Skips when the schemas are not reachable, matching loadSchema, so a consumer
+// checkout that does not vendor the schemas alongside stays clean.
+func schemaDeclaredABIVersion(t *testing.T) string {
+	t.Helper()
+	path := filepath.Join("..", "..", "..", "..", "aggrega-schemas", "json",
+		"wasm-describe-v1alpha1.schema.json")
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Skipf("schema not reachable at %s: %v", path, err)
+	}
+	var doc struct {
+		Defs struct {
+			PluginDescriptor struct {
+				Properties struct {
+					AbiVersion struct {
+						Const string `json:"const"`
+					} `json:"abi_version"`
+				} `json:"properties"`
+			} `json:"PluginDescriptor"`
+		} `json:"$defs"`
+	}
+	if err := json.Unmarshal(raw, &doc); err != nil {
+		t.Fatalf("unmarshal %s: %v", path, err)
+	}
+	got := doc.Defs.PluginDescriptor.Properties.AbiVersion.Const
+	// An empty read means the declaration moved, not that the two versions agree.
+	// Failing here keeps a silent zero from being reported as a match.
+	if got == "" {
+		t.Fatalf("no abi_version const found at $defs.PluginDescriptor.properties in %s: "+
+			"the declaration moved, so this assertion is no longer reading it", path)
+	}
+	return got
+}
+
+// TestAPIVersion_MatchesSchemaDeclaration checks this kit's exported constant
+// against the schema that declares the version, which is the one artifact
+// upstream of every language's copy.
+func TestAPIVersion_MatchesSchemaDeclaration(t *testing.T) {
 	t.Parallel()
-	if aggrega.APIVersion != "v1alpha1" {
-		t.Errorf("APIVersion = %q, want %q", aggrega.APIVersion, "v1alpha1")
+	want := schemaDeclaredABIVersion(t)
+	if aggrega.APIVersion != want {
+		t.Errorf("APIVersion = %q but the descriptor schema declares abi_version %q; "+
+			"this constant is generated from that declaration, so a mismatch means the "+
+			"generated const is stale — regenerate it", aggrega.APIVersion, want)
 	}
 }
 

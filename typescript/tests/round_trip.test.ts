@@ -86,8 +86,44 @@ function makeValidator(schemaName: string) {
   return validate;
 }
 
-test("API_VERSION is the v1alpha1 contract floor", () => {
-  assert.equal(API_VERSION, "v1alpha1");
+// schemaDeclaredABIVersion reads the plugin ABI version out of the descriptor
+// schema in the sibling aggrega-schemas repository — the single-valued const the
+// schema declares for a descriptor's abi_version. Reading the declaration rather
+// than repeating its value is the whole point: a literal here would pin this
+// kit's constant against a second copy living in this same repository, which is
+// the divergence that generating the constant from the schema exists to remove.
+function schemaDeclaredABIVersion(): string {
+  const path = join(
+    __dirname,
+    "..",
+    "..",
+    "..",
+    "aggrega-schemas",
+    "json",
+    "wasm-describe-v1alpha1.schema.json",
+  );
+  const doc = JSON.parse(readFileSync(path, "utf8"));
+  const declared = doc?.$defs?.PluginDescriptor?.properties?.abi_version?.const;
+  // An absent read means the declaration moved, not that the two versions agree.
+  // Throwing keeps a silent undefined from being compared as though it matched.
+  if (typeof declared !== "string" || declared === "") {
+    throw new Error(
+      `no abi_version const found at $defs.PluginDescriptor.properties in ${path}: ` +
+        `the declaration moved, so this assertion is no longer reading it`,
+    );
+  }
+  return declared;
+}
+
+// Checks this kit's exported constant against the schema that declares the
+// version, which is the one artifact upstream of every language's copy.
+test("API_VERSION matches the abi_version the descriptor schema declares", () => {
+  assert.equal(
+    API_VERSION,
+    schemaDeclaredABIVersion(),
+    "this constant is generated from the schema declaration, so a mismatch means " +
+      "the generated const is stale — regenerate it",
+  );
 });
 
 test("CLIRunInput round-trips through wasm-cli schema", () => {
