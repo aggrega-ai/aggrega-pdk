@@ -358,7 +358,6 @@ fn linter_input_round_trip_json_schema() {
         ),
         source_path: "core/compute/api-server/api-server.yaml".to_string(),
         policies: Policies {
-            enforce_immutability: true,
             allow_dynamic_refs: false,
             allow_id_overrides: false,
             allow_direct_x_aggrega_extensions: false,
