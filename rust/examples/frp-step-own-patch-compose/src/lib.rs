@@ -40,13 +40,13 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::BTreeMap;
 
-/// The static `describe()` self-report: a v1alpha1 `frp_step` plugin whose
+/// The static `describe()` self-report: a v1alpha1 `pipeline-step` plugin whose
 /// `step` export patches the merged compose document at OWN scope and is
 /// tested-compatible only with the `compose` provider.
 fn descriptor() -> PluginDescriptor {
     PluginDescriptor {
         abi_version: API_VERSION.to_string(),
-        plugin_type: "frp_step".to_string(),
+        plugin_type: "pipeline-step".to_string(),
         capabilities: vec!["compose".to_string()],
         exports: vec![PluginExport {
             name: "step".to_string(),

@@ -15,7 +15,7 @@
  *    side effect) only when the host document set is present — a
  *    component-scope FeatureRecipe attached to a host.
  *
- * It self-describes via describe() as an frp_step plugin whose step export
+ * It self-describes via describe() as a pipeline-step plugin whose step export
  * declares operates=patch, scope=own, and the helm and helm-chart
  * compatible providers. The host reads describe() once at load, validates
  * the descriptor, then dispatches step with the keyed document set as
@@ -38,7 +38,7 @@ import {
   type SideEffect,
 } from "@aggrega-ai/aggrega-pdk-typescript";
 
-// The static describe() self-report: a v1alpha1 frp_step plugin whose step
+// The static describe() self-report: a v1alpha1 pipeline-step plugin whose step
 // export patches own-scope workloads and is tested-compatible with the helm
 // and helm-chart providers (both render workloads carrying a pod template,
 // in flat-document and chart-source form respectively). The host reads this
@@ -46,7 +46,7 @@ import {
 function descriptor(): PluginDescriptor {
   return {
     abi_version: API_VERSION,
-    plugin_type: "frp_step",
+    plugin_type: "pipeline-step",
     description:
       "Patch a selected workload and emit companion documents in one feature-recipe pipeline step.",
     capabilities: ["helm", "helm-chart"],

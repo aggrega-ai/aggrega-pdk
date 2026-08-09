@@ -16,7 +16,7 @@
 //!  - It EMITs a new host-scope marker document (an additive cross-entity
 //!    side effect that runs per-node for every provider).
 //!
-//! It self-describes via `describe()` as an `frp_step` plugin whose
+//! It self-describes via `describe()` as a `pipeline-step` plugin whose
 //! `step` export declares `operates=patch`, `scope=own`, and a helm
 //! compatible provider. The host reads `describe()` once at load,
 //! validates the descriptor, then dispatches `step` with the keyed
@@ -30,7 +30,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::BTreeMap;
 
-/// The static `describe()` self-report: a v1alpha1 `frp_step` plugin
+/// The static `describe()` self-report: a v1alpha1 `pipeline-step` plugin
 /// whose `step` export patches own-scope workloads and is
 /// tested-compatible with the helm and helm-chart providers (both render
 /// workloads carrying a pod template, in flat-document and chart-source form
@@ -38,7 +38,7 @@ use std::collections::BTreeMap;
 fn descriptor() -> PluginDescriptor {
     PluginDescriptor {
         abi_version: API_VERSION.to_string(),
-        plugin_type: "frp_step".to_string(),
+        plugin_type: "pipeline-step".to_string(),
         description:
             "Patch a selected workload and emit companion documents in one feature-recipe pipeline step."
                 .to_string(),

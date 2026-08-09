@@ -14,7 +14,7 @@
 //     step reads the name through the pipeline's inter-step channel as
 //     .steps.<id>.outputs.secretName and wires it into the consuming workload.
 //
-// It self-describes via describe() as an frp_step plugin whose step export
+// It self-describes via describe() as a pipeline-step plugin whose step export
 // declares operates=emit, scope=own, the helm compatible provider, and a typed
 // output contract: a JSON Schema requiring a string secretName. The host reads
 // describe() once at load and validates the guest's returned outputs against
@@ -48,13 +48,13 @@ const managedSecretName = "guardrail-managed-secret"
 // omits the field or gives it a non-string value halts the build.
 const outputContract = `{"type":"object","required":["secretName"],"properties":{"secretName":{"type":"string"}}}`
 
-// descriptor is the static describe() self-report: a v1alpha1 frp_step plugin
+// descriptor is the static describe() self-report: a v1alpha1 pipeline-step plugin
 // whose step export emits into its own set, declares the helm compatible
 // provider, and types its returned outputs with the output contract above.
 func descriptor() aggrega.PluginDescriptor {
 	return aggrega.PluginDescriptor{
 		AbiVersion:   aggrega.APIVersion,
-		PluginType:   "frp_step",
+		PluginType:   "pipeline-step",
 		Description:  "Emit a secret-reference document and return the secret's name for a later injector step to consume.",
 		Capabilities: []string{"helm"},
 		Exports: []aggrega.PluginExport{{

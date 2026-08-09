@@ -12,7 +12,7 @@
 // alongside the consumer's own workload, which the host component did not
 // declare itself.
 //
-// It self-describes via describe() as an frp_step plugin whose step export
+// It self-describes via describe() as a pipeline-step plugin whose step export
 // declares operates=patch, scope=host, and the helm-chart compatible provider
 // (it patches chart source, so it is tested-compatible with the provider that
 // emits chart source). It declares no typed input contract: the container it
@@ -38,7 +38,7 @@ import (
 func descriptor() aggrega.PluginDescriptor {
 	return aggrega.PluginDescriptor{
 		AbiVersion:   aggrega.APIVersion,
-		PluginType:   "frp_step",
+		PluginType:   "pipeline-step",
 		Description:  "Patch the consuming workload to add a companion sidecar container.",
 		Capabilities: []string{"helm-chart"},
 		Exports: []aggrega.PluginExport{{

@@ -17,7 +17,7 @@
 //     side effect) only when the host document set is present — a
 //     component-scope FeatureRecipe attached to a host.
 //
-// It self-describes via describe() as an frp_step plugin whose step
+// It self-describes via describe() as a pipeline-step plugin whose step
 // export declares operates=patch, scope=own, and the helm and helm-chart
 // compatible providers. The host reads describe() once at load, validates
 // the descriptor, then dispatches step with the keyed document set as
@@ -43,7 +43,7 @@ import (
 	"github.com/aggrega-ai/aggrega-pdk-go/pkg/aggrega"
 )
 
-// descriptor is the static describe() self-report: a v1alpha1 frp_step plugin
+// descriptor is the static describe() self-report: a v1alpha1 pipeline-step plugin
 // whose step export patches own-scope workloads and is tested-compatible with
 // the helm and helm-chart providers (both render workloads carrying a pod
 // template, in flat-document and chart-source form respectively). The host
@@ -51,7 +51,7 @@ import (
 func descriptor() aggrega.PluginDescriptor {
 	return aggrega.PluginDescriptor{
 		AbiVersion:   aggrega.APIVersion,
-		PluginType:   "frp_step",
+		PluginType:   "pipeline-step",
 		Description:  "Patch a selected workload and emit companion documents in one feature-recipe pipeline step.",
 		Capabilities: []string{"helm", "helm-chart"},
 		Exports: []aggrega.PluginExport{{

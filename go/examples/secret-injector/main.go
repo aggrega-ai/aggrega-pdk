@@ -12,7 +12,7 @@
 // reference that secret: it content-selects the host chart's values.yaml and
 // adds the secret name under the workload's environment block.
 //
-// It self-describes via describe() as an frp_step plugin whose step export
+// It self-describes via describe() as a pipeline-step plugin whose step export
 // declares operates=patch, scope=host, the helm-chart compatible provider (it
 // patches chart source, so it is tested-compatible with the provider that emits
 // chart source), and a typed input contract: a JSON Schema requiring a string
@@ -48,7 +48,7 @@ const inputContract = `{"type":"object","required":["secretName"],"properties":{
 func descriptor() aggrega.PluginDescriptor {
 	return aggrega.PluginDescriptor{
 		AbiVersion:   aggrega.APIVersion,
-		PluginType:   "frp_step",
+		PluginType:   "pipeline-step",
 		Description:  "Patch the consuming workload to reference a secret named by an earlier producer step.",
 		Capabilities: []string{"helm-chart"},
 		Exports: []aggrega.PluginExport{{

@@ -31,7 +31,7 @@ const outputContract = `{"type":"object","required":["secretName"],"properties":
 func descriptor() aggrega.PluginDescriptor {
 	return aggrega.PluginDescriptor{
 		AbiVersion:   aggrega.APIVersion,
-		PluginType:   "frp_step",
+		PluginType:   "pipeline-step",
 		Description:  "Return outputs that violate the declared output contract, to exercise output-contract enforcement.",
 		Capabilities: []string{"helm"},
 		Exports: []aggrega.PluginExport{{

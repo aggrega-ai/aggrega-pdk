@@ -2,7 +2,7 @@
 
 A reference cross-entity feature-recipe-pipeline step plugin authored with the
 Go PDK and built with the standard Go toolchain for `GOOS=wasip1`. It
-self-describes as an `frp_step` plugin via `describe()` and implements a real
+self-describes as a `pipeline-step` plugin via `describe()` and implements a real
 `step` export.
 
 It is the downstream half of a producer-to-injector chain. It reads a secret
