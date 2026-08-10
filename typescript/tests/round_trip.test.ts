@@ -12,12 +12,15 @@
  *  4. Deserialises back via JSON.parse and asserts deep equality.
  *
  * Schemas live alongside the umbrella checkout at
- * `../../aggrega-schemas/json/` relative to this crate root.
- * Tests fail when the schema is unreachable rather than silently
- * passing; disconnected dev opts out via `node --test --test-skip-pattern=round_trip`.
+ * `../../aggrega-schemas/json/` relative to this crate root. A run that could
+ * not read them has verified nothing, so these tests refuse with a clear
+ * diagnostic rather than passing quietly. Where the schemas are genuinely
+ * absent — a standalone checkout of this kit, or a packaging test — opt out
+ * with `AGGREGA_SKIP_SCHEMA_TESTS=1`, and each affected test reports that it
+ * was skipped and why.
  */
 
-import { test } from "node:test";
+import { test, type TestContext } from "node:test";
 import { strict as assert } from "node:assert";
 import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { join, dirname } from "node:path";
@@ -38,6 +41,65 @@ import {
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
+// Names the environment switch that opts out of the tests which validate
+// against the JSON Schemas published alongside this kit. Set it to any
+// non-empty value where those schemas are genuinely absent — a standalone
+// checkout of this kit, or a packaging test — and each affected test reports
+// that it was skipped and why.
+const SKIP_SCHEMA_TESTS_ENV = "AGGREGA_SKIP_SCHEMA_TESTS";
+
+const schemaDir = join(__dirname, "..", "..", "..", "aggrega-schemas", "json");
+
+// schemasUnreachableReason returns the reason the named JSON Schema cannot be
+// read, or undefined when it can. This is the one place that decides
+// reachability, so every test reaches the same verdict on the same condition.
+function schemasUnreachableReason(schemaName: string): string | undefined {
+  if (!existsSync(schemaDir)) {
+    return `schemas not reachable at ${schemaDir}`;
+  }
+  const path = join(schemaDir, schemaName);
+  if (!existsSync(path)) {
+    return `schema ${schemaName} not reachable at ${path}`;
+  }
+  return undefined;
+}
+
+// skipSchemaTests reports whether the opt-out switch is set to a non-empty
+// value. A value is not parsed: any non-empty setting opts out, so no spelling
+// of "yes" can be read as "no" and quietly leave the check running.
+function skipSchemaTests(): boolean {
+  const value = process.env[SKIP_SCHEMA_TESTS_ENV];
+  return typeof value === "string" && value !== "";
+}
+
+// requireSchemas ends the calling test when the named JSON Schema cannot be
+// read, and reports whether the caller should return immediately.
+//
+// The default is refusal. A harness that could not reach its inputs has
+// verified nothing, so reporting that is strictly more informative than passing
+// quietly — and a suite that skips by default cannot tell "everything agrees"
+// apart from "nothing was checked".
+//
+// Setting AGGREGA_SKIP_SCHEMA_TESTS turns the refusal into a skip that states
+// the reason it was taken, so a deliberate run without the schemas stays clean
+// while an accidental one stays loud.
+function requireSchemas(t: TestContext, schemaName: string): boolean {
+  const reason = schemasUnreachableReason(schemaName);
+  if (reason === undefined) {
+    return false;
+  }
+  if (skipSchemaTests()) {
+    t.skip(`${reason}; ${SKIP_SCHEMA_TESTS_ENV} is set`);
+    return true;
+  }
+  throw new Error(
+    `${reason}: these tests validate against the JSON Schemas published ` +
+      `alongside this kit and verify nothing without them. Restore the umbrella ` +
+      `checkout layout (aggrega-pdk/ and aggrega-schemas/ as siblings), or set ` +
+      `${SKIP_SCHEMA_TESTS_ENV}=1 to skip them.`,
+  );
+}
+
 // makeValidator compiles the named schema with every schema in the sibling
 // aggrega-schemas json directory registered alongside it. The registration set is
 // derived by reading that directory, so a cross-file $ref resolves without a
@@ -49,17 +111,9 @@ const __dirname = dirname(__filename);
 // file name: a relative cross-file $ref resolves against the referring schema's
 // base URI, which is its absolute $id URL, so the target must be reachable under
 // that URL rather than under its file name. The named schema is retrieved by the
-// same identity it was registered under.
+// same identity it was registered under. Reachability is settled by
+// requireSchemas before a test gets here.
 function makeValidator(schemaName: string) {
-  const schemaDir = join(__dirname, "..", "..", "..", "aggrega-schemas", "json");
-  if (!existsSync(schemaDir)) {
-    throw new Error(
-      `schemas not reachable at ${schemaDir}: this test requires ` +
-        `the umbrella checkout layout (aggrega-pdk/ and aggrega-schemas/ ` +
-        `as siblings). Skip with --test-skip-pattern=round_trip.`,
-    );
-  }
-
   const ajv = new Ajv({ strict: false });
   let schemaKey: string | undefined;
   for (const name of readdirSync(schemaDir)
@@ -93,15 +147,7 @@ function makeValidator(schemaName: string) {
 // kit's constant against a second copy living in this same repository, which is
 // the divergence that generating the constant from the schema exists to remove.
 function schemaDeclaredABIVersion(): string {
-  const path = join(
-    __dirname,
-    "..",
-    "..",
-    "..",
-    "aggrega-schemas",
-    "json",
-    "wasm-describe-v1alpha1.schema.json",
-  );
+  const path = join(schemaDir, "wasm-describe-v1alpha1.schema.json");
   const doc = JSON.parse(readFileSync(path, "utf8"));
   const declared = doc?.$defs?.PluginDescriptor?.properties?.abi_version?.const;
   // An absent read means the declaration moved, not that the two versions agree.
@@ -117,7 +163,9 @@ function schemaDeclaredABIVersion(): string {
 
 // Checks this kit's exported constant against the schema that declares the
 // version, which is the one artifact upstream of every language's copy.
-test("API_VERSION matches the abi_version the descriptor schema declares", () => {
+test("API_VERSION matches the abi_version the descriptor schema declares", (t) => {
+  if (requireSchemas(t, "wasm-describe-v1alpha1.schema.json")) return;
+
   assert.equal(
     API_VERSION,
     schemaDeclaredABIVersion(),
@@ -126,7 +174,9 @@ test("API_VERSION matches the abi_version the descriptor schema declares", () =>
   );
 });
 
-test("CLIRunInput round-trips through wasm-cli schema", () => {
+test("CLIRunInput round-trips through wasm-cli schema", (t) => {
+  if (requireSchemas(t, "wasm-cli-v1alpha1.schema.json")) return;
+
   const validate = makeValidator("wasm-cli-v1alpha1.schema.json");
 
   const fixture: CLIRunInput = { command: "deploy", args: ["deploy", "--env", "prod", "payments"] };
@@ -139,7 +189,9 @@ test("CLIRunInput round-trips through wasm-cli schema", () => {
   assert.deepStrictEqual(round, fixture);
 });
 
-test("MutatorInput round-trips through wasm-mutator schema", () => {
+test("MutatorInput round-trips through wasm-mutator schema", (t) => {
+  if (requireSchemas(t, "wasm-mutator-v1alpha1.schema.json")) return;
+
   const validate = makeValidator("wasm-mutator-v1alpha1.schema.json");
 
   const fixture: MutatorInput = {
@@ -166,7 +218,9 @@ test("MutatorInput round-trips through wasm-mutator schema", () => {
   assert.deepStrictEqual(round, fixture);
 });
 
-test("MutatorOutput round-trips through wasm-mutator schema", () => {
+test("MutatorOutput round-trips through wasm-mutator schema", (t) => {
+  if (requireSchemas(t, "wasm-mutator-v1alpha1.schema.json")) return;
+
   const validate = makeValidator("wasm-mutator-v1alpha1.schema.json");
 
   const fixture: MutatorOutput = {
@@ -186,7 +240,9 @@ test("MutatorOutput round-trips through wasm-mutator schema", () => {
   assert.equal(ok, true, `schema validation failed: ${JSON.stringify(validate.errors)}`);
 });
 
-test("PolicyInput round-trips through wasm-policy schema", () => {
+test("PolicyInput round-trips through wasm-policy schema", (t) => {
+  if (requireSchemas(t, "wasm-policy-v1alpha1.schema.json")) return;
+
   // The policy input carries the full IR graph, and the policy schema references
   // ir-v1alpha1 for that graph field and wasm-diagnostic-v1alpha1 for its result
   // entries; both resolve because the whole schema directory is registered.
@@ -244,7 +300,9 @@ test("PolicyInput round-trips through wasm-policy schema", () => {
   assert.deepStrictEqual(round, fixture);
 });
 
-test("PolicyOutput round-trips through wasm-policy schema", () => {
+test("PolicyOutput round-trips through wasm-policy schema", (t) => {
+  if (requireSchemas(t, "wasm-policy-v1alpha1.schema.json")) return;
+
   const validate = makeValidator("wasm-policy-v1alpha1.schema.json");
 
   const fixture: PolicyOutput = {

@@ -96,17 +96,27 @@ This assumes the umbrella workspace layout. Standalone consumption
 artifact; the file-relative reference becomes publication-bundled.
 
 When running `cargo test` from a checkout that does not have the
-schemas alongside, the schema-dependent tests **fail** (Rust's stable
-test framework has no dynamic-skip analog to Go's `t.Skipf`; an early
-`return` would mark them PASSED and mask the setup gap). Skip them
-explicitly via:
+schemas alongside, the schema-dependent tests **fail** with a clear
+diagnostic, because a run that could not read them has verified
+nothing. Where they are genuinely absent — a standalone checkout of
+this kit, or a packaging test — opt out with the same switch the Go
+and TypeScript kits use:
 
 ```sh
-cargo test --workspace -- --skip round_trip
+AGGREGA_SKIP_SCHEMA_TESTS=1 cargo test
 ```
 
-The umbrella's CI always has the schemas in place; the panic path
-does not fire there.
+Each affected test then prints the reason it was skipped. Rust's
+stable test framework has no dynamic-skip result, so a test that
+decided at run time not to check anything is still counted as
+passing; the printed line names the test and says plainly that it
+verified nothing, which is what keeps that count from being read as a
+verified pass. The switch keys on the schemas being unreachable: with
+them in place it changes nothing, so it cannot quietly turn a real run
+into a skipped one.
+
+The umbrella's checkout always has the schemas in place, so neither
+the refusal nor the skip fires there.
 
 ## Toolchain pin requirements
 

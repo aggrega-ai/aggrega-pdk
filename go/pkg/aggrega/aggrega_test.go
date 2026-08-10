@@ -16,6 +16,38 @@ import (
 	"github.com/aggrega-ai/aggrega-pdk-go/pkg/aggrega"
 )
 
+// skipSchemaTestsEnv names the environment switch that opts out of the tests
+// which validate against the JSON Schemas published alongside this kit. Set it
+// to any non-empty value where those schemas are genuinely absent — a
+// standalone checkout of this kit, or a packaging test — and each affected test
+// reports that it was skipped and why.
+const skipSchemaTestsEnv = "AGGREGA_SKIP_SCHEMA_TESTS"
+
+// refuseOrSkipUnreachableSchemas ends the calling test when the JSON Schemas
+// these tests validate against cannot be read.
+//
+// The default is refusal. A harness that could not reach its inputs has
+// verified nothing, so reporting that is strictly more informative than passing
+// quietly — and a suite that skips by default cannot tell "everything agrees"
+// apart from "nothing was checked".
+//
+// Setting skipSchemaTestsEnv turns the refusal into a skip that states the
+// reason it was taken, so a deliberate run without the schemas stays clean
+// while an accidental one stays loud.
+//
+// This is the one place that decides between the two, so every call site
+// reaches the same verdict on the same condition.
+func refuseOrSkipUnreachableSchemas(t *testing.T, path string, err error) {
+	t.Helper()
+	if os.Getenv(skipSchemaTestsEnv) != "" {
+		t.Skipf("skipped: schemas not reachable at %s (%v); %s is set", path, err, skipSchemaTestsEnv)
+	}
+	t.Fatalf("schemas not reachable at %s: %v; these tests validate against the JSON Schemas "+
+		"published alongside this kit and verify nothing without them. Restore the umbrella "+
+		"checkout layout (aggrega-pdk/ and aggrega-schemas/ as siblings), or set %s=1 to skip them.",
+		path, err, skipSchemaTestsEnv)
+}
+
 // loadSchema compiles the named JSON Schema for validation, with every schema
 // in the sibling aggrega-schemas json directory registered alongside it. The
 // registration set is derived by reading that directory, so a cross-file $ref
@@ -28,15 +60,15 @@ import (
 // that URL rather than under its file name. The named schema is compiled by the
 // same identity it was registered under.
 //
-// Returns nil after a t.Skipf when the directory or one of its schemas is not
-// reachable, so the test suite stays clean on consumer checkouts that do not
-// vendor the schemas alongside.
+// Does not return when the directory or one of its schemas is unreachable: the
+// calling test is refused, or skipped with its reason stated under the opt-out
+// switch.
 func loadSchema(t *testing.T, schemaFile string) *jsonschema.Schema {
 	t.Helper()
 	dir := filepath.Join("..", "..", "..", "..", "aggrega-schemas", "json")
 	entries, err := os.ReadDir(dir)
 	if err != nil {
-		t.Skipf("schemas not reachable at %s: %v", dir, err)
+		refuseOrSkipUnreachableSchemas(t, dir, err)
 	}
 	c := jsonschema.NewCompiler()
 	ids := make(map[string]string, len(entries))
@@ -48,7 +80,7 @@ func loadSchema(t *testing.T, schemaFile string) *jsonschema.Schema {
 		schemaPath := filepath.Join(dir, name)
 		schemaBytes, err := os.ReadFile(schemaPath)
 		if err != nil {
-			t.Skipf("schema not reachable at %s: %v", schemaPath, err)
+			refuseOrSkipUnreachableSchemas(t, schemaPath, err)
 		}
 		var raw any
 		if err := json.Unmarshal(schemaBytes, &raw); err != nil {
@@ -98,15 +130,16 @@ func jsonInstance(t *testing.T, v any) any {
 // kit's constant against a second copy living in this same repository, which is
 // the divergence that generating the constant from the schema exists to remove.
 //
-// Skips when the schemas are not reachable, matching loadSchema, so a consumer
-// checkout that does not vendor the schemas alongside stays clean.
+// Does not return when the schema is unreachable, matching loadSchema: the
+// calling test is refused, or skipped with its reason stated under the opt-out
+// switch.
 func schemaDeclaredABIVersion(t *testing.T) string {
 	t.Helper()
 	path := filepath.Join("..", "..", "..", "..", "aggrega-schemas", "json",
 		"wasm-describe-v1alpha1.schema.json")
 	raw, err := os.ReadFile(path)
 	if err != nil {
-		t.Skipf("schema not reachable at %s: %v", path, err)
+		refuseOrSkipUnreachableSchemas(t, path, err)
 	}
 	var doc struct {
 		Defs struct {

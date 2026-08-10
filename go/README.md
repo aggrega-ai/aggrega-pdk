@@ -87,5 +87,19 @@ This assumes the umbrella workspace layout. Standalone consumption
 (after publication to `pkg.go.dev`) bundles the schemas in the
 release artifact; the file-relative reference becomes
 publication-bundled. Until publication, only the umbrella checkout
-runs the round-trip tests end-to-end; tests skip with a clear
-diagnostic when the schemas are not reachable.
+runs the round-trip tests end-to-end.
+
+When the schemas are not reachable those tests **fail** with a clear
+diagnostic, because a run that could not read them has verified
+nothing. Where they are genuinely absent — a standalone checkout of
+this kit, or a packaging test — opt out with the same switch the Rust
+and TypeScript kits use:
+
+```sh
+AGGREGA_SKIP_SCHEMA_TESTS=1 go test ./...
+```
+
+Each affected test is then reported as skipped, with the reason
+stated. The switch keys on the schemas being unreachable: with them in
+place it changes nothing, so it cannot quietly turn a real run into a
+skipped one.

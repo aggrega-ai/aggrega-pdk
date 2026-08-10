@@ -15,59 +15,129 @@
 //! published JSON Schemas.
 //!
 //! Schemas live alongside the umbrella checkout at
-//! `../../aggrega-schemas/json/` relative to this crate root. Tests
-//! **panic** with a clear diagnostic when the schema file is unreachable
-//! rather than silently returning. Disconnected dev opts out via:
+//! `../../aggrega-schemas/json/` relative to this crate root. A run that could
+//! not read them has verified nothing, so these tests **refuse** with a clear
+//! diagnostic rather than passing quietly. Where the schemas are genuinely
+//! absent — a standalone checkout of this kit, or a packaging test — opt out
+//! with:
 //!
 //! ```text
-//! cargo test --workspace -- --skip round_trip
+//! AGGREGA_SKIP_SCHEMA_TESTS=1 cargo test
 //! ```
+//!
+//! Each affected test then reports that it was skipped and why.
 
+use std::io::Write;
 use std::path::{Path, PathBuf};
 
 use aggrega_pdk_rust::{
     CLIRunInput, CompilationContext, Diagnostic, IREdge, IRGraph, IRMetadata, IRNode, IRProvenance,
     IRSpec, LinterInput, LinterOutput, MutatorGraph, MutatorInput, MutatorNode, MutatorOutput,
-    Policies, PolicyInput, PolicyOutput,
-    PrecalculatedPath, API_VERSION,
+    Policies, PolicyInput, PolicyOutput, PrecalculatedPath, API_VERSION,
 };
 use std::collections::BTreeMap;
 
+/// Names the environment switch that opts out of the tests which validate
+/// against the JSON Schemas published alongside this kit. Set it to any
+/// non-empty value where those schemas are genuinely absent — a standalone
+/// checkout of this kit, or a packaging test — and each affected test reports
+/// that it was skipped and why.
+const SKIP_SCHEMA_TESTS_ENV: &str = "AGGREGA_SKIP_SCHEMA_TESTS";
+
 /// schema_dir resolves the absolute path to the sibling aggrega-schemas
-/// repository's json directory. Panics if the directory is unreachable — see the
-/// file-level comment for the rationale and the disconnected-dev opt-out via
-/// `cargo test -- --skip round_trip`.
+/// repository's json directory. Resolution only: whether that path can be read
+/// is decided in one place, by `schema_path_or_reason`.
 fn schema_dir() -> PathBuf {
-    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let dir = manifest_dir
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("..")
         .join("..")
         .join("aggrega-schemas")
-        .join("json");
-    assert!(
-        dir.is_dir(),
-        "schemas not reachable at {}: this test requires the umbrella checkout layout \
-         (aggrega-pdk/ and aggrega-schemas/ as siblings). Disconnected dev opts out via \
-         `cargo test -- --skip round_trip`.",
-        dir.display()
-    );
-    dir
+        .join("json")
 }
 
-/// schema_path resolves the absolute path to a JSON Schema file in the
-/// sibling aggrega-schemas repository. Panics if the file is unreachable —
-/// see the file-level comment for the rationale and the disconnected-dev
-/// opt-out via `cargo test -- --skip round_trip`.
-fn schema_path(name: &str) -> PathBuf {
-    let path = schema_dir().join(name);
-    assert!(
-        path.exists(),
-        "schema {name} not reachable at {}: this test requires the umbrella checkout layout \
-         (aggrega-pdk/ and aggrega-schemas/ as siblings). Disconnected dev opts out via \
-         `cargo test -- --skip round_trip`.",
-        path.display()
+/// schema_path_or_reason resolves the absolute path to a named JSON Schema
+/// file, or returns the reason the schemas cannot be read.
+///
+/// This is the one place that decides reachability, so every test reaches the
+/// same verdict on the same condition.
+fn schema_path_or_reason(name: &str) -> Result<PathBuf, String> {
+    let dir = schema_dir();
+    if !dir.is_dir() {
+        return Err(format!("schemas not reachable at {}", dir.display()));
+    }
+    let path = dir.join(name);
+    if !path.exists() {
+        return Err(format!("schema {name} not reachable at {}", path.display()));
+    }
+    Ok(path)
+}
+
+/// skip_schema_tests reports whether the opt-out switch is set to a non-empty
+/// value. A value is not parsed: any non-empty setting opts out, so no spelling
+/// of "yes" can be read as "no" and quietly leave the check running.
+fn skip_schema_tests() -> bool {
+    std::env::var_os(SKIP_SCHEMA_TESTS_ENV).is_some_and(|value| !value.is_empty())
+}
+
+/// announce_skip states, on the process stderr, that a test was skipped and why.
+///
+/// Three details are deliberate.
+///
+/// It bypasses the print macros. The test runner captures those and shows them
+/// only for failures, so a skip announced through them would be invisible on a
+/// passing run — exactly the silent outcome the opt-out exists to avoid.
+/// Writing to the stderr handle is not captured, so the reason is stated
+/// without asking the run for extra output.
+///
+/// It names the test. The runner has no result label for a test that decided
+/// at run time not to check anything, so it reports one as passing; naming the
+/// test, and saying plainly that it verified nothing, is what keeps that from
+/// being read as a verified pass.
+///
+/// It writes the whole line in a single call. Tests run concurrently, so a
+/// line assembled from several writes interleaves with the runner's own
+/// progress output and with other tests' messages, and the reason arrives
+/// shredded across lines.
+fn announce_skip(reason: &str) {
+    let thread = std::thread::current();
+    let test = thread.name().unwrap_or("test").to_string();
+    let line = format!(
+        "SKIP {test}: {reason}; {SKIP_SCHEMA_TESTS_ENV} is set — this test verified nothing.\n"
     );
-    path
+    let _ = std::io::stderr().write_all(line.as_bytes());
+}
+
+/// require_schema resolves a named JSON Schema, or ends the calling test.
+///
+/// The default is refusal. A harness that could not reach its inputs has
+/// verified nothing, so reporting that is strictly more informative than
+/// passing quietly — and a suite that skips by default cannot tell "everything
+/// agrees" apart from "nothing was checked".
+///
+/// Setting `AGGREGA_SKIP_SCHEMA_TESTS` turns the refusal into a skip that
+/// states the reason it was taken, so a deliberate run without the schemas
+/// stays clean while an accidental one stays loud.
+///
+/// It expands to an early `return`, so it is written at the top of a test
+/// rather than inside a helper.
+macro_rules! require_schema {
+    ($name:expr) => {
+        match schema_path_or_reason($name) {
+            Ok(path) => path,
+            Err(reason) => {
+                if skip_schema_tests() {
+                    announce_skip(&reason);
+                    return;
+                }
+                panic!(
+                    "{reason}: these tests validate against the JSON Schemas published \
+                     alongside this kit and verify nothing without them. Restore the umbrella \
+                     checkout layout (aggrega-pdk/ and aggrega-schemas/ as siblings), or set \
+                     {SKIP_SCHEMA_TESTS_ENV}=1 to skip them."
+                );
+            }
+        }
+    };
 }
 
 /// validate validates `instance` against the JSON Schema at `path`, with every
@@ -136,10 +206,9 @@ fn validate(path: &Path, instance: &serde_json::Value) -> Result<(), String> {
 /// this kit's constant against a second copy living in this same repository,
 /// which is the divergence that generating the constant from the schema exists to
 /// remove.
-fn schema_declared_abi_version() -> String {
-    let path = schema_path("wasm-describe-v1alpha1.schema.json");
+fn schema_declared_abi_version(path: &Path) -> String {
     let value: serde_json::Value =
-        serde_json::from_slice(&std::fs::read(&path).expect("read describe schema"))
+        serde_json::from_slice(&std::fs::read(path).expect("read describe schema"))
             .expect("parse describe schema");
     let declared = value
         .pointer("/$defs/PluginDescriptor/properties/abi_version/const")
@@ -160,7 +229,8 @@ fn schema_declared_abi_version() -> String {
 /// version, which is the one artifact upstream of every language's copy.
 #[test]
 fn api_version_matches_schema_declaration() {
-    let want = schema_declared_abi_version();
+    let path = require_schema!("wasm-describe-v1alpha1.schema.json");
+    let want = schema_declared_abi_version(&path);
     assert_eq!(
         API_VERSION, want,
         "API_VERSION does not match the abi_version the descriptor schema declares; \
@@ -171,7 +241,7 @@ fn api_version_matches_schema_declaration() {
 
 #[test]
 fn cli_run_input_round_trip_json_schema() {
-    let schema = schema_path("wasm-cli-v1alpha1.schema.json");
+    let schema = require_schema!("wasm-cli-v1alpha1.schema.json");
 
     let fixture = CLIRunInput {
         command: "deploy".to_string(),
@@ -195,7 +265,7 @@ fn cli_run_input_round_trip_json_schema() {
 
 #[test]
 fn mutator_input_round_trip_json_schema() {
-    let schema = schema_path("wasm-mutator-v1alpha1.schema.json");
+    let schema = require_schema!("wasm-mutator-v1alpha1.schema.json");
 
     let mut labels = std::collections::BTreeMap::new();
     labels.insert("team".to_string(), "payments".to_string());
@@ -227,7 +297,7 @@ fn mutator_input_round_trip_json_schema() {
 
 #[test]
 fn mutator_output_round_trip_json_schema() {
-    let schema = schema_path("wasm-mutator-v1alpha1.schema.json");
+    let schema = require_schema!("wasm-mutator-v1alpha1.schema.json");
 
     let patch =
         serde_json::value::RawValue::from_string(r#"{"op":"add","path":"/x","value":"y"}"#.into())
@@ -245,7 +315,7 @@ fn mutator_output_round_trip_json_schema() {
 fn policy_input_round_trip_json_schema() {
     // Under b-full the policy input carries the full IR graph; the schema
     // references ir-v1alpha1 for the graph field, so both schemas are registered.
-    let schema = schema_path("wasm-policy-v1alpha1.schema.json");
+    let schema = require_schema!("wasm-policy-v1alpha1.schema.json");
 
     let mut labels = BTreeMap::new();
     labels.insert("team".to_string(), "payments".to_string());
@@ -313,7 +383,7 @@ fn policy_input_round_trip_json_schema() {
 
 #[test]
 fn policy_output_round_trip_json_schema() {
-    let schema = schema_path("wasm-policy-v1alpha1.schema.json");
+    let schema = require_schema!("wasm-policy-v1alpha1.schema.json");
 
     let fixture = PolicyOutput {
         results: vec![
@@ -334,8 +404,7 @@ fn policy_output_round_trip_json_schema() {
     let serialised = serde_json::to_value(&fixture).expect("serialize PolicyOutput");
     validate(&schema, &serialised).expect("schema validation");
 
-    let round: PolicyOutput =
-        serde_json::from_value(serialised).expect("deserialize PolicyOutput");
+    let round: PolicyOutput = serde_json::from_value(serialised).expect("deserialize PolicyOutput");
     assert_eq!(
         serde_json::to_string(&fixture).unwrap(),
         serde_json::to_string(&round).unwrap()
@@ -344,7 +413,7 @@ fn policy_output_round_trip_json_schema() {
 
 #[test]
 fn linter_input_round_trip_json_schema() {
-    let schema = schema_path("wasm-linter-v1alpha1.schema.json");
+    let schema = require_schema!("wasm-linter-v1alpha1.schema.json");
 
     let fixture = LinterInput {
         rule_id: "schema-evolution".to_string(),
@@ -374,7 +443,7 @@ fn linter_input_round_trip_json_schema() {
 
 #[test]
 fn linter_output_round_trip_json_schema() {
-    let schema = schema_path("wasm-linter-v1alpha1.schema.json");
+    let schema = require_schema!("wasm-linter-v1alpha1.schema.json");
 
     let fixture = LinterOutput {
         findings: vec![
