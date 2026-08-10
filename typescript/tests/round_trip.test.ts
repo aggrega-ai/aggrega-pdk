@@ -269,7 +269,6 @@ test("PolicyInput round-trips through wasm-policy schema", (t) => {
             socket_declaration: "declared",
           },
         ],
-        feature_markers: [],
         values_mapping: {},
         infra_mapping: {},
         feature_values_mapping: {},

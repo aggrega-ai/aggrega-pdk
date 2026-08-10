@@ -344,7 +344,6 @@ fn policy_input_round_trip_json_schema() {
                     socket_declaration: "declared".to_string(),
                     ..Default::default()
                 }],
-                feature_markers: vec![],
                 values_mapping: BTreeMap::new(),
                 infra_mapping: BTreeMap::new(),
                 feature_values_mapping: BTreeMap::new(),

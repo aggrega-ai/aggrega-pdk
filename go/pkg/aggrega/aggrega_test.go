@@ -279,7 +279,6 @@ func TestPolicyInput_RoundTripJSONSchema(t *testing.T) {
 					Source: "payments-api", Target: "payments-db", Socket: "databases",
 					SocketDeclaration: "declared",
 				}},
-				FeatureMarkers:       []string{},
 				ValuesMapping:        map[string]json.RawMessage{},
 				InfraMapping:         map[string]json.RawMessage{},
 				FeatureValuesMapping: map[string]map[string]aggrega.IRFeatureEntry{},
