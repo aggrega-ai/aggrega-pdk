@@ -83,8 +83,32 @@ pub fn describe() -> FnResult<String> {
 /// Reports the node's attachments as `alias=sensitive|plain`, comma-joined, in
 /// the order this guest observes them. The attachment entry arrives opaque at the
 /// render socket's own layer, so it is decoded through the IR wire contract's
-/// feature-entry shape — which is where the sensitivity marking is declared — and
-/// the marking is read from there rather than guessed from the alias.
+/// feature-entry shape and the marking is read from that shape's `sensitive`
+/// field rather than guessed from the alias.
+///
+/// What that field means is worth stating precisely, because a guest that reads
+/// it as more than this marks values that are not secret:
+///
+///  - **It describes the ATTACHMENT, never one datum.** It is true when the
+///    attachment handles material declared sensitive *anywhere*, and says
+///    nothing about the specific value any given variable in the render context
+///    carries. A guest that emitted a target-native sensitivity primitive per
+///    rendered value on the strength of this field would mark values that are
+///    not secret.
+///  - **The host derives it from either of two independent declarations:** the
+///    attached Feature declaring a sensitive leaf in its `values`, `infra` or
+///    `provides` pillar, or the host Component's attachment slot of the same
+///    name declaring that whatever binds there handles secret material. Those
+///    are different claims — a leaf says *this datum is secret material*, a slot
+///    says *whatever binds here handles secret material* — and either alone is
+///    enough.
+///  - **The wire field carries that derived answer; it does not declare it.**
+///    The declarations live in the catalog entities the host read, so a guest
+///    cannot tell from this field alone which of the two fired, or which leaf
+///    carried the marking.
+///
+/// The field is omitted from the payload when the derivation produced false, so
+/// a failed decode and an absent field both settle to `plain` here.
 fn attachment_echo(parsed: &RenderNodeInput) -> String {
     parsed
         .node

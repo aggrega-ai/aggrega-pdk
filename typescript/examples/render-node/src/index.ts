@@ -32,9 +32,31 @@ import {
 
 // A deliberately narrow view of the node projection: the fixture reads only
 // what it echoes. The attachment entry is typed to the one field this fixture
-// reports — the sensitivity marking the IR feature-entry shape declares — rather
+// reports — the `sensitive` field the IR feature-entry shape carries — rather
 // than to the whole entry, so the fixture stays legible while still reading the
 // marking from the payload instead of guessing it from the alias.
+//
+// What that field means is worth stating precisely, because a guest that reads
+// it as more than this marks values that are not secret:
+//
+//   - It describes the ATTACHMENT, never one datum. It is true when the
+//     attachment handles material declared sensitive anywhere, and says nothing
+//     about the specific value any given variable in the render context carries.
+//     A guest that emitted a target-native sensitivity primitive per rendered
+//     value on the strength of this field would mark values that are not secret.
+//   - The host derives it from either of two independent declarations: the
+//     attached Feature declaring a sensitive leaf in its values, infra or
+//     provides pillar, or the host Component's attachment slot of the same name
+//     declaring that whatever binds there handles secret material. Those are
+//     different claims — a leaf says this datum is secret material, a slot says
+//     whatever binds here handles secret material — and either alone is enough.
+//   - The wire field carries that derived answer; it does not declare it. The
+//     declarations live in the catalog entities the host read, so a guest cannot
+//     tell from this field alone which of the two fired, or which leaf carried
+//     the marking.
+//
+// Optional because the host omits the field from the payload when the
+// derivation produced false; an absent field is read as unmarked below.
 interface IRFeatureEntryView {
   sensitive?: boolean;
 }
