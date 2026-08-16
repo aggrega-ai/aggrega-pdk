@@ -37,7 +37,7 @@ pub use host_funcs::{
 // the IR types are re-exported alongside the policy envelope.
 pub use aggrega_abi::{
     ArtifactDelimiters, AssembleBoundaryInput, AssembleBoundaryOutput, AssemblyNameAnnotation,
-    CLIRunInput, CatalogMetadata, CatalogProjection,
+    CLIRunInput, CatalogMetadata,
     CompilationContext, FieldProvenance,
     IRBoundaryFeature, IREdge, IRFeatureEntry, IRGraph, IRMetadata, IRNode, IRNodeProjection,
     IRProvenance, IRSpec, InputKinds, LinkEdge, LinkEndpoint, LinkPatch, LinkPublishInput,
