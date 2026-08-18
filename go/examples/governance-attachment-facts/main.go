@@ -17,6 +17,7 @@
 //   - no-free-attachments — deny a build carrying an attachment that fills no
 //     declared slot. This is the rule an operator writes when free-form
 //     attachment is unacceptable in their estate.
+//
 //   - no-sensitive-by-value — deny a build that carries a declared-sensitive
 //     datum by value, by EITHER of the two routes the wire marks per datum: an
 //     inject delivery key whose referenced provides key the Feature declares
@@ -36,15 +37,18 @@
 //     This rule refuses the carry rather than the content, so it does not need
 //     to tell them apart. Turning either route into a refusal is an operator's
 //     choice, expressed here.
+//
 //   - deny-secret-kind — deny a build carrying an attachment whose catalog
 //     labels mark it as handling secret material. The judgement is computed
 //     from the labels alone, which is what makes a label-carrying wire a
 //     superset of a host-computed credential verdict.
+//
 //   - deny-unreviewed-attachment — deny a build carrying an attachment whose
 //     attached Feature's catalog annotations say its review is outstanding.
 //     This is the annotations counterpart of deny-secret-kind, and it reads a
 //     key in a namespace of the catalog author's own choosing, which is the
 //     only kind of key that can show the annotations arrived unfiltered.
+//
 //   - observe — emit one audit verdict per attachment reporting every fact
 //     the guest decoded, so a payload can be read at the point it arrives.
 //
