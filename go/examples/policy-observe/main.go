@@ -79,7 +79,7 @@ func validate() int32 {
 
 	severity := in.Settings.Severity
 	if severity == "" {
-		severity = "audit"
+		severity = "info"
 	}
 
 	sort.Slice(in.Sources, func(i, j int) bool { return in.Sources[i].Path < in.Sources[j].Path })
@@ -92,7 +92,7 @@ func validate() int32 {
 
 	out, err := json.Marshal(output{Results: []result{{Severity: severity, Message: msg}}})
 	if err != nil {
-		pdk.OutputString(`{"results":[{"severity":"deny","message":"fixture failed to encode output"}]}`)
+		pdk.OutputString(`{"results":[{"severity":"halt","message":"fixture failed to encode output"}]}`)
 		return 0
 	}
 	pdk.Output(out)

@@ -21,6 +21,15 @@ type (
 	CompilationContext = abi.CompilationContext
 )
 
+// Diagnostic severities. A guest sets one of these three on every diagnostic it
+// raises, so a plugin author writes aggrega.Severity* and reports from the same
+// closed, single-sourced vocabulary the host routes on.
+const (
+	SeverityHalt = abi.SeverityHalt
+	SeverityWarn = abi.SeverityWarn
+	SeverityInfo = abi.SeverityInfo
+)
+
 // Linter socket.
 type (
 	LinterInput  = abi.LinterInput

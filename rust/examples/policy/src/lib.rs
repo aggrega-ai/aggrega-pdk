@@ -4,7 +4,7 @@
 //! Fixture policy plugin for the Aggrega Wasm runtime.
 //!
 //! Emits a deterministic two-verdict [`PolicyOutput`]: one
-//! deny verdict and one audit verdict. The fixture does not inspect the
+//! halt verdict and one info verdict. The fixture does not inspect the
 //! input graph; the outputs are constants so end-to-end tests can
 //! assert exact equality of the emitted shape.
 
@@ -21,7 +21,7 @@ fn descriptor() -> PluginDescriptor {
     PluginDescriptor {
         abi_version: API_VERSION.to_string(),
         plugin_type: "governance".to_string(),
-        description: "Report deterministic deny and audit policy verdicts over the build graph."
+        description: "Report deterministic halt and info policy verdicts over the build graph."
             .to_string(),
         exports: vec![PluginExport {
             name: "validate".to_string(),
@@ -48,13 +48,13 @@ pub fn validate(_input: String) -> FnResult<String> {
     let out = PolicyOutput {
         results: vec![
             Diagnostic {
-                severity: "deny".to_string(),
+                severity: "halt".to_string(),
                 message: "fixture rule B: deliberate fail for end-to-end coverage".to_string(),
                 ..Default::default()
             },
             Diagnostic {
-                severity: "audit".to_string(),
-                message: "fixture rule A: audit note".to_string(),
+                severity: "info".to_string(),
+                message: "fixture rule A: advisory note".to_string(),
                 ..Default::default()
             },
         ],

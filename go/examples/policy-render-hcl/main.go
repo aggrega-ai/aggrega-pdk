@@ -10,7 +10,7 @@
 // the resource types the source declares under its top-level resource block, and
 // emits a verdict driven by the attachment's settings.require_resource_type: it
 // denies when the required resource type is absent from the parsed tree and
-// records an audit verdict (letting the build proceed) when it is present.
+// records an info verdict (letting the build proceed) when it is present.
 // Driving it with a present versus an absent required type proves the guest reads
 // the parsed HCL structure, not the raw source text.
 //
@@ -124,16 +124,16 @@ func validate() int32 {
 	var out output
 	switch {
 	case !treeSeen:
-		out.Results = []result{{Severity: "deny", Message: "render policy saw no parsed HCL tree on any artifact"}}
+		out.Results = []result{{Severity: "halt", Message: "render policy saw no parsed HCL tree on any artifact"}}
 	case require != "" && !present:
-		out.Results = []result{{Severity: "deny", Message: fmt.Sprintf("required resource type %q absent from parsed HCL tree; tree declares resource types %v", require, types)}}
+		out.Results = []result{{Severity: "halt", Message: fmt.Sprintf("required resource type %q absent from parsed HCL tree; tree declares resource types %v", require, types)}}
 	default:
-		out.Results = []result{{Severity: "audit", Message: fmt.Sprintf("parsed HCL tree declares resource types %v; required resource type %q present", types, require)}}
+		out.Results = []result{{Severity: "info", Message: fmt.Sprintf("parsed HCL tree declares resource types %v; required resource type %q present", types, require)}}
 	}
 
 	b, err := json.Marshal(out)
 	if err != nil {
-		pdk.OutputString(`{"results":[{"severity":"deny","message":"fixture failed to encode output"}]}`)
+		pdk.OutputString(`{"results":[{"severity":"halt","message":"fixture failed to encode output"}]}`)
 		return 0
 	}
 	pdk.Output(b)

@@ -8,7 +8,7 @@
 // governance label, named by the attachment's settings.required_label. It walks
 // the graph's nodes in sorted order and, on the first node that lacks the
 // required label, emits a verdict whose severity is taken from settings.severity
-// (defaulting to deny). The verdict message names the offending node and the
+// (defaulting to halt). The verdict message names the offending node and the
 // missing label, so the halt proves the guest read the graph rather than emitting
 // a constant. When every node carries the label the guest emits no verdict, so
 // the build proceeds.
@@ -96,7 +96,7 @@ func validate() int32 {
 	required := in.Settings.RequiredLabel
 	severity := in.Settings.Severity
 	if severity == "" {
-		severity = "deny"
+		severity = "halt"
 	}
 
 	// A rule with no required label to check is vacuously satisfied: emit no
@@ -131,7 +131,7 @@ func validate() int32 {
 func emit(o output) {
 	b, err := json.Marshal(o)
 	if err != nil {
-		pdk.OutputString(`{"results":[{"severity":"deny","message":"fixture failed to encode output"}]}`)
+		pdk.OutputString(`{"results":[{"severity":"halt","message":"fixture failed to encode output"}]}`)
 		return
 	}
 	pdk.Output(b)

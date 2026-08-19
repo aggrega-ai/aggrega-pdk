@@ -9,7 +9,7 @@
 // artifact may contain a forbidden token, named by the attachment's
 // settings.forbidden_token. It walks the artifacts (the host delivers them
 // path-sorted) and, on the first artifact whose content contains the token, emits
-// a verdict whose severity is taken from settings.severity (defaulting to deny).
+// a verdict whose severity is taken from settings.severity (defaulting to halt).
 // The message names the offending artifact and the token, so the halt proves the
 // guest read the rendered content rather than emitting a constant. When no
 // artifact contains the token the guest emits no verdict and the build proceeds.
@@ -87,7 +87,7 @@ func validate() int32 {
 	token := in.Settings.ForbiddenToken
 	severity := in.Settings.Severity
 	if severity == "" {
-		severity = "deny"
+		severity = "halt"
 	}
 
 	// A rule with no forbidden token is vacuously satisfied: no verdict, the
@@ -115,7 +115,7 @@ func validate() int32 {
 func emit(o output) {
 	b, err := json.Marshal(o)
 	if err != nil {
-		pdk.OutputString(`{"results":[{"severity":"deny","message":"fixture failed to encode output"}]}`)
+		pdk.OutputString(`{"results":[{"severity":"halt","message":"fixture failed to encode output"}]}`)
 		return
 	}
 	pdk.Output(b)

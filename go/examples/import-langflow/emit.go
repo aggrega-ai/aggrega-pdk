@@ -41,7 +41,7 @@ func runImport(in aggrega.ImportInput, parse func(format string, source []byte) 
 		tree, err := parse(syntacticFormat(format), src.Bytes)
 		if err != nil {
 			out.Diagnostics = append(out.Diagnostics, aggrega.Diagnostic{
-				Severity:  "error",
+				Severity:  "halt",
 				Code:      "parse-failed",
 				Message:   fmt.Sprintf("could not parse source %q as %s: %s", src.Name, format, err.Error()),
 				SourceRef: src.Name,
@@ -51,7 +51,7 @@ func runImport(in aggrega.ImportInput, parse func(format string, source []byte) 
 		nodes, edges := walkTree(format, tree)
 		if len(nodes) == 0 {
 			out.Diagnostics = append(out.Diagnostics, aggrega.Diagnostic{
-				Severity:  "warning",
+				Severity:  "warn",
 				Code:      "no-nodes",
 				Message:   fmt.Sprintf("source %q carried no recognisable %s nodes", src.Name, format),
 				SourceRef: src.Name,

@@ -67,9 +67,12 @@
 //! "the policy allows the build".
 //!
 //! Authoring convention. A policy declares its decision rules in a Rego package
-//! and exposes up to three collections of message strings — `deny` (each halts
+//! and exposes up to three collections of message strings — `deny` (each stops
 //! the build), `warn` (each flags the build but lets it proceed), and `audit`
-//! (each is recorded without affecting the outcome). Each collection is a set
+//! (each is recorded without affecting the outcome). Those three Rego rule names
+//! are Rego's own; the adapter maps them onto the socket's three verdict
+//! severities — `deny` lands as `halt`, `warn` as `warn`, `audit` as `info`.
+//! Each collection is a set
 //! or array of strings; an undefined rule contributes nothing, so a policy that
 //! never populates `deny` allows the build. Every package the attached sources
 //! declare is evaluated, so a policy may split its rules across packages.
@@ -81,6 +84,7 @@
 
 use aggrega_abi::RenderPolicyInput;
 use aggrega_pdk_rust::{
+    SEVERITY_HALT, SEVERITY_INFO, SEVERITY_WARN,
     encode_descriptor, PluginDescriptor, PluginDescriptorMeta, PluginExport, PolicyOutput,
     Diagnostic, API_VERSION,
 };
@@ -167,9 +171,9 @@ fn evaluate(raw: &str) -> anyhow::Result<PolicyOutput> {
         // an unimplemented builtin — surfaces here and propagates as a build
         // fault rather than a silent allow.
         let obj = eval_package(&mut engine, &pkg)?;
-        collect(&obj, "deny", &mut results)?;
-        collect(&obj, "warn", &mut results)?;
-        collect(&obj, "audit", &mut results)?;
+        collect(&obj, "deny", SEVERITY_HALT, &mut results)?;
+        collect(&obj, "warn", SEVERITY_WARN, &mut results)?;
+        collect(&obj, "audit", SEVERITY_INFO, &mut results)?;
     }
     Ok(PolicyOutput {
         results,
@@ -295,12 +299,23 @@ fn eval_package(engine: &mut regorus::Engine, package: &str) -> anyhow::Result<V
 /// verdict of the given severity for each message it holds. An absent or
 /// undefined key yields nothing; a key that is neither a set nor an array of
 /// strings is a malformed policy and fails loudly.
-fn collect(package_obj: &Value, severity: &str, out: &mut Vec<Diagnostic>) -> anyhow::Result<()> {
+///
+/// `key` is the Rego decision-rule name the policy author wrote and `severity`
+/// is the verdict severity it lands as. The two are separate arguments because
+/// they belong to two vocabularies: the Rego side follows Rego's own naming for
+/// a decision rule, and the verdict side reports from the closed set the socket
+/// declares. This adapter is where one becomes the other.
+fn collect(
+    package_obj: &Value,
+    key: &str,
+    severity: &str,
+    out: &mut Vec<Diagnostic>,
+) -> anyhow::Result<()> {
     let obj = match package_obj.as_object() {
         Ok(o) => o,
         Err(_) => return Ok(()),
     };
-    let value = match obj.get(&Value::from(severity)) {
+    let value = match obj.get(&Value::from(key)) {
         Some(v) => v,
         None => return Ok(()),
     };
@@ -321,7 +336,7 @@ fn collect(package_obj: &Value, severity: &str, out: &mut Vec<Diagnostic>) -> an
         }
         return Ok(());
     }
-    anyhow::bail!("policy key {severity} must be a set or array of message strings")
+    anyhow::bail!("policy key {key} must be a set or array of message strings")
 }
 
 /// verdict builds one Diagnostic from a message value, requiring the message
@@ -445,7 +460,7 @@ deny contains msg if {
             .expect("evaluate must succeed");
         assert_eq!(out.results.len(), 1, "exactly one deny should fire: {:?}", out.results);
         let v = &out.results[0];
-        assert_eq!(v.severity, "deny");
+        assert_eq!(v.severity, "halt");
         // The resource is addressed at resource.aws_db_instance.db, so the bound
         // name is "db" and the read attribute is 100.
         assert!(v.message.contains("db"), "message names the resource: {}", v.message);

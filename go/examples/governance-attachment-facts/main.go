@@ -49,7 +49,7 @@
 //     key in a namespace of the catalog author's own choosing, which is the
 //     only kind of key that can show the annotations arrived unfiltered.
 //
-//   - observe — emit one audit verdict per attachment reporting every fact
+//   - observe — emit one info verdict per attachment reporting every fact
 //     the guest decoded, so a payload can be read at the point it arrives.
 //
 // settings.echo_label, when set, appends that label's key and value to the
@@ -57,7 +57,7 @@
 // to know about is how the verbatim-label contract is observed rather than
 // assumed: a filtered or prefix-stripped label set could not answer.
 //
-// settings.severity overrides the verdict severity (deny by default), so the
+// settings.severity overrides the verdict severity (halt by default), so the
 // same plugin exercises the halting and non-halting host paths.
 //
 // Build: GOOS=wasip1 GOARCH=wasm go build -buildmode=c-shared -o governance-attachment-facts-go.wasm ./
@@ -204,7 +204,7 @@ func validate() int32 {
 
 	severity := in.Settings.Severity
 	if severity == "" {
-		severity = "deny"
+		severity = "halt"
 	}
 
 	// An empty results set is the allowing answer: a rule that finds nothing to
@@ -260,7 +260,7 @@ walk:
 				if err != nil {
 					facts = []byte(`"<unencodable>"`)
 				}
-				results = append(results, result{Severity: "audit", Message: fmt.Sprintf(
+				results = append(results, result{Severity: "info", Message: fmt.Sprintf(
 					"attachment facts: node %q attachment %q: %s", nodeID, name, facts)})
 			}
 		}
@@ -341,7 +341,7 @@ func sortedKeys[V any](m map[string]V) []string {
 func emit(o output) {
 	b, err := json.Marshal(o)
 	if err != nil {
-		pdk.OutputString(`{"results":[{"severity":"deny","message":"fixture failed to encode output"}]}`)
+		pdk.OutputString(`{"results":[{"severity":"halt","message":"fixture failed to encode output"}]}`)
 		return
 	}
 	pdk.Output(b)

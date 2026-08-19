@@ -12,7 +12,7 @@
 //! loudly (naming the offending key) before this plugin ever runs.
 //!
 //! Because conformance is enforced by the host ahead of dispatch, `validate`
-//! reads the typed setting directly and emits a single audit verdict echoing the
+//! reads the typed setting directly and emits a single info verdict echoing the
 //! value it read — proof that a conforming setting flowed through to the guest as
 //! the declared type.
 
@@ -87,7 +87,7 @@ pub fn validate(input: String) -> FnResult<String> {
 
     let out = PolicyOutput {
         results: vec![Diagnostic {
-            severity: "audit".to_string(),
+            severity: "info".to_string(),
             message: format!(
                 "typed settings applied: max_replicas={}",
                 settings.max_replicas

@@ -387,12 +387,12 @@ fn policy_output_round_trip_json_schema() {
     let fixture = PolicyOutput {
         results: vec![
             Diagnostic {
-                severity: "deny".to_string(),
+                severity: "halt".to_string(),
                 message: "version floor violation: payments-db < 15.0.0".to_string(),
                 ..Default::default()
             },
             Diagnostic {
-                severity: "audit".to_string(),
+                severity: "info".to_string(),
                 message: "all labels present".to_string(),
                 ..Default::default()
             },
@@ -448,14 +448,14 @@ fn linter_output_round_trip_json_schema() {
         findings: vec![
             Diagnostic {
                 rule_id: "schema-evolution".to_string(),
-                severity: "error".to_string(),
+                severity: "halt".to_string(),
                 classification: "MAJOR".to_string(),
                 message: "field spec.schema.values.port removed".to_string(),
                 ..Default::default()
             },
             Diagnostic {
                 rule_id: "unknown_rule".to_string(),
-                severity: "error".to_string(),
+                severity: "halt".to_string(),
                 classification: String::new(),
                 message: "rule_id not implemented".to_string(),
                 ..Default::default()

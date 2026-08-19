@@ -58,6 +58,11 @@ pub use aggrega_abi::{
     FetchExternalInputResponse, ParseSourceResponse,
 };
 
+// Diagnostic severities, re-exported from aggrega-abi so a plugin author writes
+// aggrega_pdk_rust::SEVERITY_* and reports from the same closed, single-sourced
+// vocabulary the host routes on.
+pub use aggrega_abi::{SEVERITY_HALT, SEVERITY_INFO, SEVERITY_WARN};
+
 // Host-function error codes, re-exported from aggrega-abi so a plugin author
 // writes aggrega_pdk_rust::CODE_* and matches a HostError's code against the
 // same single-sourced vocabulary the host emits.

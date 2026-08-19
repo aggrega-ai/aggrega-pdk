@@ -23,9 +23,13 @@
 //! package and exposes up to three collections of message strings, each
 //! compiled as an OPA entrypoint:
 //!
-//!   - `deny`  — each message halts the build.
+//!   - `deny`  — each message stops the build.
 //!   - `warn`  — each message flags the build but lets it proceed.
 //!   - `audit` — each message is recorded without affecting the outcome.
+//!
+//! Those three Rego rule names are Rego's own; the adapter maps them onto the
+//! socket's three verdict severities — `deny` lands as `halt`, `warn` as `warn`,
+//! and `audit` as `info`.
 //!
 //! The adapter reads the module's entrypoint table and maps each entrypoint's
 //! trailing name to a verdict severity, so a policy chooses its severities by
@@ -45,6 +49,7 @@
 //! evaluate this policy" never reads as "the policy allows the build".
 
 use aggrega_pdk_rust::{
+    SEVERITY_HALT, SEVERITY_INFO, SEVERITY_WARN,
     encode_descriptor, PluginDescriptor, PluginDescriptorMeta, PluginExport, PolicyOutput,
     Diagnostic, API_VERSION,
 };
@@ -160,17 +165,22 @@ fn read_cstr(mem: &[u8], addr: usize) -> String {
 }
 
 /// leaf_severity maps an OPA entrypoint path to a verdict severity by its
-/// trailing segment. An entrypoint whose name is not one of the three known
-/// severities is a policy authored against a contract this adapter does not
-/// understand and fails loudly.
+/// trailing segment. An entrypoint whose name is not one of the three the
+/// adapter recognizes is a policy authored against a contract this adapter does
+/// not understand and fails loudly.
+///
+/// The names on the left are Rego decision-rule names, which follow Rego's own
+/// naming for a decision rule; the values on the right are the socket's verdict
+/// severities. This adapter is where one becomes the other, which is why the two
+/// sides do not read alike.
 fn leaf_severity(entrypoint: &str) -> anyhow::Result<&'static str> {
     let leaf = entrypoint.rsplit('/').next().unwrap_or(entrypoint);
     match leaf {
-        "deny" => Ok("deny"),
-        "warn" => Ok("warn"),
-        "audit" => Ok("audit"),
+        "deny" => Ok(SEVERITY_HALT),
+        "warn" => Ok(SEVERITY_WARN),
+        "audit" => Ok(SEVERITY_INFO),
         other => Err(anyhow!(
-            "policy entrypoint {entrypoint:?} maps to unknown severity {other:?}; expected deny, warn, or audit"
+            "policy entrypoint {entrypoint:?} names no decision rule this adapter evaluates: {other:?}; expected deny, warn, or audit"
         )),
     }
 }

@@ -33,7 +33,7 @@ rendered manifests ──▶ adapter (our ABI)
                        Kubewarden policy  (accept / reject)
                           │  map response
                           ▼
-                       Aggrega verdicts ──▶ host (deny halts, warn/audit record)
+                       Aggrega verdicts ──▶ host (halt stops, warn/info record)
 ```
 
 The `ValidationRequest` / `ValidationResponse` wire types are local structs
@@ -95,10 +95,10 @@ plugins:
 | key              | meaning                                                              |
 | ---------------- | -------------------------------------------------------------------- |
 | `required_label` | the label key every rendered object must carry (the policy setting)  |
-| `severity`       | how a rejection maps to a verdict: `deny` (default), `warn`, `audit` |
+| `severity`       | how a rejection maps to a verdict: `halt` (default), `warn`, `info` |
 
 `required_label` is the Kubewarden policy's own setting. `severity` is the
-adapter's mapping knob: a rejection maps to a `deny` verdict by default, which
+adapter's mapping knob: a rejection maps to a `halt` verdict by default, which
 halts the build; `warn` flags the build and lets it proceed; `audit` records
 without affecting the outcome. Any other value maps to `deny`.
 

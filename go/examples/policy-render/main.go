@@ -7,7 +7,7 @@
 // rendered artifacts rather than over the IR graph. It reads its input payload:
 // it echoes the artifact count and the first (path-sorted) artifact's path, and
 // emits a single verdict whose severity is taken from the attachment's settings
-// object (settings.severity), defaulting to audit when unset. Driving it with
+// object (settings.severity), defaulting to info when unset. Driving it with
 // different settings exercises the render-stage deny / warn / audit host paths.
 //
 // Build: GOOS=wasip1 GOARCH=wasm go build -buildmode=c-shared -o policy-render-go.wasm ./
@@ -73,7 +73,7 @@ func validate() int32 {
 
 	severity := in.Settings.Severity
 	if severity == "" {
-		severity = "audit"
+		severity = "info"
 	}
 
 	msg := fmt.Sprintf("render stage saw %d artifact(s)", len(in.Artifacts))
@@ -84,7 +84,7 @@ func validate() int32 {
 
 	out, err := json.Marshal(output{Results: []result{{Severity: severity, Message: msg}}})
 	if err != nil {
-		pdk.OutputString(`{"results":[{"severity":"deny","message":"fixture failed to encode output"}]}`)
+		pdk.OutputString(`{"results":[{"severity":"halt","message":"fixture failed to encode output"}]}`)
 		return 0
 	}
 	pdk.Output(out)

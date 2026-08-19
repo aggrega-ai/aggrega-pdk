@@ -4,8 +4,8 @@
 /**
  * Fixture policy plugin for the Aggrega Wasm runtime.
  *
- * Emits a deterministic two-verdict PolicyOutput: one deny
- * verdict and one audit verdict. The fixture does not inspect input
+ * Emits a deterministic two-verdict PolicyOutput: one halt
+ * verdict and one info verdict. The fixture does not inspect input
  * (Host.inputString() is read for parity with the runtime's expected
  * call shape but the value is unused); the outputs are constants so
  * end-to-end tests can assert exact shape across all three languages.
@@ -27,7 +27,7 @@ function descriptor(): PluginDescriptor {
     abi_version: API_VERSION,
     plugin_type: "governance",
     description:
-      "Report deterministic deny and audit policy verdicts over the build graph.",
+      "Report deterministic halt and info policy verdicts over the build graph.",
     exports: [{ name: "validate" }],
     metadata: { author: "aggrega", license: "Apache-2.0" },
   };
@@ -50,8 +50,8 @@ function validate(): void {
   // available on the same entry and stay unset because this fixture
   // offers none of them.
   const results: Diagnostic[] = [
-    { severity: "deny", message: "fixture rule B: deliberate fail for end-to-end coverage" },
-    { severity: "audit", message: "fixture rule A: audit note" },
+    { severity: "halt", message: "fixture rule B: deliberate fail for end-to-end coverage" },
+    { severity: "info", message: "fixture rule A: advisory note" },
   ];
   const out: PolicyOutput = { results };
   Host.outputString(JSON.stringify(out));

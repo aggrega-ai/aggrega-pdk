@@ -3,8 +3,8 @@
 
 // Fixture policy plugin for the Aggrega Wasm runtime.
 //
-// Emits a deterministic two-verdict PolicyOutput: one deny
-// verdict and one audit verdict. The fixture does not inspect the input
+// Emits a deterministic two-verdict PolicyOutput: one halt
+// verdict and one info verdict. The fixture does not inspect the input
 // graph; the outputs are constants so end-to-end tests can assert exact
 // equality of the emitted shape.
 //
@@ -24,8 +24,8 @@ import (
 // describes. The PDK's own round-trip tests exercise the full
 // encoding/json path against the same schema.
 const fixtureOutput = `{"results":[` +
-	`{"severity":"deny","message":"fixture rule B: deliberate fail for end-to-end coverage"},` +
-	`{"severity":"audit","message":"fixture rule A: audit note"}` +
+	`{"severity":"halt","message":"fixture rule B: deliberate fail for end-to-end coverage"},` +
+	`{"severity":"info","message":"fixture rule A: advisory note"}` +
 	`]}`
 
 // descriptor is the static describe() self-report: a v1alpha1 policy plugin
@@ -35,7 +35,7 @@ func descriptor() aggrega.PluginDescriptor {
 	return aggrega.PluginDescriptor{
 		AbiVersion:  aggrega.APIVersion,
 		PluginType:  "governance",
-		Description: "Report deterministic deny and audit policy verdicts over the build graph.",
+		Description: "Report deterministic halt and info policy verdicts over the build graph.",
 		Exports:     []aggrega.PluginExport{{Name: "validate"}},
 		Metadata:    &aggrega.PluginDescriptorMeta{Author: "aggrega", License: "Apache-2.0"},
 	}

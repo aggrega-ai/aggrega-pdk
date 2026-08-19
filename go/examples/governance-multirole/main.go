@@ -14,7 +14,7 @@
 //     (which rides through as a plain annotation);
 //   - label-transform: stamps proof.aggrega/touched=mutator-proof on every node;
 //   - ir-verdict / render-verdict: emits a single verdict whose severity is taken
-//     from the attachment's settings (settings.severity), defaulting to audit.
+//     from the attachment's settings (settings.severity), defaulting to info.
 //
 // The verdict export reads only settings.severity, which both the IR and render
 // payloads carry, so one validate export serves both verdict roles; the IR-vs-
@@ -219,7 +219,7 @@ func validate() int32 {
 
 	severity := in.Settings.Severity
 	if severity == "" {
-		severity = "audit"
+		severity = "info"
 	}
 	msg := fmt.Sprintf("governance-multirole verdict; settings.severity=%q", severity)
 
@@ -228,7 +228,7 @@ func validate() int32 {
 	}{Results: []verdictResult{{Severity: severity, Message: msg}}}
 	b, err := json.Marshal(out)
 	if err != nil {
-		pdk.OutputString(`{"results":[{"severity":"deny","message":"fixture failed to encode output"}]}`)
+		pdk.OutputString(`{"results":[{"severity":"halt","message":"fixture failed to encode output"}]}`)
 		return 0
 	}
 	pdk.Output(b)

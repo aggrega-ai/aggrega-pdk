@@ -306,8 +306,8 @@ test("PolicyOutput round-trips through wasm-policy schema", (t) => {
 
   const fixture: PolicyOutput = {
     results: [
-      { severity: "deny", message: "version floor violation: payments-db < 15.0.0" },
-      { severity: "audit", message: "all labels present" },
+      { severity: "halt", message: "version floor violation: payments-db < 15.0.0" },
+      { severity: "info", message: "all labels present" },
     ],
   };
 

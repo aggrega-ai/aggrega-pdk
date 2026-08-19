@@ -46,14 +46,15 @@ runs, nothing is fetched, and the build stays deterministic and hermetic.
 ## Writing the policy
 
 The baked policy declares its decision rules in a Rego package and compiles each
-of `deny`, `warn`, and `audit` as an OPA entrypoint. The adapter maps an
-entrypoint's trailing name to the verdict severity:
+of `deny`, `warn`, and `audit` as an OPA entrypoint. Those names are Rego's own
+naming for a decision rule; the adapter maps an entrypoint's trailing name onto
+one of the socket's three verdict severities:
 
-| Entrypoint | Effect on the build                                       |
-| ---------- | -------------------------------------------------------- |
-| `deny`     | Each message halts the build.                            |
-| `warn`     | Each message flags the build; the build proceeds.        |
-| `audit`    | Each message is recorded; the build outcome is unchanged. |
+| Entrypoint | Verdict severity | Effect on the build                                      |
+| ---------- | ---------------- | -------------------------------------------------------- |
+| `deny`     | `halt`           | Each message stops the build.                            |
+| `warn`     | `warn`           | Each message flags the build; the build proceeds.        |
+| `audit`    | `info`           | Each message is recorded; the build outcome is unchanged. |
 
 The payload is wired into OPA as follows:
 

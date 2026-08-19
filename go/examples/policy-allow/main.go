@@ -6,7 +6,7 @@
 // Emits a deterministic PolicyOutput with no fired verdicts, so
 // the host-side end-to-end test can prove the policy socket lets a build
 // succeed when no rule fires — the counterpart to the minimal
-// policy fixture, whose deny verdict proves the build-halt path.
+// policy fixture, whose halt verdict proves the build-halt path.
 //
 // It self-describes via describe() as a policy plugin whose
 // validate export the host validates before dispatch.

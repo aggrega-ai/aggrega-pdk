@@ -311,8 +311,8 @@ func TestPolicyOutput_RoundTripJSONSchema(t *testing.T) {
 
 	fixture := aggrega.PolicyOutput{
 		Results: []aggrega.Diagnostic{
-			{Severity: "deny", Message: "version floor violation: payments-db < 15.0.0"},
-			{Severity: "audit", Message: "all labels present"},
+			{Severity: "halt", Message: "version floor violation: payments-db < 15.0.0"},
+			{Severity: "info", Message: "all labels present"},
 		},
 	}
 

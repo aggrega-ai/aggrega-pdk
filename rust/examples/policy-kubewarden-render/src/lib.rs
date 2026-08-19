@@ -38,11 +38,11 @@
 //! per rejected object; an acceptance emits nothing, so a fully compliant
 //! render produces no verdicts and the build proceeds unchanged.
 //!
-//! Verdict severity. A rejection maps to a `deny` verdict by default, which
-//! halts the build. The attachment may set `settings.severity` to `warn` or
-//! `audit` to downgrade the mapping — a warn flags the build and lets it
-//! proceed, an audit records without affecting the outcome. Any other value
-//! (or none) maps to `deny`.
+//! Verdict severity. A rejection maps to a `halt` verdict by default, which
+//! stops the build. The attachment may set `settings.severity` to `warn` or
+//! `info` to downgrade the mapping — a warn flags the build and lets it
+//! proceed, an info records without affecting the outcome. Any other value
+//! (or none) maps to `halt`.
 //!
 //! Determinism. The host hands the artifacts already sorted by path; the guest
 //! walks them in that order, walks each artifact's documents in document order,
@@ -53,6 +53,7 @@ use std::collections::{HashMap, HashSet};
 
 use aggrega_abi::RenderPolicyInput;
 use aggrega_pdk_rust::{
+    SEVERITY_HALT, SEVERITY_INFO, SEVERITY_WARN,
     encode_descriptor, PluginDescriptor, PluginDescriptorMeta, PluginExport, PolicyOutput,
     Diagnostic, API_VERSION,
 };
@@ -148,12 +149,12 @@ struct AdapterSettings {
 
 impl AdapterSettings {
     /// severity resolves the verdict severity a rejection maps to: `warn` or
-    /// `audit` when the attachment selects one, else `deny`.
+    /// `info` when the attachment selects one, else `halt`.
     fn severity(&self) -> &str {
         match self.severity.as_deref() {
-            Some("warn") => "warn",
-            Some("audit") => "audit",
-            _ => "deny",
+            Some(s) if s == SEVERITY_WARN => SEVERITY_WARN,
+            Some(s) if s == SEVERITY_INFO => SEVERITY_INFO,
+            _ => SEVERITY_HALT,
         }
     }
 }
