@@ -1,8 +1,18 @@
 # policy (Go fixture)
 
-A small Go plugin demonstrating the Aggrega policy socket.
-The plugin emits a deterministic two-result `PolicyOutput` —
-one pass, one fail — for end-to-end loader exercises.
+A small Go plugin demonstrating the Aggrega policy socket. It offers
+two entry points, so one guest covers both halves of the socket's
+output contract:
+
+- `validate` — the socket's default entry point. Emits a deterministic
+  two-result `PolicyOutput`: one halt verdict and one info verdict.
+- `report_incomplete` — emits a `PolicyOutput` with no verdicts and an
+  `error` message. This is the shape a policy plugin returns when it
+  ran but could not finish evaluating, and the host reads a present
+  `error` as a failed invocation rather than as a verdict the plugin
+  reached. Select it by naming it as the attachment's entry function.
+
+Both outputs are constants, for end-to-end loader exercises.
 
 ## Build
 
