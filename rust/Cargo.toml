@@ -43,6 +43,7 @@ members = [
     "examples/frp-step-host-patch",
     "examples/frp-step-host-patch-compose",
     "examples/frp-step-own-patch-compose",
+    "examples/governance-adapter-skeleton",
     "examples/link-cross-boundary",
     "examples/mutator",
     "examples/parse",

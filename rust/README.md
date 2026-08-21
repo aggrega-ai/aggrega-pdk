@@ -33,6 +33,42 @@ host's integration tests consume.
 See `examples/mutator/` and `examples/policy/` for working
 plugin sources.
 
+### Starting from a skeleton
+
+[`examples/governance-adapter-skeleton/`](examples/governance-adapter-skeleton)
+is a copy-and-fill starting point for a governance plugin: one guest attachable
+at every governance role, with no policy engine compiled in and one clearly
+marked seam where an author drops their own evaluator. It is a skeleton rather
+than a framework — the role wiring, the generated wire types and the pointer
+escaping are done; the engine is not. Its README carries the role table, the four
+things an adapter maps, and how to check the guest runs before attaching it.
+
+### Two roads for a policy engine
+
+Once the seam has an engine behind it, there are two ways to get that engine into
+a guest, and the choice has consequences an author should make deliberately.
+
+The **low-friction road** embeds a Wasm-native evaluator in the guest and reads
+the policy from the attachment's files, so an operator authors the policy and
+the guest carries no compiled policy module.
+[`examples/policy-regorus/`](examples/policy-regorus) is that shape.
+
+The **full-fidelity road** compiles the policy ahead of time with the policy
+engine's own toolchain into a WebAssembly module, commits that module, and drives
+it inside the guest with an embedded WebAssembly interpreter — so the guest gets
+the reference engine's complete builtin surface and its exact semantics.
+[`examples/policy-opa-wasm/`](examples/policy-opa-wasm) is that shape, and its
+README documents how the guest instantiates the compiled module and satisfies its
+imports in-guest.
+
+It is the escape hatch rather than the default, and the trade is worth stating
+before an author takes it: the full-fidelity road buys builtin completeness at
+the cost of artifact size — the guest carries both an interpreter and the
+compiled module — plus an ahead-of-time build step whose output is committed, and
+a policy fixed at build time rather than supplied by the operator. Reach for it
+when a policy needs a builtin the Wasm-native evaluator does not implement, or
+when a decision has to match the reference engine exactly.
+
 ## Build provenance
 
 A plugin can stamp its version and commit into its `describe()`

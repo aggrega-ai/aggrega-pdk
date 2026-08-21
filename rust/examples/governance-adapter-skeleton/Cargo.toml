@@ -1,0 +1,28 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Cognitio S.r.l.
+
+[package]
+name = "governance-adapter-skeleton-rust"
+version = "0.1.0-alpha.1"
+edition = "2021"
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+path = "src/lib.rs"
+
+[dependencies]
+# The plugin ABI surface: the describe() encoder, the API version floor, and the
+# governance wire types. No policy engine is a dependency here — an adapter adds
+# its engine when it fills in the seam.
+aggrega-pdk-rust = { path = "../.." }
+# Reached directly for the governance payload types the kit does not re-export.
+# Both spellings name the identical generated type.
+aggrega-abi = { path = "../../../../aggrega-abi/rust" }
+extism-pdk = "1.4"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# extism-pdk's FnResult wraps anyhow::Error, so a failure raised anywhere in a
+# role propagates through the export boundary unchanged and surfaces as a build
+# fault naming the failed call.
+anyhow = "1"

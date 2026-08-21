@@ -17,6 +17,31 @@ Rego evaluator and takes a `.rego` file at attach time. That evaluator
 reimplements Rego independently and does not cover every builtin; when a policy
 needs the complete OPA builtin surface or exact OPA semantics, use this adapter.
 
+## What the road costs, and when to take it
+
+The full-fidelity road buys the complete builtin surface and the reference
+engine's own semantics. It is paid for in three things, and the low-friction road
+pays none of them:
+
+- **Artifact size.** The guest carries an embedded WebAssembly interpreter and the
+  compiled policy module inside itself. Both are absent from a guest that embeds a
+  Wasm-native evaluator and reads a policy file at attach time. The release
+  profile in `Cargo.toml` optimises for size for exactly this reason, and
+  `build.sh` runs a further size pass where the optimiser is available.
+- **A build step, and a committed artifact.** The policy is compiled ahead of time
+  with OPA's own toolchain and the result is committed beside the source. Editing
+  `policy.rego` therefore means re-running that step and committing the new
+  `policy.wasm`; it is not picked up by rebuilding the guest.
+- **The policy is fixed at build time.** Because the module is baked in, an
+  operator attaches settings and not a policy — there are no `sources`. A
+  deployment that wants operators to supply their own Rego wants the low-friction
+  road, or one adapter build per policy.
+
+Reach for it when a policy needs a builtin the low-friction evaluator does not
+implement, or when a decision has to match the reference engine exactly. Stay on
+the low-friction road otherwise: it is smaller, it has no ahead-of-time compile,
+and it lets an operator author the policy.
+
 ## How it works
 
 The policy is authored in Rego and compiled **once, ahead of time** with OPA's

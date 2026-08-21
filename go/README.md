@@ -31,6 +31,16 @@ ahead-of-time-purity firewall the developer guide describes in full.
 See `examples/mutator/` and `examples/policy/` for working
 plugin sources.
 
+### Starting from a skeleton
+
+[`examples/governance-adapter-skeleton/`](examples/governance-adapter-skeleton)
+is a copy-and-fill starting point for a governance plugin: one guest attachable
+at every governance role, with no policy engine compiled in and one clearly
+marked seam where an author drops their own evaluator. It is a skeleton rather
+than a framework — the role wiring, the generated wire types and the pointer
+escaping are done; the engine is not. Its README carries the role table, the four
+things an adapter maps, and how to check the guest runs before attaching it.
+
 ## Build provenance
 
 A plugin can stamp its version and commit into its `describe()`
