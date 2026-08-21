@@ -424,6 +424,17 @@ fn linter_input_round_trip_json_schema() {
         previous: Some(
             serde_json::value::RawValue::from_string(r#"{"kind":"Component"}"#.into()).unwrap(),
         ),
+        // Populated rather than left None, so the field actually crosses
+        // serialize -> schema-validate -> deserialize. An omitted optional field
+        // round-trips vacuously: the assertion would hold for a field the codec
+        // does not carry at all.
+        implemented_component: Some(
+            serde_json::value::RawValue::from_string(
+                r#"{"kind":"Component","spec":{"schema":{"provides":{"endpoint":{"type":"string"}}}}}"#
+                    .into(),
+            )
+            .unwrap(),
+        ),
         source_path: "core/compute/api-server/api-server.yaml".to_string(),
         policies: Policies {
             allow_dynamic_refs: false,
@@ -432,6 +443,7 @@ fn linter_input_round_trip_json_schema() {
             allow_aggrega_ai_prefix: false,
             allow_nonstandard_names: false,
             allow_category_mismatches: false,
+            allow_undeclared_recipe_provides: false,
         },
     };
 
