@@ -86,6 +86,29 @@ deny contains msg if {
 }
 ```
 
+## Which rule syntax a policy is written in
+
+Rego is written in two rule syntaxes and this engine accepts both, module by
+module, so a policy set assembled before the current syntax existed evaluates
+alongside one written today. A module in the current syntax says which one it is
+by declaring `import rego.v1` below its package declaration, as the policy above
+does; a module in the older bracketed-head syntax — `deny[msg] { ... }` —
+declares nothing, because it is recognised by not parsing as the current one.
+
+This is a reference example rather than a production engine, and that is where
+the difference bites. A module that parses as the current syntax while declaring
+nothing is read here in the older syntax, and the two readings can reach opposite
+decisions from the same text: a rule body that never holds contributes no
+decision under the current syntax and contributes one under the older syntax.
+This example evaluates such a module rather than refusing it. A guest attached to
+a real build should refuse it instead, naming the module and asking for the
+declaration — the Rego engine that ships in the compiler does exactly that, and
+the engine itself is what tells the two syntaxes apart, so a deliberate
+bracketed-head policy is never mistaken for a current-syntax module that omitted
+the declaration. When
+this example is the starting point for a guest of your own, that refusal is the
+part to add.
+
 ## Builtin coverage and loud failure
 
 The embedded engine implements most of the Rego builtin library, but its
