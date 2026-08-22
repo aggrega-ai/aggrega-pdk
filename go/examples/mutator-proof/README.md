@@ -8,6 +8,13 @@ fixture, this plugin escapes the label key per RFC 6901 (`/` becomes
 and the injected label reaches the IR graph. It exists so a host-side
 test can prove the socket wires through.
 
+The socket's wire carries canonical CBOR in both directions, read and
+written through the generated codec on the payload type. This plugin
+needs only the node identifiers, and it still reads them through the
+shared payload type rather than a local restatement of it, so a change to
+the wire shape reaches this fixture. The patch documents it emits are
+JSON: the socket carries them verbatim.
+
 ## Build
 
 Standard Go required (the build targets `GOOS=wasip1`). Run from this

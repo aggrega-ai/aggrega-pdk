@@ -6,57 +6,39 @@
  *
  * Applies one trivial transform — appends the label
  * `fixture.aggrega-pdk/touched = mutator-typescript` to every node in
- * the MutatorGraph — and returns one JSON Patch document per node
- * carrying that addition. The host verifies end-to-end that input
- * JSON deserialised, the transform applied per node, and output JSON
- * serialised to a shape that validates against the wasm-mutator JSON
- * Schema.
+ * the mutation graph — and returns one JSON Patch document per node
+ * carrying that addition. The host verifies end-to-end that the
+ * canonical CBOR payload decoded, the transform applied per node, and
+ * the result encoded to a shape that validates against the
+ * wasm-mutator schema.
+ *
+ * The label-transform socket carries canonical CBOR in both directions,
+ * read and written through the generated codec on the payload type. The
+ * patch documents the output carries are JSON, and stay JSON: the socket
+ * carries them verbatim and neither side reads into them.
  *
  * Entry convention follows the Extism JS PDK: parameterless function,
- * read input via Host.inputString(), write output via
- * Host.outputString(), expose via module.exports.
+ * read input from and write output to the host buffers, expose via
+ * module.exports.
  */
 
 import {
   API_VERSION,
+  decodeCBORMutatorInput,
+  encodeCBORMutatorOutput,
   encodeDescriptor,
+  type MutatorOutput,
   type PluginDescriptor,
 } from "@aggrega-ai/aggrega-pdk-typescript";
 
-interface MutatorNode {
-  component: string;
-  resolved_version: string;
-  labels: Record<string, string>;
-}
-
-interface MutatorSource {
-  path: string;
-  content: string;
-}
-
-interface MutatorInput {
-  compilation_context: {
-    release_name: string;
-    environment: string;
-  };
-  graph: {
-    nodes: Record<string, MutatorNode>;
-  };
-  // Attachment inputs, absent unless the attachment declared a `with:` block.
-  // sources carry the declared definition files verbatim; settings is a
-  // free-form object the host passes through.
-  sources?: MutatorSource[];
-  settings?: { label_value?: string };
-}
-
+// One operation of an emitted patch document. The socket carries a patch
+// document opaquely, so its shape is this fixture's to state rather than the
+// wire's — unlike the payload types around it, which are imported from the
+// generated ABI so there is one statement of the wire shape.
 interface JsonPatchOp {
   op: string;
   path: string;
   value: string;
-}
-
-interface MutatorOutput {
-  patches: JsonPatchOp[][];
 }
 
 const FIXTURE_LABEL_KEY = "fixture.aggrega-pdk/touched";
@@ -90,7 +72,7 @@ function describe(): void {
 }
 
 function mutate(): void {
-  const input: MutatorInput = JSON.parse(Host.inputString());
+  const input = decodeCBORMutatorInput(new Uint8Array(Host.inputBytes()));
 
   // Attachment inputs arrive alongside the graph. settings is a free-form
   // object the host passes through verbatim; the optional "label_value" key
@@ -99,8 +81,9 @@ function mutate(): void {
   // as { path, content } — a real mutator parses them to drive its labelling;
   // the fixture simply reads them to demonstrate access.
   let labelValue = FIXTURE_LABEL_VALUE;
-  if (input.settings && typeof input.settings.label_value === "string" && input.settings.label_value) {
-    labelValue = input.settings.label_value;
+  const settings = input.settings as { label_value?: string } | undefined;
+  if (settings && typeof settings.label_value === "string" && settings.label_value) {
+    labelValue = settings.label_value;
   }
   for (const src of input.sources ?? []) {
     // A real plugin parses src.content (addressed by src.path) here.
@@ -124,7 +107,7 @@ function mutate(): void {
   ]);
 
   const out: MutatorOutput = { patches };
-  Host.outputString(JSON.stringify(out));
+  Host.outputBytes(encodeCBORMutatorOutput(out).buffer as ArrayBuffer);
 }
 
 module.exports = { mutate, describe };

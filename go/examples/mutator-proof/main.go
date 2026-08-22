@@ -49,16 +49,6 @@ func descriptor() aggrega.PluginDescriptor {
 	}
 }
 
-// mutatorInput is the minimal shape the proof plugin reads from the
-// MutatorInput payload: it needs only the node IDs to root a per-node
-// label patch. The full payload carries more (compilation context, per-node
-// component / resolved_version / labels), but the proof plugin ignores it.
-type mutatorInput struct {
-	Graph struct {
-		Nodes map[string]json.RawMessage `json:"nodes"`
-	} `json:"graph"`
-}
-
 // escapePointerToken escapes a JSON Pointer reference token per RFC 6901:
 // "~" becomes "~0" and "/" becomes "~1". The order matters — "~" is
 // escaped first so a "/" rewritten to "~1" is not re-escaped.
@@ -79,11 +69,17 @@ func describe() int32 {
 	return 0
 }
 
+// mutate reads the label-transform payload and reports one label addition per
+// node. The payload and the result travel as canonical CBOR, decoded and encoded
+// by the generated codec on the shared payload type — the plugin reads only the
+// node IDs, but it reads them through the wire shape rather than a local
+// restatement of it, so a change to that shape reaches this fixture.
+//
 //go:wasmexport mutate
 func mutate() int32 {
-	var in mutatorInput
-	if err := json.Unmarshal(pdk.Input(), &in); err != nil {
-		pdk.SetError(fmt.Errorf("mutator-proof: unmarshal MutatorInput: %w", err))
+	var in aggrega.MutatorInput
+	if err := in.DecodeCBOR(pdk.Input()); err != nil {
+		pdk.SetError(fmt.Errorf("mutator-proof: decode MutatorInput: %w", err))
 		return 1
 	}
 
@@ -103,12 +99,9 @@ func mutate() int32 {
 		patches = append(patches, json.RawMessage(patch))
 	}
 
-	out := struct {
-		Patches []json.RawMessage `json:"patches"`
-	}{Patches: patches}
-	outputBytes, err := json.Marshal(out)
+	outputBytes, err := aggrega.MutatorOutput{Patches: patches}.EncodeCBOR()
 	if err != nil {
-		pdk.SetError(fmt.Errorf("mutator-proof: marshal MutatorOutput: %w", err))
+		pdk.SetError(fmt.Errorf("mutator-proof: encode MutatorOutput: %w", err))
 		return 1
 	}
 	pdk.Output(outputBytes)

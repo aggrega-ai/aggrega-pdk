@@ -18,6 +18,14 @@
 //! string. That confinement is the whole of what an operator invited by attaching
 //! a plugin here.
 //!
+//! # How it travels
+//!
+//! This role's wire carries the binary encoding in both directions, so the
+//! payload is read and the result written through the generated codec on the
+//! payload type. The seam reads a JSON document, so the decoded payload is
+//! written back out as one before it is handed over — the names a policy
+//! addresses are the payload's own names either way.
+//!
 //! # A policy names the label; this module builds the path
 //!
 //! The change is expressed to the build as a document of edit instructions
@@ -73,9 +81,10 @@ struct Instruction {
 
 /// Reads the payload, asks the engine for its label decisions, and returns the
 /// label changes the build applies.
-pub fn changes(raw: &str) -> anyhow::Result<MutatorOutput> {
-    let input: MutatorInput = serde_json::from_str(raw)
+pub fn changes(raw: &[u8]) -> anyhow::Result<MutatorOutput> {
+    let input = MutatorInput::decode_cbor(raw)
         .map_err(|err| anyhow::anyhow!("reading the label-transform payload: {err}"))?;
+    let payload = serde_json::to_string(&input)?;
 
     let programs: Vec<Program<'_>> = input
         .sources
@@ -89,7 +98,7 @@ pub fn changes(raw: &str) -> anyhow::Result<MutatorOutput> {
     let decisions = evaluator::evaluate(
         &programs,
         input.settings.as_ref().map(|s| s.get()),
-        raw,
+        &payload,
         DECISION,
     )
     .map_err(|err| anyhow::anyhow!("evaluating the label-transform policy: {err}"))?;

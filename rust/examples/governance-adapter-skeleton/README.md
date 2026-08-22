@@ -74,6 +74,14 @@ pub fn evaluate(
 It receives the programs, the settings, the whole role payload, and the name of
 the decision the caller wants back. It returns one raw JSON value per decision.
 
+The payload reaches the seam as a JSON document at every role. The
+`label-transform` role's wire carries canonical CBOR, so that role reads the
+payload with the generated codec and writes it back out as JSON before handing it
+over — and its export takes and returns `Vec<u8>` rather than `String`; the other
+three roles carry JSON and hand over what arrived. The seam therefore has one
+contract rather than one per encoding, and the names a policy addresses are the
+payload's own names either way.
+
 Handing over the whole payload rather than a projection of it is deliberate: a
 policy then reads the graph, the artifacts, the nodes or the targets under the
 names the wire already gives them, so the input a policy author writes against is

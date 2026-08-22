@@ -21,11 +21,17 @@
  * separator, so a hand-written path would address a nested location and the change
  * would be refused. The escaping is written once, here, rather than in every
  * policy.
+ *
+ * How it travels: this role's wire carries the binary encoding in both
+ * directions, so the payload is read and the result written through the generated
+ * codec on the payload type. The seam reads a JSON document, so the decoded
+ * payload is written back out as one before it is handed over — the names a policy
+ * addresses are the payload's own names either way.
  */
 
 import {
-  decodeMutatorInput,
-  encodeMutatorOutput,
+  decodeCBORMutatorInput,
+  encodeCBORMutatorOutput,
   type MutatorOutput,
 } from "@aggrega-ai/aggrega-pdk-typescript";
 
@@ -64,8 +70,8 @@ interface Instruction {
 }
 
 /** Reads the payload and returns the label changes the build applies, encoded. */
-export function changes(raw: string): string {
-  const input = decodeMutatorInput(raw);
+export function changes(raw: Uint8Array): Uint8Array {
+  const input = decodeCBORMutatorInput(raw);
   expectObject(input.graph, "graph", ROLE);
   expectObject(input.graph.nodes, "graph.nodes", ROLE);
 
@@ -74,11 +80,11 @@ export function changes(raw: string): string {
     text: s.content,
   }));
 
-  const decisions = evaluate(programs, input.settings, raw, DECISION);
+  const decisions = evaluate(programs, input.settings, JSON.stringify(input), DECISION);
   const patches = decisions.map((decision) => instruction(decision as Partial<Decision>));
 
   const out: MutatorOutput = { patches };
-  return encodeMutatorOutput(out);
+  return encodeCBORMutatorOutput(out);
 }
 
 /** Builds the single-operation edit document one decision asks for. */

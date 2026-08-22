@@ -5,14 +5,19 @@
 //!
 //! Applies one trivial transform — appends the label
 //! `fixture.aggrega-pdk/touched = mutator-rust` to every node in the
-//! [`MutatorGraph`] — and returns one JSON Patch document per node
+//! mutation graph — and returns one JSON Patch document per node
 //! carrying that addition. The host verifies end-to-end that:
 //!
 //!  - The plugin loaded successfully via the Aggrega Wasm loader.
-//!  - Input JSON deserialised to [`MutatorInput`].
+//!  - The canonical CBOR payload decoded to [`MutatorInput`].
 //!  - The transform applied per node.
-//!  - Output JSON serialises to a [`MutatorOutput`] valid against the
-//!    `wasm-mutator-v1alpha1` JSON Schema.
+//!  - The result encoded to a [`MutatorOutput`] valid against the
+//!    `wasm-mutator-v1alpha1` schema.
+//!
+//! The label-transform socket carries canonical CBOR in both directions, so the
+//! export takes and returns bytes. The patch documents the output carries are
+//! JSON, and stay JSON: the socket carries them verbatim and neither side reads
+//! into them.
 
 use aggrega_pdk_rust::{
     encode_descriptor, MutatorInput, MutatorOutput, PluginDescriptor, PluginDescriptorMeta,
@@ -68,8 +73,8 @@ pub fn describe() -> FnResult<String> {
 }
 
 #[plugin_fn]
-pub fn mutate(input: String) -> FnResult<String> {
-    let parsed: MutatorInput = serde_json::from_str(&input)?;
+pub fn mutate(input: Vec<u8>) -> FnResult<Vec<u8>> {
+    let parsed = MutatorInput::decode_cbor(&input)?;
 
     // Attachment inputs arrive alongside the graph. `settings` is a free-form
     // object the host passes through verbatim; the optional "label_value" key
@@ -121,7 +126,7 @@ pub fn mutate(input: String) -> FnResult<String> {
         patches,
         ..Default::default()
     };
-    Ok(serde_json::to_string(&out)?)
+    Ok(out.encode_cbor()?)
 }
 
 #[cfg(test)]

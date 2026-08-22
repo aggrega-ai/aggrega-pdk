@@ -53,8 +53,9 @@
  * which on a governance surface reads as a policy that allowed the build.
  *
  * Entry convention follows the Extism JS PDK: parameterless functions, input read
- * via Host.inputString(), output written via Host.outputString(), exports exposed
- * through module.exports.
+ * from and output written to the host buffers, exports exposed through
+ * module.exports. A role reads and writes text or bytes according to the encoding
+ * its own wire carries.
  */
 
 import {
@@ -111,9 +112,15 @@ function transform_annotations(): void {
   Host.outputString(injections(Host.inputString()));
 }
 
-/** Serves the label-transform role. */
+/**
+ * Serves the label-transform role.
+ *
+ * This role's wire carries the binary encoding in both directions, so the payload
+ * is read and the result written as bytes. The other two roles still carry the
+ * textual encoding; each reads its own payload, so they move independently.
+ */
 function mutate(): void {
-  Host.outputString(changes(Host.inputString()));
+  Host.outputBytes(changes(new Uint8Array(Host.inputBytes())).buffer as ArrayBuffer);
 }
 
 /** Serves both verdict roles. */

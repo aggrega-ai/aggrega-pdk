@@ -131,6 +131,10 @@ func programs[S any](entries []S, read func(S) (path, text string)) []Program {
 
 // decode reads a role payload into its wire type, refusing anything it cannot
 // read rather than proceeding on a zero value.
+//
+// This is the reader for a role whose wire carries the textual encoding. Use
+// decodeCBOR for a role whose wire carries the binary one; that declaration
+// records why there are two.
 func decode[T any](raw []byte, role string) (T, error) {
 	var in T
 	if err := json.Unmarshal(raw, &in); err != nil {
@@ -140,8 +144,42 @@ func decode[T any](raw []byte, role string) (T, error) {
 }
 
 // emit encodes a role's output and hands it to the host.
+//
+// This is the writer for a role whose wire carries the textual encoding; emitCBOR
+// is its counterpart for the binary one.
 func emit(out any, role string) int32 {
 	b, err := json.Marshal(out)
+	if err != nil {
+		return fail(fmt.Errorf("writing the %s result: %w", role, err))
+	}
+	pdk.Output(b)
+	return 0
+}
+
+// decodeCBOR reads a role payload whose wire carries the binary encoding,
+// through the generated codec on the payload type itself.
+//
+// The parameter is the destination rather than a return value because the
+// generated decode is a method on a pointer to the payload type. It refuses
+// anything it cannot read, in the same words decode uses, because it is the same
+// refusal: a role that proceeded on a zero value would evaluate a policy against
+// an empty document and report the result as a decision.
+//
+// There are two readers rather than one because the roles do not all carry the
+// same encoding. They become one when every role's wire has moved.
+func decodeCBOR(in interface{ DecodeCBOR([]byte) error }, raw []byte, role string) error {
+	if err := in.DecodeCBOR(raw); err != nil {
+		return fmt.Errorf("reading the %s payload: %w", role, err)
+	}
+	return nil
+}
+
+// emitCBOR encodes a role's output as the binary encoding, through the generated
+// codec on the output type itself, and hands it to the host.
+func emitCBOR(out interface {
+	EncodeCBOR() ([]byte, error)
+}, role string) int32 {
+	b, err := out.EncodeCBOR()
 	if err != nil {
 		return fail(fmt.Errorf("writing the %s result: %w", role, err))
 	}

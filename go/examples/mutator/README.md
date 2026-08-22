@@ -1,8 +1,14 @@
 # mutator (Go fixture)
 
 A small Go plugin demonstrating the Aggrega mutator socket. The plugin
-reads a `MutatorInput` JSON payload, appends a known label to every
-node, and emits a `MutatorOutput` with one JSON Patch per node.
+reads a `MutatorInput` payload, appends a known label to every node, and
+emits a `MutatorOutput` with one JSON Patch per node.
+
+The socket's wire carries canonical CBOR in both directions, read and
+written through the generated codec on the payload type
+(`in.DecodeCBOR(...)` and `out.EncodeCBOR()`). The patch documents the
+output carries are JSON: the socket carries them verbatim and neither
+side reads into them.
 
 ## Build
 

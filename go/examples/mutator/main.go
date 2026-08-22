@@ -9,10 +9,14 @@
 // that addition. The host can verify end-to-end that:
 //
 //   - The plugin loaded successfully via the Aggrega Wasm loader.
-//   - Input JSON deserialised to MutatorInput.
+//   - The canonical CBOR payload decoded to MutatorInput.
 //   - The transform applied per node.
-//   - Output JSON serialises to a MutatorOutput valid against the
-//     wasm-mutator JSON Schema.
+//   - The result encoded to a MutatorOutput valid against the
+//     wasm-mutator schema.
+//
+// The label-transform socket carries canonical CBOR in both directions. The
+// patch documents the output carries are JSON, and stay JSON: the socket carries
+// them verbatim and neither side reads into them.
 //
 // Build: GOOS=wasip1 GOARCH=wasm go build -buildmode=c-shared -o mutator-go.wasm ./
 package main
@@ -80,8 +84,8 @@ func mutate() int32 {
 	inputBytes := pdk.Input()
 
 	var in aggrega.MutatorInput
-	if err := json.Unmarshal(inputBytes, &in); err != nil {
-		pdk.SetError(fmt.Errorf("mutator-go: unmarshal MutatorInput: %w", err))
+	if err := in.DecodeCBOR(inputBytes); err != nil {
+		pdk.SetError(fmt.Errorf("mutator-go: decode MutatorInput: %w", err))
 		return 1
 	}
 
@@ -126,9 +130,9 @@ func mutate() int32 {
 	}
 
 	out := aggrega.MutatorOutput{Patches: patches}
-	outputBytes, err := json.Marshal(out)
+	outputBytes, err := out.EncodeCBOR()
 	if err != nil {
-		pdk.SetError(fmt.Errorf("mutator-go: marshal MutatorOutput: %w", err))
+		pdk.SetError(fmt.Errorf("mutator-go: encode MutatorOutput: %w", err))
 		return 1
 	}
 

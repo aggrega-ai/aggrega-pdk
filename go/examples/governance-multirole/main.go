@@ -147,12 +147,6 @@ func emitInjections(injections []annotationInjection) {
 
 // --- label-transform role ---
 
-type mutatorInput struct {
-	Graph struct {
-		Nodes map[string]json.RawMessage `json:"nodes"`
-	} `json:"graph"`
-}
-
 // escapePointerToken escapes a JSON Pointer reference token per RFC 6901: "~"
 // becomes "~0" and "/" becomes "~1". Order matters — "~" is escaped first so a
 // "/" rewritten to "~1" is not re-escaped.
@@ -162,11 +156,18 @@ func escapePointerToken(tok string) string {
 	return tok
 }
 
+// mutate serves the label-transform role.
+//
+// This role's payload and result travel as canonical CBOR, decoded and encoded by
+// the generated codec on the shared payload type. The other two roles this guest
+// serves still carry the textual encoding: each export reads its own payload, so
+// they move independently, and the mixed state here is deliberate.
+//
 //go:wasmexport mutate
 func mutate() int32 {
-	var in mutatorInput
-	if err := json.Unmarshal(pdk.Input(), &in); err != nil {
-		pdk.SetError(fmt.Errorf("governance-multirole: unmarshal MutatorInput: %w", err))
+	var in aggrega.MutatorInput
+	if err := in.DecodeCBOR(pdk.Input()); err != nil {
+		pdk.SetError(fmt.Errorf("governance-multirole: decode MutatorInput: %w", err))
 		return 1
 	}
 	nodeIDs := make([]string, 0, len(in.Graph.Nodes))
@@ -182,12 +183,9 @@ func mutate() int32 {
 		patch := fmt.Sprintf(`[{"op":"add","path":%q,"value":%q}]`, path, proofLabelValue)
 		patches = append(patches, json.RawMessage(patch))
 	}
-	out := struct {
-		Patches []json.RawMessage `json:"patches"`
-	}{Patches: patches}
-	b, err := json.Marshal(out)
+	b, err := aggrega.MutatorOutput{Patches: patches}.EncodeCBOR()
 	if err != nil {
-		pdk.SetError(fmt.Errorf("governance-multirole: marshal MutatorOutput: %w", err))
+		pdk.SetError(fmt.Errorf("governance-multirole: encode MutatorOutput: %w", err))
 		return 1
 	}
 	pdk.Output(b)

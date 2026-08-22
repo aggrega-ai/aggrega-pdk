@@ -150,9 +150,9 @@ policy.
 ### A decode is a typed view, not a check
 
 This is the one place a TypeScript adapter needs more care than its Go or Rust
-siblings. The generated `decode…` functions parse the JSON and give it a type;
-they do not validate it, because TypeScript's types are erased before the guest
-runs. A role that skipped the check would read `undefined` where it expected a
+siblings. The generated decode functions — either encoding's — read the payload
+and give it a type; they do not validate it, because TypeScript's types are
+erased before the guest runs. A role that skipped the check would read `undefined` where it expected a
 list, iterate nothing, and emit an empty result — reporting "the policy found
 nothing to say" for a payload it never understood.
 
@@ -195,8 +195,14 @@ with `encode…`; do not hand-write an interface for a payload, because a
 hand-written one is a second copy of the shape and the copy is what goes out of
 step.
 
-The codec also ships CBOR encoders alongside the JSON ones. The governance roles
-are handed JSON, so a governance adapter uses the JSON pair.
+The codec ships two pairs, one per wire encoding, and **which pair a role uses is
+fixed by that role's wire rather than by preference**. The `label-transform` role's
+wire carries canonical CBOR, so `src/labels.ts` reads with
+`decodeCBORMutatorInput` and writes with `encodeCBORMutatorOutput`, and its export
+reads and writes bytes (`Host.inputBytes()` / `Host.outputBytes(...)`). The other
+three roles carry JSON and use the `decode…` / `encode…` pair with the string
+forms. A guest serving several roles is therefore mixed on purpose: each export
+reads its own payload, so the roles move independently.
 
 ## Build
 

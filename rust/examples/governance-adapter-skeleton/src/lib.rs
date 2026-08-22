@@ -128,9 +128,13 @@ pub fn transform_annotations(input: String) -> FnResult<String> {
 }
 
 /// Serves the label-transform role.
+///
+/// This role's wire carries the binary encoding in both directions, so the export
+/// takes and returns bytes. The other two exports still carry the textual
+/// encoding; each reads its own payload, so they move independently.
 #[plugin_fn]
-pub fn mutate(input: String) -> FnResult<String> {
-    Ok(serde_json::to_string(&labels::changes(&input)?)?)
+pub fn mutate(input: Vec<u8>) -> FnResult<Vec<u8>> {
+    Ok(labels::changes(&input)?.encode_cbor()?)
 }
 
 /// Serves both verdict roles.
