@@ -59,6 +59,25 @@
 //! unparseable artifact is compliant on the policy's behalf; surfacing it keeps
 //! the decision with the policy.
 //!
+//! Which rule syntax a policy is written in. Rego is written in two rule
+//! syntaxes, and this engine is configured to accept both, so a policy set
+//! assembled before the current syntax existed evaluates alongside one written
+//! today. Each module chooses for itself: a module in the current syntax
+//! declares `import rego.v1` below its package declaration, and a module in the
+//! older bracketed-head syntax declares nothing.
+//!
+//! A reference example rather than a production engine, and this is where the
+//! difference bites. A module that parses as the current syntax while omitting
+//! the import is read here in the older syntax, and the two can reach opposite
+//! decisions from the same text — a rule body that never holds contributes no
+//! decision under the current syntax and contributes one under the older syntax.
+//! This example does not refuse such a module; it evaluates it. A guest an
+//! operator attaches to a real build should refuse it instead, by name, telling
+//! the author to add `import rego.v1` — the shipped governance guest does
+//! exactly that, and the mechanism is the engine itself: a module written in the
+//! older syntax is recognised by not parsing as the current one, so nothing
+//! about the module's text has to be guessed at.
+//!
 //! Loud failure. When evaluating a rule fails — most commonly because the
 //! policy calls a builtin the embedded engine does not implement — the plugin
 //! returns an error rather than a verdict, exactly as the IR-stage plugin does.
@@ -144,6 +163,10 @@ fn evaluate(raw: &str) -> anyhow::Result<PolicyOutput> {
     let payload: RenderPolicyInput = serde_json::from_str(raw)?;
 
     let mut engine = regorus::Engine::new();
+    // Accept the older rule syntax as well as the current one. The engine builds
+    // a parser per module, so a module declaring `import rego.v1` is still read
+    // in the current syntax whatever the engine-wide default is.
+    engine.set_rego_v0(true);
 
     // Each attached source is a Rego module; content is the raw .rego text.
     for src in &payload.sources {
