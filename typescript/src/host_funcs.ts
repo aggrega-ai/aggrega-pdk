@@ -19,14 +19,16 @@
 
 import {
   decodeCBORParseSourceResponse,
+  decodeCBORSourceFileResponse,
+  decodeCBORSourcePackResponse,
   decodeCLIRunInput,
   decodeFetchExternalInputResponse,
-  decodeSourceFileResponse,
-  decodeSourcePackResponse,
   encodeCBORParseInput,
-  encodeSourceFileRequest,
-  encodeSourcePackRequest,
+  encodeCBORSourceFileRequest,
+  encodeCBORSourcePackRequest,
   type ParseInput,
+  type SourceFileRequest,
+  type SourcePackRequest,
   type SourceProjection,
 } from "@aggrega-ai/aggrega-abi";
 
@@ -37,12 +39,13 @@ declare module "extism:host" {
     aggrega_log(level: I64, message_ptr: I64): void;
     aggrega_emit_warning(code_ptr: I64, message_ptr: I64, path_ptr: I64): void;
     aggrega_fetch_external_input(url_ptr: I64): I64;
+    // Both slots on each of the three payload-carrying callbacks below carry
+    // canonical CBOR. The declaration is a pointer either way, so the shape is
+    // carried by how the memory behind each pointer is allocated and read —
+    // `Memory.fromBuffer` and `readBytes` rather than `Memory.fromString` and
+    // `readString` — and not by these signatures.
     aggrega_pack_source(request_ptr: I64): I64;
     aggrega_read_source_file(request_ptr: I64): I64;
-    // Both slots on this call carry canonical CBOR. The declaration is a pointer
-    // either way, so the shape is carried by how the memory behind each pointer
-    // is allocated and read — `Memory.fromBuffer` and `readBytes` rather than
-    // `Memory.fromString` and `readString` — and not by this signature.
     aggrega_parse_source(request_ptr: I64): I64;
     aggrega_cli_write_stdout(ptr: I64, len: I64): void;
     aggrega_cli_write_stderr(ptr: I64, len: I64): void;
@@ -132,19 +135,58 @@ export function fetchExternalInput(url: string): ArrayBuffer {
  * this call is the guest's request that the host read and pack the chosen
  * selection — the only point at which source bytes cross into the guest.
  *
- * Failure is in-band: the host returns a JSON envelope carrying either a
- * packed source projection or an error message; this wrapper throws an Error
- * carrying that message. Plugin code should treat a pack failure as a render
- * failure to report, not a condition to mask.
+ * Both slots on this call carry canonical CBOR, so the request is allocated as an
+ * opaque byte run rather than as UTF-8 text and the reply is read the same way.
+ * Plugin code calling this wrapper needs no CBOR library and hand-parses nothing.
+ *
+ * Failure is in-band: the host returns an envelope carrying either a packed
+ * source projection or an error message; this wrapper throws an Error carrying
+ * that message. Plugin code should treat a pack failure as a render failure to
+ * report, not a condition to mask.
  */
 export function packSource(op: string, path: string): SourceProjection {
   const { aggrega_pack_source } = Host.getFunctions();
-  const reqMem = Memory.fromString(encodeSourcePackRequest({ op, path }));
+  const reqMem = Memory.fromBuffer(encodePackSourceRequest({ op, path }));
   const offset = aggrega_pack_source(reqMem.offset);
   if (offset === BigInt(0)) {
     throw new Error("aggrega_pack_source: host returned no envelope");
   }
-  const response = decodeSourcePackResponse(Memory.find(offset).readString());
+  return decodePackSourceReply(Memory.find(offset).readBytes());
+}
+
+/**
+ * Builds the request bytes for one `aggrega_pack_source` call.
+ *
+ * The request slot carries canonical CBOR, so the bytes are an opaque byte run
+ * rather than UTF-8 text, and they come from the payload type's own generated
+ * encoder rather than from anything assembled here.
+ *
+ * Split out from `packSource` so the wire is exercisable where the call is not:
+ * the host bindings exist only inside the guest runtime, so a test can reach this
+ * and cannot reach the call.
+ *
+ * Deliberately not re-exported from the package entry point — a plugin author
+ * calls `packSource`.
+ */
+export function encodePackSourceRequest(
+  request: SourcePackRequest,
+): ArrayBuffer {
+  return toExactBuffer(encodeCBORSourcePackRequest(request));
+}
+
+/**
+ * Reads one `aggrega_pack_source` reply and returns the packed source it carries,
+ * throwing the failure it reports.
+ *
+ * The reply slot carries canonical CBOR in both the success and the failure case:
+ * a guest reads one slot and cannot know before decoding which of the two it
+ * holds, so one decode entry point reads both. A reported failure is thrown as a
+ * `HostError` carrying the host's machine-matchable code beside its message; a
+ * reply carrying neither a projection nor a failure is itself an error, so an
+ * empty reply cannot pass as an empty pack.
+ */
+export function decodePackSourceReply(reply: ArrayBuffer): SourceProjection {
+  const response = decodeCBORSourcePackResponse(new Uint8Array(reply));
   if (response.error) {
     throw new HostError(response.error_code ?? "", response.error);
   }
@@ -166,22 +208,62 @@ export function packSource(op: string, path: string): SourceProjection {
  * must inspect a file's content before choosing what to pack reads that file
  * through this call, then issues its `packSource` request.
  *
- * Failure is in-band, matching `packSource`: the host returns a JSON envelope
- * carrying either the file's base64 content or an error message; this wrapper
- * throws an Error carrying that message.
+ * Both slots carry canonical CBOR, on the same terms as `packSource`.
+ *
+ * Failure is in-band, matching `packSource`: the host returns an envelope
+ * carrying either the file's content or an error message; this wrapper throws an
+ * Error carrying that message.
  */
 export function readSourceFile(path: string): ArrayBuffer {
   const { aggrega_read_source_file } = Host.getFunctions();
-  const reqMem = Memory.fromString(encodeSourceFileRequest({ path }));
+  const reqMem = Memory.fromBuffer(encodeReadSourceFileRequest({ path }));
   const offset = aggrega_read_source_file(reqMem.offset);
   if (offset === BigInt(0)) {
     throw new Error("aggrega_read_source_file: host returned no envelope");
   }
-  const response = decodeSourceFileResponse(Memory.find(offset).readString());
+  return Host.base64ToArrayBuffer(
+    decodeReadSourceFileReply(Memory.find(offset).readBytes()),
+  );
+}
+
+/**
+ * Builds the request bytes for one `aggrega_read_source_file` call.
+ *
+ * The request slot carries canonical CBOR, on the same terms as
+ * `encodePackSourceRequest`, and it is split out from `readSourceFile` for the
+ * same reason.
+ *
+ * Deliberately not re-exported from the package entry point — a plugin author
+ * calls `readSourceFile`.
+ */
+export function encodeReadSourceFileRequest(
+  request: SourceFileRequest,
+): ArrayBuffer {
+  return toExactBuffer(encodeCBORSourceFileRequest(request));
+}
+
+/**
+ * Reads one `aggrega_read_source_file` reply and returns the file's content as
+ * the payload field holds it — base64, matching the textual encoding's own field
+ * type — throwing the failure it reports.
+ *
+ * It returns the field rather than the decoded buffer because base64-decoding is
+ * a guest-runtime capability: keeping that call in `readSourceFile` is what
+ * leaves this function reachable off Wasm, which is the whole point of splitting
+ * it out. The generated decoder re-encodes the raw byte run to base64 on the way
+ * in, so the field this returns is the file's bytes in the payload's own shape.
+ *
+ * Unlike `decodePackSourceReply` this does not treat an absent payload as an
+ * error: an empty file is a legitimate read, and its reply carries no content key
+ * at all because the field is omitted when empty. So a reply with no failure
+ * yields the empty string, which is the empty file.
+ */
+export function decodeReadSourceFileReply(reply: ArrayBuffer): string {
+  const response = decodeCBORSourceFileResponse(new Uint8Array(reply));
   if (response.error) {
     throw new HostError(response.error_code ?? "", response.error);
   }
-  return Host.base64ToArrayBuffer(response.content ?? "");
+  return response.content ?? "";
 }
 
 /**
@@ -242,10 +324,18 @@ export function parseSource(
  * calls `parseSource`.
  */
 export function encodeParseSourceRequest(request: ParseInput): ArrayBuffer {
-  const encoded = encodeCBORParseInput(request);
-  // Copy into an exactly-sized buffer rather than handing over the view's own:
-  // a Uint8Array may be a window onto a larger buffer, and passing that buffer
-  // would hand the host bytes outside the payload.
+  return toExactBuffer(encodeCBORParseInput(request));
+}
+
+/**
+ * Copies an encoder's output into an exactly-sized buffer rather than handing
+ * over the view's own: a Uint8Array may be a window onto a larger buffer, and
+ * passing that buffer would hand the host bytes outside the payload.
+ *
+ * One copy of this shared by every request builder on this wire, so the three
+ * cannot drift on the one thing that decides how many bytes the host reads.
+ */
+function toExactBuffer(encoded: Uint8Array): ArrayBuffer {
   const out = new ArrayBuffer(encoded.byteLength);
   new Uint8Array(out).set(encoded);
   return out;

@@ -26,12 +26,13 @@ extern "ExtismHost" {
     fn aggrega_log(level: u64, message: String);
     fn aggrega_emit_warning(code: String, message: String, path: String);
     fn aggrega_fetch_external_input(url: String) -> String;
-    fn aggrega_pack_source(request: String) -> String;
-    fn aggrega_read_source_file(request: String) -> String;
-    // Both slots on this call carry canonical CBOR, so each is declared as an
-    // opaque byte run rather than as UTF-8 text. The declared type is the
-    // contract here, not a formatting choice: `String` would put the request
-    // through a text conversion that binary bytes do not survive.
+    // Both slots on each of the three payload-carrying callbacks below carry
+    // canonical CBOR, so each is declared as an opaque byte run rather than as
+    // UTF-8 text. The declared type is the contract here, not a formatting
+    // choice: `String` would put the request through a text conversion that
+    // binary bytes do not survive.
+    fn aggrega_pack_source(request: Vec<u8>) -> Vec<u8>;
+    fn aggrega_read_source_file(request: Vec<u8>) -> Vec<u8>;
     fn aggrega_parse_source(request: Vec<u8>) -> Vec<u8>;
 }
 
@@ -157,17 +158,49 @@ pub fn fetch_external_input(url: &str) -> Result<Vec<u8>, Error> {
 /// this call is the guest's request that the host read and pack the chosen
 /// selection — the only point at which source bytes cross into the guest.
 ///
+/// Both slots on this call carry canonical CBOR, so the request travels as an
+/// opaque byte run rather than as UTF-8 text and the reply is read the same way.
+/// Plugin code calling this wrapper needs no CBOR library and hand-parses
+/// nothing.
+///
 /// Failure is in-band: the host returns an error envelope rather than trapping,
 /// and this wrapper surfaces it as the returned error. Plugin code should treat
 /// a pack failure as a render failure to report, not a condition to mask.
 pub fn pack_source(op: &str, path: &str) -> Result<SourceProjection, Error> {
-    let request = serde_json::to_string(&SourcePackRequest {
+    let request = encode_pack_source_request(op, path)?;
+    let raw = unsafe { aggrega_pack_source(request)? };
+    decode_pack_source_reply(&raw)
+}
+
+/// Builds the request bytes for one `aggrega_pack_source` call.
+///
+/// The request slot carries canonical CBOR, so the bytes are an opaque byte run
+/// rather than UTF-8 text, and they come from the payload type's own generated
+/// encoder rather than from anything assembled here.
+///
+/// Split out from [`pack_source`] so the wire is exercisable where the call is
+/// not: the host import only a running host resolves, so a test off Wasm can
+/// reach this and cannot reach the call.
+fn encode_pack_source_request(op: &str, path: &str) -> Result<Vec<u8>, Error> {
+    SourcePackRequest {
         op: op.to_string(),
         path: path.to_string(),
-    })
-    .map_err(|e| Error::msg(format!("aggrega_pack_source: encode request: {e}")))?;
-    let raw = unsafe { aggrega_pack_source(request)? };
-    let response: SourcePackResponse = serde_json::from_str(&raw)
+    }
+    .encode_cbor()
+    .map_err(|e| Error::msg(format!("aggrega_pack_source: encode request: {e}")))
+}
+
+/// Reads one `aggrega_pack_source` reply and returns the packed source it
+/// carries, or the failure it reports.
+///
+/// The reply slot carries canonical CBOR in both the success and the failure
+/// case: a guest reads one slot and cannot know before decoding which of the two
+/// it holds, so one decoder reads both. A reported failure surfaces as a
+/// [`HostError`] carrying the host's machine-matchable code beside its message; a
+/// reply carrying neither a projection nor a failure is itself an error, so an
+/// empty reply cannot pass as an empty pack.
+fn decode_pack_source_reply(reply: &[u8]) -> Result<SourceProjection, Error> {
+    let response = SourcePackResponse::decode_cbor(reply)
         .map_err(|e| Error::msg(format!("aggrega_pack_source: decode response: {e}")))?;
     if !response.error.is_empty() {
         return Err(Error::new(HostError {
@@ -192,16 +225,44 @@ pub fn pack_source(op: &str, path: &str) -> Result<SourceProjection, Error> {
 /// must inspect a file's content before choosing what to pack reads that file
 /// through this call, then issues its [`pack_source`] request.
 ///
+/// Both slots carry canonical CBOR, on the same terms as [`pack_source`].
+///
 /// Failure is in-band, matching [`pack_source`]: the host returns an error
 /// envelope rather than trapping, and this wrapper surfaces it as the returned
 /// error.
 pub fn read_source_file(path: &str) -> Result<Vec<u8>, Error> {
-    let request = serde_json::to_string(&SourceFileRequest {
-        path: path.to_string(),
-    })
-    .map_err(|e| Error::msg(format!("aggrega_read_source_file: encode request: {e}")))?;
+    let request = encode_read_source_file_request(path)?;
     let raw = unsafe { aggrega_read_source_file(request)? };
-    let response: SourceFileResponse = serde_json::from_str(&raw)
+    decode_read_source_file_reply(&raw)
+}
+
+/// Builds the request bytes for one `aggrega_read_source_file` call.
+///
+/// The request slot carries canonical CBOR, on the same terms as
+/// [`encode_pack_source_request`], and it is split out from
+/// [`read_source_file`] for the same reason.
+fn encode_read_source_file_request(path: &str) -> Result<Vec<u8>, Error> {
+    SourceFileRequest {
+        path: path.to_string(),
+    }
+    .encode_cbor()
+    .map_err(|e| Error::msg(format!("aggrega_read_source_file: encode request: {e}")))
+}
+
+/// Reads one `aggrega_read_source_file` reply and returns the file's bytes, or
+/// the failure it reports.
+///
+/// The payload type's `content` field holds base64 in this crate, matching the
+/// textual encoding's own field type, and the generated decoder re-encodes the
+/// raw byte run to base64 on the way in — so the base64 step here is still the
+/// one that yields the file's actual bytes.
+///
+/// Unlike [`decode_pack_source_reply`] this does not treat an absent payload as
+/// an error: an empty file is a legitimate read, and its reply carries no content
+/// key at all because the field is omitted when empty. So a reply with no failure
+/// yields an empty vector, which is the file's actual content.
+fn decode_read_source_file_reply(reply: &[u8]) -> Result<Vec<u8>, Error> {
+    let response = SourceFileResponse::decode_cbor(reply)
         .map_err(|e| Error::msg(format!("aggrega_read_source_file: decode response: {e}")))?;
     if !response.error.is_empty() {
         return Err(Error::new(HostError {
@@ -342,20 +403,25 @@ pub fn cli_args() -> Result<Vec<String>, Error> {
 
 #[cfg(test)]
 mod tests {
-    //! Wire tests for the `aggrega_parse_source` call, driven against the shared
-    //! payload vectors the ABI crate publishes rather than against bytes produced
-    //! here. That is what makes them discriminating: a kit that built its request
+    //! Wire tests for the three payload-carrying callbacks —
+    //! `aggrega_pack_source`, `aggrega_read_source_file` and
+    //! `aggrega_parse_source` — driven against the shared payload vectors the ABI
+    //! crate publishes rather than against bytes produced here. That is what makes them discriminating: a kit that built its request
     //! with the wrong encoder, or read its reply with the wrong decoder, produces
     //! bytes that do not match a vector an independent instrument has already
     //! anchored — whereas a kit checked only against its own output round-trips
     //! cleanly however wrong both halves are, because the same mistake is on both
     //! sides.
     //!
-    //! The tests exercise the two wire functions and never the host call itself:
-    //! the call's import is resolved only by a running host, so a test off Wasm
-    //! that reached it would not link.
+    //! The tests exercise the wire functions and never the host calls themselves:
+    //! each call's import is resolved only by a running host, so a test off Wasm
+    //! that reached one would not link.
 
-    use super::{decode_parse_source_reply, encode_parse_source_request, HostError};
+    use super::{
+        decode_pack_source_reply, decode_parse_source_reply, decode_read_source_file_reply,
+        encode_pack_source_request, encode_parse_source_request, encode_read_source_file_request,
+        HostError,
+    };
     use base64::Engine as _;
     use std::path::PathBuf;
 
@@ -504,6 +570,238 @@ mod tests {
     fn decode_reply_empty_envelope_is_an_error() {
         // a0: map, 0 pairs — every field omitted.
         assert!(decode_parse_source_reply(&[0xa0]).is_err());
+    }
+
+    /// The pack-source request the kit builds is byte-identical to the shared
+    /// `SourcePackRequest` vector, for the very field values that vector's
+    /// companion document declares. A kit still building a text request fails
+    /// here, because a text document and the canonical binary encoding of the same
+    /// value are different bytes.
+    #[test]
+    fn encode_pack_source_request_matches_shared_vector() {
+        let golden: serde_json::Value =
+            serde_json::from_str(&read_vector("SourcePackRequest.golden.json"))
+                .expect("SourcePackRequest.golden.json is readable as JSON");
+        let op = golden["op"].as_str().expect("golden carries an op");
+        let path = golden["path"].as_str().expect("golden carries a path");
+
+        let got = encode_pack_source_request(op, path).expect("encode_pack_source_request");
+        let want = read_hex_vector("SourcePackRequest.cbor.hex");
+        assert_eq!(
+            hex(&got),
+            hex(&want),
+            "request bytes do not match the shared SourcePackRequest vector"
+        );
+    }
+
+    /// The content-read sibling of the pack-source request assertion.
+    #[test]
+    fn encode_read_source_file_request_matches_shared_vector() {
+        let golden: serde_json::Value =
+            serde_json::from_str(&read_vector("SourceFileRequest.golden.json"))
+                .expect("SourceFileRequest.golden.json is readable as JSON");
+        let path = golden["path"].as_str().expect("golden carries a path");
+
+        let got = encode_read_source_file_request(path).expect("encode_read_source_file_request");
+        let want = read_hex_vector("SourceFileRequest.cbor.hex");
+        assert_eq!(
+            hex(&got),
+            hex(&want),
+            "request bytes do not match the shared SourceFileRequest vector"
+        );
+    }
+
+    /// The kit reads the pack-source success shape out of the shared vector — the
+    /// shape every production provider guest takes, and the only one carrying the
+    /// packed files.
+    ///
+    /// This vector carries the projection with both failure fields omitted; the
+    /// failure test below carries the failure fields with the projection omitted.
+    /// Both directions are asserted because each hides the other's defect: a
+    /// decoder that only reads the failure fields passes any test built from
+    /// failure replies alone, and one that only reads the projection passes any
+    /// test built from success replies alone.
+    #[test]
+    fn decode_pack_source_reply_success_from_shared_vector() {
+        let golden: serde_json::Value =
+            serde_json::from_str(&read_vector("SourcePackResponse.golden.json"))
+                .expect("SourcePackResponse.golden.json is readable as JSON");
+        let want_files = golden["source_projection"]["files"]
+            .as_array()
+            .expect("golden carries a files array");
+
+        let projection = decode_pack_source_reply(&read_hex_vector("SourcePackResponse.cbor.hex"))
+            .expect("decode_pack_source_reply on the success shape");
+        assert_eq!(
+            projection.files.len(),
+            want_files.len(),
+            "decoded file count does not match the vector"
+        );
+        for (i, want) in want_files.iter().enumerate() {
+            let want_path = want["path"].as_str().expect("vector file carries a path");
+            // The companion document carries each file's content base64, which is
+            // the shape the payload type's own field holds in this crate.
+            let want_content = want["content"]
+                .as_str()
+                .expect("vector file carries content");
+            assert_eq!(projection.files[i].path, want_path, "file {i} path");
+            assert_eq!(
+                projection.files[i].content, want_content,
+                "file {i} content"
+            );
+        }
+    }
+
+    /// The kit reads a reported pack-source failure out of the shared error
+    /// envelope vector and surfaces it as a `HostError` carrying both the
+    /// machine-matchable code and the message.
+    #[test]
+    fn decode_pack_source_reply_failure_from_shared_vector() {
+        let golden: serde_json::Value =
+            serde_json::from_str(&read_vector("ErrorEnvelopeSourcePackResponse.golden.json"))
+                .expect("ErrorEnvelopeSourcePackResponse.golden.json is readable as JSON");
+        let want_message = golden["error"].as_str().expect("golden carries an error");
+        let want_code = golden["error_code"]
+            .as_str()
+            .expect("golden carries an error_code");
+
+        let err =
+            decode_pack_source_reply(&read_hex_vector("ErrorEnvelopeSourcePackResponse.cbor.hex"))
+                .expect_err("a failure reply must not decode as a success");
+        let host_err = err
+            .downcast_ref::<HostError>()
+            .expect("the failure surfaces as a HostError");
+        assert_eq!(host_err.code, want_code);
+        assert_eq!(host_err.message, want_message);
+    }
+
+    /// The kit reads the file's bytes out of the shared `SourceFileResponse`
+    /// vector, whose companion document carries them base64.
+    #[test]
+    fn decode_read_source_file_reply_success_from_shared_vector() {
+        let golden: serde_json::Value =
+            serde_json::from_str(&read_vector("SourceFileResponse.golden.json"))
+                .expect("SourceFileResponse.golden.json is readable as JSON");
+        let want = base64::engine::general_purpose::STANDARD
+            .decode(golden["content"].as_str().expect("golden carries content"))
+            .expect("golden content is base64");
+
+        let got = decode_read_source_file_reply(&read_hex_vector("SourceFileResponse.cbor.hex"))
+            .expect("decode_read_source_file_reply on the success shape");
+        assert_eq!(hex(&got), hex(&want), "content does not match the vector");
+    }
+
+    /// The content-read failure shape surfaces as a `HostError` — the other
+    /// direction of the omission property from the success vector above.
+    #[test]
+    fn decode_read_source_file_reply_failure_from_shared_vector() {
+        let golden: serde_json::Value =
+            serde_json::from_str(&read_vector("ErrorEnvelopeSourceFileResponse.golden.json"))
+                .expect("ErrorEnvelopeSourceFileResponse.golden.json is readable as JSON");
+        let want_message = golden["error"].as_str().expect("golden carries an error");
+        let want_code = golden["error_code"]
+            .as_str()
+            .expect("golden carries an error_code");
+
+        let err = decode_read_source_file_reply(&read_hex_vector(
+            "ErrorEnvelopeSourceFileResponse.cbor.hex",
+        ))
+        .expect_err("a failure reply must not decode as a success");
+        let host_err = err
+            .downcast_ref::<HostError>()
+            .expect("the failure surfaces as a HostError");
+        assert_eq!(host_err.code, want_code);
+        assert_eq!(host_err.message, want_message);
+    }
+
+    /// Neither source reply decoder is silently tolerant of a textual reply.
+    /// Without this, a host left on the other encoding would be reported as some
+    /// downstream shape error rather than as an undecodable reply, and the two are
+    /// not the same diagnosis.
+    #[test]
+    fn decode_source_replies_refuse_the_other_encoding() {
+        assert!(
+            decode_pack_source_reply(br#"{"source_projection":{"files":[]}}"#).is_err(),
+            "a textual pack-source reply decoded without error"
+        );
+        assert!(
+            decode_read_source_file_reply(br#"{"content":"aGk="}"#).is_err(),
+            "a textual read-source-file reply decoded without error"
+        );
+    }
+
+    /// A pack-source envelope carrying neither a projection nor a failure is
+    /// reported rather than passing as an empty pack, so "the host said nothing"
+    /// and "the selection matched nothing" stay distinguishable.
+    #[test]
+    fn decode_pack_source_reply_empty_envelope_is_an_error() {
+        // a0: map, 0 pairs — every field omitted.
+        assert!(decode_pack_source_reply(&[0xa0]).is_err());
+    }
+
+    /// The deliberate asymmetry with the pack-source decoder: an empty content
+    /// field is a legitimate read of an empty file, and the field is omitted when
+    /// empty, so a reply with no failure and no content yields empty bytes rather
+    /// than an error.
+    ///
+    /// Worth pinning rather than inferring: making this an error would refuse
+    /// every empty file in an acquired source, and making the pack-source case
+    /// lenient would let a silent host produce an empty pack.
+    #[test]
+    fn decode_read_source_file_reply_empty_envelope_is_the_empty_file() {
+        // a0: map, 0 pairs — every field omitted.
+        let got = decode_read_source_file_reply(&[0xa0])
+            .expect("an empty-content reply reads as the empty file");
+        assert!(got.is_empty(), "content = {got:?}; want the empty file");
+    }
+
+    /// The map head byte of each shared source vector, read from the canonical
+    /// encoding's own rules rather than from the encoder that wrote them. A head
+    /// disagreeing with its body round-trips cleanly through the generator's own
+    /// two halves, so reading the head is what a same-generator comparison cannot
+    /// do.
+    ///
+    /// The heads assert the omission property in both directions at once: a
+    /// success envelope carries only its payload key, and a failure envelope
+    /// carries only the two failure keys.
+    #[test]
+    fn source_vector_heads() {
+        for (vector, want, why) in [
+            (
+                "SourcePackRequest.cbor.hex",
+                0xa2u8,
+                "two required fields: op and path",
+            ),
+            (
+                "SourceFileRequest.cbor.hex",
+                0xa1u8,
+                "one required field: path",
+            ),
+            (
+                "SourcePackResponse.cbor.hex",
+                0xa1u8,
+                "the projection alone; both failure fields omitted",
+            ),
+            (
+                "SourceFileResponse.cbor.hex",
+                0xa1u8,
+                "the content alone; both failure fields omitted",
+            ),
+            (
+                "ErrorEnvelopeSourcePackResponse.cbor.hex",
+                0xa2u8,
+                "message and code; the projection omitted",
+            ),
+            (
+                "ErrorEnvelopeSourceFileResponse.cbor.hex",
+                0xa2u8,
+                "message and code; the content omitted",
+            ),
+        ] {
+            let b = read_hex_vector(vector);
+            assert!(!b.is_empty(), "{vector} is empty");
+            assert_eq!(b[0], want, "{vector} head byte ({why})");
+        }
     }
 
     /// Renders bytes as hex so a mismatch assertion prints something readable
