@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 Cognitio S.r.l.
 
-//! The ir-verdict and render-verdict roles, on one `validate` export.
+//! The ir-verdict and render-verdict roles, one export each.
 //!
-//! One export serves both because the payload identifies itself by shape: the
-//! render-verdict payload carries the rendered output files, the ir-verdict
-//! payload carries the build graph. Reading the shape is what lets this guest
-//! serve both without declaring which role it is attached at — and the role, not
-//! the guest, is what decides which payload arrives.
+//! The two exports share this one implementation because the two payloads carry
+//! the same two members the seam needs. Which of them arrived is the caller's to
+//! say — the export the host dispatched names the role — so each payload is read
+//! as the shape its own role carries rather than guessed at from its content.
 //!
 //! # What arrives
 //!
@@ -61,19 +60,18 @@ pub const COLLECTIONS: [(&str, &str); 3] = [
     (AUDIT_DECISION, SEVERITY_INFO),
 ];
 
-/// What the two verdict payloads have in common once the facet is known: the role
-/// that delivered it and the programs and settings it carried.
-struct Facet {
-    role: &'static str,
+/// What the two verdict payloads have in common once decoded: the programs the
+/// attachment supplied and its settings.
+struct Payload {
     sources: Vec<PolicySource>,
     settings: Option<Box<serde_json::value::RawValue>>,
 }
 
-/// Reads the payload, asks the engine for its verdict decisions, and returns the
-/// verdicts the build reports.
-pub fn verdicts(raw: &str) -> anyhow::Result<PolicyOutput> {
-    let facet = facet(raw)?;
-    let programs: Vec<Program<'_>> = facet
+/// Reads the payload of one verdict role, asks the engine for its verdict
+/// decisions, and returns the verdicts the build reports.
+pub fn verdicts(raw: &str, role: &str) -> anyhow::Result<PolicyOutput> {
+    let payload = read_payload(raw, role)?;
+    let programs: Vec<Program<'_>> = payload
         .sources
         .iter()
         .map(|s| Program {
@@ -81,13 +79,12 @@ pub fn verdicts(raw: &str) -> anyhow::Result<PolicyOutput> {
             text: &s.content,
         })
         .collect();
-    let settings = facet.settings.as_ref().map(|s| s.get());
+    let settings = payload.settings.as_ref().map(|s| s.get());
 
     let mut results = Vec::new();
     for (decision, severity) in COLLECTIONS {
-        let reached = evaluator::evaluate(&programs, settings, raw, decision).map_err(|err| {
-            anyhow::anyhow!("evaluating the {} policy: {err}", facet.role)
-        })?;
+        let reached = evaluator::evaluate(&programs, settings, raw, decision)
+            .map_err(|err| anyhow::anyhow!("evaluating the {role} policy: {err}"))?;
         for value in &reached {
             let message: String = serde_json::from_str(value.get()).map_err(|err| {
                 anyhow::anyhow!(
@@ -109,20 +106,18 @@ pub fn verdicts(raw: &str) -> anyhow::Result<PolicyOutput> {
     })
 }
 
-/// Reads the payload and reports which verdict role delivered it.
+/// Reads one verdict role's payload.
 ///
-/// Which facet arrived is read from the payload rather than assumed, so a payload
-/// this guest cannot read is refused instead of being evaluated as the other facet
-/// and quietly finding nothing.
-fn facet(raw: &str) -> anyhow::Result<Facet> {
-    let probe: serde_json::Value = serde_json::from_str(raw)
-        .map_err(|err| anyhow::anyhow!("reading the verdict payload: {err}"))?;
-
-    if probe.get("artifacts").is_some() {
+/// The two roles carry different payloads and the same two members out of them,
+/// which is why one reader serves both. Which payload to expect is the caller's to
+/// say, so this reads the shape it was told to and nothing else: a payload that
+/// does not read that way is refused rather than tried again as the other role's
+/// shape and quietly found to contain nothing.
+fn read_payload(raw: &str, role: &str) -> anyhow::Result<Payload> {
+    if role == "render-verdict" {
         let input: RenderPolicyInput = serde_json::from_str(raw)
             .map_err(|err| anyhow::anyhow!("reading the render-verdict payload: {err}"))?;
-        return Ok(Facet {
-            role: "render-verdict",
+        return Ok(Payload {
             sources: input.sources,
             settings: input.settings,
         });
@@ -130,8 +125,7 @@ fn facet(raw: &str) -> anyhow::Result<Facet> {
 
     let input: PolicyInput = serde_json::from_str(raw)
         .map_err(|err| anyhow::anyhow!("reading the ir-verdict payload: {err}"))?;
-    Ok(Facet {
-        role: "ir-verdict",
+    Ok(Payload {
         sources: input.sources,
         settings: input.settings,
     })

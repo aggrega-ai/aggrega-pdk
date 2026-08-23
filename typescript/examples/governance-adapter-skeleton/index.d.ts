@@ -13,5 +13,6 @@ declare module "main" {
   export function describe(): I32;
   export function transform_annotations(): I32;
   export function mutate(): I32;
-  export function validate(): I32;
+  export function verdict_ir(): I32;
+  export function verdict_render(): I32;
 }

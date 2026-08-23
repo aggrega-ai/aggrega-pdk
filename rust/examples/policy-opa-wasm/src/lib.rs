@@ -12,7 +12,7 @@
 //! its builtin callbacks) with in-guest host functions, runs the OPA
 //! evaluation sequence, and maps the OPA decision back to the verdict shape the
 //! policy socket expects. The OPA Wasm ABI is absorbed entirely here: the
-//! compiler host sees only the standard `describe()` / `validate()` surface and
+//! compiler host sees only the standard `describe()` / `verdict_ir()` surface and
 //! carries no OPA-specific logic.
 //!
 //! Baking the policy ahead of time keeps evaluation self-contained: no OPA
@@ -62,7 +62,7 @@ use wasmi::{Caller, Engine, Linker, Memory, MemoryType, Module, Store};
 static POLICY_WASM: &[u8] = include_bytes!("../policy.wasm");
 
 /// The static `describe()` self-report: a v1alpha1 `policy` plugin
-/// evaluating the ir stage, whose `validate` export the host validates before
+/// evaluating the ir stage, whose `verdict_ir` export the host validates before
 /// dispatch.
 fn descriptor() -> PluginDescriptor {
     PluginDescriptor {
@@ -72,7 +72,7 @@ fn descriptor() -> PluginDescriptor {
             "Evaluate an OPA-compiled Rego policy against the build graph, driving the baked policy module in-guest."
                 .to_string(),
         exports: vec![PluginExport {
-            name: "validate".to_string(),
+            name: "verdict_ir".to_string(),
             ..Default::default()
         }],
         metadata: Some(Box::new(PluginDescriptorMeta {
@@ -85,17 +85,17 @@ fn descriptor() -> PluginDescriptor {
 }
 
 /// The host calls `describe()` once at load to read the plugin's static
-/// self-report before dispatching `validate`.
+/// self-report before dispatching `verdict_ir`.
 #[plugin_fn]
 pub fn describe() -> FnResult<String> {
     Ok(encode_descriptor(&descriptor()))
 }
 
-/// The host calls `validate(input)` with the policy payload as a JSON string
+/// The host calls `verdict_ir(input)` with the policy payload as a JSON string
 /// and reads back the fired verdicts. A drive or evaluation failure propagates
 /// as an error, which the host surfaces as a build fault naming this call.
 #[plugin_fn]
-pub fn validate(input: String) -> FnResult<String> {
+pub fn verdict_ir(input: String) -> FnResult<String> {
     let results = evaluate(&input)?;
     Ok(serde_json::to_string(&PolicyOutput {
         results,
@@ -105,7 +105,7 @@ pub fn validate(input: String) -> FnResult<String> {
 
 /// ExternalBuiltinInvoked reports a baked policy reaching for a host-provided
 /// OPA builtin the adapter does not implement. It surfaces as a Wasm trap that
-/// propagates out of `validate` as a build fault, never as an allow verdict.
+/// propagates out of `verdict_ir` as a build fault, never as an allow verdict.
 #[derive(Debug)]
 struct ExternalBuiltinInvoked {
     id: i32,

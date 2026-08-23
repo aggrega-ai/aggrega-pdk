@@ -21,7 +21,7 @@ crate-type = ["cdylib"]
 path = "src/lib.rs"
 
 [dependencies]
-# The plugin ABI surface: the describe()/validate() export macros and the
+# The plugin ABI surface: the describe()/verdict_ir() export macros and the
 # policy wire types. Reusing the PDK's PolicyResult /
 # PolicyOutput single-sources the output shape with every other
 # policy guest rather than restating the wire contract locally.

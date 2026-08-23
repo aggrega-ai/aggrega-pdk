@@ -2,13 +2,12 @@
 // Copyright 2026 Cognitio S.r.l.
 
 /**
- * The ir-verdict and render-verdict roles, on one `validate` export.
+ * The ir-verdict and render-verdict roles, one export each.
  *
- * One export serves both because the payload identifies itself by shape: the
- * render-verdict payload carries the rendered output files, the ir-verdict
- * payload carries the build graph. Reading the shape is what lets this guest
- * serve both without declaring which role it is attached at — and the role, not
- * the guest, is what decides which payload arrives.
+ * The two exports share this one implementation because the two payloads carry
+ * the same two members the seam needs. Which of them arrived is the caller's to
+ * say — the export the host dispatched names the role — so each payload is read
+ * as the shape its own role carries rather than guessed at from its content.
  *
  * What arrives at the ir-verdict role: the build graph, and the routing paths
  * enumerated alongside it so a policy can reason about what reaches what without
@@ -67,26 +66,28 @@ export const COLLECTIONS: ReadonlyArray<readonly [string, string]> = [
 ];
 
 /**
- * What the two verdict payloads have in common once the facet is known: the role
- * that delivered it and the programs and settings it carried.
+ * What the two verdict payloads have in common once decoded: the programs the
+ * attachment supplied and its settings.
  */
-interface Facet {
-  role: string;
+interface Payload {
   sources: PolicySource[];
   settings: unknown;
 }
 
-/** Reads the payload and returns the verdicts the build reports, encoded. */
-export function verdicts(raw: string): string {
-  const facet = readFacet(raw);
-  const programs: Program[] = facet.sources.map((s) => ({
+/**
+ * Reads one verdict role's payload and returns the verdicts the build reports,
+ * encoded.
+ */
+export function verdicts(raw: string, role: string): string {
+  const payload = readPayload(raw, role);
+  const programs: Program[] = payload.sources.map((s) => ({
     path: s.path,
     text: s.content,
   }));
 
   const results: Diagnostic[] = [];
   for (const [decision, severity] of COLLECTIONS) {
-    for (const value of evaluate(programs, facet.settings, raw, decision)) {
+    for (const value of evaluate(programs, payload.settings, raw, decision)) {
       if (typeof value !== "string") {
         throw new Error(
           `a decision collected under "${decision}" is not a message. ` +
@@ -102,21 +103,19 @@ export function verdicts(raw: string): string {
 }
 
 /**
- * Reads the payload and reports which verdict role delivered it.
+ * Reads one verdict role's payload.
  *
- * Which facet arrived is read from the payload rather than assumed, so a payload
- * this guest cannot read is refused instead of being evaluated as the other facet
- * and quietly finding nothing.
+ * The two roles carry different payloads and the same two members out of them,
+ * which is why one reader serves both. Which payload to expect is the caller's to
+ * say, so this reads the shape it was told to and nothing else: a payload that
+ * does not read that way is refused rather than tried again as the other role's
+ * shape and quietly found to contain nothing.
  */
-function readFacet(raw: string): Facet {
-  const probe: unknown = JSON.parse(raw);
-  expectObject(probe, "the payload", "verdict");
-
-  if ("artifacts" in (probe as Record<string, unknown>)) {
+function readPayload(raw: string, role: string): Payload {
+  if (role === "render-verdict") {
     const input = decodeRenderPolicyInput(raw);
     expectList(input.artifacts, "artifacts", "render-verdict");
     return {
-      role: "render-verdict",
       sources: input.sources ?? [],
       settings: input.settings,
     };
@@ -126,7 +125,6 @@ function readFacet(raw: string): Facet {
   expectObject(input.graph, "graph", "ir-verdict");
   expectList(input.precalculated_paths, "precalculated_paths", "ir-verdict");
   return {
-    role: "ir-verdict",
     sources: input.sources ?? [],
     settings: input.settings,
   };

@@ -45,7 +45,7 @@ sees the same `ValidationRequest` a real Kubewarden host would deliver. They are
 reproduced locally rather than pulled from the SDK crate because the SDK depends
 on `wapc-guest`, whose unconditional `#[no_mangle] __guest_call` export forces a
 `wapc` host-module import — the waPC guest ABI — that this runtime's plugin
-loader does not host. The guest's sole export is its own Aggrega `validate`; the
+loader does not host. The guest's sole export is its own Aggrega `verdict_render`; the
 Kubewarden policy is called as an ordinary in-guest Rust function,
 `evaluate(ValidationRequest) -> ValidationResponse`.
 
@@ -54,8 +54,8 @@ Kubewarden policy is called as an ordinary in-guest Rust function,
 The plugin exports the two functions a verdict-role governance plugin declares:
 
 - `describe()` — reports itself as a `governance` plugin, ABI `v1alpha1`,
-  serving the `render-verdict` role, exporting `validate`.
-- `validate(input)` — receives the render-stage payload (the rendered
+  serving the `render-verdict` role, exporting `verdict_render`.
+- `verdict_render(input)` — receives the render-stage payload (the rendered
   artifacts, plus the attachment's sources and settings), runs the policy over
   each rendered Kubernetes object, and returns the fired verdicts.
 

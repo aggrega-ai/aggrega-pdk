@@ -30,12 +30,13 @@ payload arrives and what the guest may emit.
 | --- | --- | --- | --- |
 | `annotation-transform` | `transform_annotations` | the components that may be annotated, plus the annotation keys the deployment has registered a meaning for | annotations to add to components that already exist |
 | `label-transform` | `mutate` | the build's nodes with the labels they currently carry, plus the deployment's name and environment | label changes, one per decision |
-| `ir-verdict` | `validate` | the build graph, plus the routing paths enumerated alongside it | verdicts |
-| `render-verdict` | `validate` | the rendered output files, each with its text and, where the host parsed it, a structured view of its content | verdicts |
+| `ir-verdict` | `verdict_ir` | the build graph, plus the routing paths enumerated alongside it | verdicts |
+| `render-verdict` | `verdict_render` | the rendered output files, each with its text and, where the host parsed it, a structured view of its content | verdicts |
 
-One `validate` export serves both verdict roles: the two payloads identify
-themselves by shape, so the guest reads what it was handed rather than declaring
-which role it expects.
+Each verdict role has its own export, so the export you name is what says which
+role the guest is serving and which payload it is reading. The two verdict
+exports share one implementation, because both verdict payloads carry the same
+two things the engine needs: the attachment's programs and its settings.
 
 The two transform roles change the build; the two verdict roles report an outcome
 and the build never applies their output as a change. An operator who attaches a
@@ -201,10 +202,10 @@ aggrega plugin run-local --plugin dist/governance-adapter-skeleton-go.wasm \
   --type governance --export mutate --with @label-payload.json
 
 aggrega plugin run-local --plugin dist/governance-adapter-skeleton-go.wasm \
-  --type governance --export validate --with @ir-verdict-payload.json
+  --type governance --export verdict_ir --with @ir-verdict-payload.json
 
 aggrega plugin run-local --plugin dist/governance-adapter-skeleton-go.wasm \
-  --type governance --export validate --with @render-verdict-payload.json
+  --type governance --export verdict_render --with @render-verdict-payload.json
 ```
 
 The response reaches you exactly as the guest emitted it, and the wire an export

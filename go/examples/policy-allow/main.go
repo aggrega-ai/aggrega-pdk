@@ -9,7 +9,7 @@
 // policy fixture, whose halt verdict proves the build-halt path.
 //
 // It self-describes via describe() as a policy plugin whose
-// validate export the host validates before dispatch.
+// verdict_ir export the host validates before dispatch.
 //
 // Build: GOOS=wasip1 GOARCH=wasm go build -buildmode=c-shared -o policy-allow-go.wasm ./
 package main
@@ -27,13 +27,13 @@ import (
 const fixtureOutput = `{"results":[]}`
 
 // descriptor is the static describe() self-report: a v1alpha1 policy plugin
-// evaluating the ir stage, whose validate export the host validates before
+// evaluating the ir stage, whose verdict_ir export the host validates before
 // dispatch.
 func descriptor() aggrega.PluginDescriptor {
 	return aggrega.PluginDescriptor{
 		AbiVersion: aggrega.APIVersion,
 		PluginType: "governance",
-		Exports:    []aggrega.PluginExport{{Name: "validate"}},
+		Exports:    []aggrega.PluginExport{{Name: "verdict_ir"}},
 		Metadata:   &aggrega.PluginDescriptorMeta{Author: "aggrega", License: "Apache-2.0"},
 	}
 }
@@ -49,8 +49,8 @@ func describe() int32 {
 	return 0
 }
 
-//go:wasmexport validate
-func validate() int32 {
+//go:wasmexport verdict_ir
+func verdict_ir() int32 {
 	pdk.OutputString(fixtureOutput)
 	return 0
 }

@@ -6,12 +6,12 @@
 //! This example demonstrates a plugin that types its attachment settings. Its
 //! `describe()` self-report carries a `settings_schema` — a JSON Schema the host
 //! compiles at load and validates the operator's `with.settings` against before
-//! dispatching `validate`. The schema requires an integer `max_replicas` of at
+//! dispatching `verdict_ir`. The schema requires an integer `max_replicas` of at
 //! least 1 and forbids unknown keys, so an attachment whose settings omit
 //! `max_replicas`, give it the wrong type, or add an unknown key halts the build
 //! loudly (naming the offending key) before this plugin ever runs.
 //!
-//! Because conformance is enforced by the host ahead of dispatch, `validate`
+//! Because conformance is enforced by the host ahead of dispatch, `verdict_ir`
 //! reads the typed setting directly and emits a single info verdict echoing the
 //! value it read — proof that a conforming setting flowed through to the guest as
 //! the declared type.
@@ -27,7 +27,7 @@ use serde_json::value::RawValue;
 /// The inline JSON Schema that types this plugin's attachment settings. It is
 /// carried verbatim in the descriptor's opaque `settings_schema` field; the host
 /// compiles it at load and validates the attachment's `with.settings` against it
-/// before dispatching `validate`.
+/// before dispatching `verdict_ir`.
 const SETTINGS_SCHEMA: &str = r#"{"type":"object","properties":{"max_replicas":{"type":"integer","minimum":1}},"required":["max_replicas"],"additionalProperties":false}"#;
 
 /// The static `describe()` self-report: a v1alpha1 `policy` plugin
@@ -39,7 +39,7 @@ fn descriptor() -> PluginDescriptor {
         description: "Enforce a typed replica ceiling declared through the attachment settings schema."
             .to_string(),
         exports: vec![PluginExport {
-            name: "validate".to_string(),
+            name: "verdict_ir".to_string(),
             ..Default::default()
         }],
         settings_schema: Some(
@@ -57,21 +57,21 @@ fn descriptor() -> PluginDescriptor {
 
 /// The typed shape of this plugin's attachment settings. The host guarantees the
 /// operator's `with.settings` conforms to the declared `settings_schema` before
-/// `validate` runs, so this deserialization always succeeds for a dispatched call.
+/// `verdict_ir` runs, so this deserialization always succeeds for a dispatched call.
 #[derive(Deserialize)]
 struct Settings {
     max_replicas: i64,
 }
 
 /// The host calls `describe()` once at load to read the plugin's static
-/// self-report — including its settings schema — before dispatching `validate`.
+/// self-report — including its settings schema — before dispatching `verdict_ir`.
 #[plugin_fn]
 pub fn describe() -> FnResult<String> {
     Ok(encode_descriptor(&descriptor()))
 }
 
 #[plugin_fn]
-pub fn validate(input: String) -> FnResult<String> {
+pub fn verdict_ir(input: String) -> FnResult<String> {
     let parsed: PolicyInput = serde_json::from_str(&input)?;
 
     // Settings conformance was enforced by the host against the declared

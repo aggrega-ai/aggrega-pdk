@@ -20,7 +20,7 @@ policy fixture follows the same shape.
 ## Plugin entry shape
 
 The fixture's `src/index.ts` follows the Extism JS PDK CommonJS
-convention: `function validate(): void`, input via `Host.inputString()`
+convention: `function verdict_ir(): void`, input via `Host.inputString()`
 (discarded — the fixture's contract is constant output), output via
 `Host.outputString(...)`, exposed via `module.exports`. The
 `index.d.ts` at this directory's root declares the exported function

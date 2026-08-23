@@ -18,11 +18,11 @@ routes the payload in and the verdicts out.
 The plugin exports the two functions a verdict-role governance plugin declares:
 
 - `describe()` — reports itself as a `governance` plugin, ABI
-  `v1alpha1`, serving the `ir-verdict` role, exporting `validate`.
-- `validate(input)` — evaluates the attached policies against the payload the
+  `v1alpha1`, serving the `ir-verdict` role, exporting `verdict_ir`.
+- `verdict_ir(input)` — evaluates the attached policies against the payload the
   host hands it and returns the fired verdicts.
 
-On every build the governance socket hands `validate` a JSON payload with the IR graph,
+On every build the governance socket hands `verdict_ir` a JSON payload with the IR graph,
 the precalculated routing paths, the policy source files the attachment named,
 and the attachment's free-form settings object.
 
@@ -147,7 +147,7 @@ behind a thin adapter plugin:
    the OPA-built module, sets the input, invokes the evaluation entrypoint, and
    maps the OPA decision back to the `deny` / `warn` / `audit` verdict shape
    the socket expects. The compiler host sees only the standard
-   `describe()` / `validate()` verdict surface; it never learns that
+   `describe()` / `verdict_ir()` verdict surface; it never learns that
    OPA is involved and carries no OPA-specific logic.
 
 The adapter keeps the same host contract as this plugin, so switching a policy

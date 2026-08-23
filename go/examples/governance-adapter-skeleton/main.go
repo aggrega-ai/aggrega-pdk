@@ -21,12 +21,13 @@
 //
 //	annotation-transform  transform_annotations  the components that may be annotated
 //	label-transform       mutate                 the build's nodes and their labels
-//	ir-verdict            validate               the build graph
-//	render-verdict        validate               the rendered output files
+//	ir-verdict            verdict_ir             the build graph
+//	render-verdict        verdict_render         the rendered output files
 //
-// One validate export serves both verdict roles. The two payloads identify
-// themselves by shape, so the guest reads what it was handed rather than
-// declaring which role it expects.
+// Each role has its own export, so the export the host dispatches is what says
+// which role the guest is serving and which payload it is reading. The two
+// verdict exports share one implementation, because the two verdict payloads
+// carry the same two members the seam needs.
 //
 // # The four things an adapter maps
 //
@@ -56,10 +57,10 @@ import (
 
 // descriptor is the self-report the host reads once when it loads the guest.
 //
-// It declares the three exports the four governance roles dispatch to. The host
-// refuses to call an export the guest did not declare, so an export is declared
-// here in the same change that implements it — an attachment pointed at a
-// missing export is then refused by name rather than silently doing nothing.
+// It declares one export per governance role. The host refuses to call an export
+// the guest did not declare, so an export is declared here in the same change
+// that implements it — an attachment pointed at a missing export is then refused
+// by name rather than silently doing nothing.
 //
 // An adapter serving fewer roles declares fewer exports and deletes the role
 // files for the roles it does not serve. It declares no capabilities: a governance plugin is
@@ -77,7 +78,8 @@ func descriptor() aggrega.PluginDescriptor {
 		Exports: []aggrega.PluginExport{
 			{Name: "transform_annotations", Description: "Report the annotations the deployment's components should carry."},
 			{Name: "mutate", Description: "Report the labels the build's nodes should carry."},
-			{Name: "validate", Description: "Report the verdicts the policy reached."},
+			{Name: "verdict_ir", Description: "Report the verdicts the policy reached over the build graph."},
+			{Name: "verdict_render", Description: "Report the verdicts the policy reached over the rendered output."},
 		},
 		Metadata: &aggrega.PluginDescriptorMeta{License: "Apache-2.0"},
 	}

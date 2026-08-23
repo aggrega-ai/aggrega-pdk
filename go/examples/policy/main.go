@@ -6,8 +6,8 @@
 // It offers two policy entry points, so one guest covers both halves of the
 // policy socket's output contract:
 //
-//   - validate emits a deterministic two-verdict PolicyOutput — one halt verdict
-//     and one info verdict — reporting the rules that fired.
+//   - verdict_ir emits a deterministic two-verdict PolicyOutput — one halt
+//     verdict and one info verdict — reporting the rules that fired.
 //   - report_incomplete emits a PolicyOutput carrying no verdicts and an error
 //     message. That is the shape a policy plugin returns when it ran but could
 //     not finish evaluating, and the host reads a present error as a failed
@@ -59,7 +59,7 @@ func descriptor() aggrega.PluginDescriptor {
 		PluginType:  "governance",
 		Description: "Report deterministic halt and info policy verdicts over the build graph.",
 		Exports: []aggrega.PluginExport{
-			{Name: "validate"},
+			{Name: "verdict_ir"},
 			{Name: "report_incomplete"},
 		},
 		Metadata: &aggrega.PluginDescriptorMeta{Author: "aggrega", License: "Apache-2.0"},
@@ -77,8 +77,8 @@ func describe() int32 {
 	return 0
 }
 
-//go:wasmexport validate
-func validate() int32 {
+//go:wasmexport verdict_ir
+func verdict_ir() int32 {
 	pdk.OutputString(fixtureOutput)
 	return 0
 }

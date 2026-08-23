@@ -56,7 +56,7 @@ func descriptor() aggrega.PluginDescriptor {
 		AbiVersion:  aggrega.APIVersion,
 		PluginType:  "governance",
 		Description: "Inspect the parsed HCL tree of the rendered artifacts and emit a verdict on the declared resource types.",
-		Exports:     []aggrega.PluginExport{{Name: "validate"}},
+		Exports:     []aggrega.PluginExport{{Name: "verdict_render"}},
 		Metadata:    &aggrega.PluginDescriptorMeta{Author: "aggrega", License: "Apache-2.0"},
 	}
 }
@@ -97,8 +97,8 @@ func resourceTypes(tree json.RawMessage) []string {
 	return types
 }
 
-//go:wasmexport validate
-func validate() int32 {
+//go:wasmexport verdict_render
+func verdict_render() int32 {
 	var in input
 	_ = json.Unmarshal(pdk.Input(), &in)
 

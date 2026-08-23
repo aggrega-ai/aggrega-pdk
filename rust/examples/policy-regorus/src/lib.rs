@@ -66,7 +66,7 @@ use extism_pdk::{plugin_fn, FnResult};
 use regorus::Value;
 
 /// The static `describe()` self-report: a v1alpha1 `policy` plugin
-/// evaluating the ir stage, whose `validate` export the host validates before
+/// evaluating the ir stage, whose `verdict_ir` export the host validates before
 /// dispatch.
 fn descriptor() -> PluginDescriptor {
     PluginDescriptor {
@@ -76,7 +76,7 @@ fn descriptor() -> PluginDescriptor {
             "Evaluate operator-supplied Rego policies against the build graph with an embedded Rego engine."
                 .to_string(),
         exports: vec![PluginExport {
-            name: "validate".to_string(),
+            name: "verdict_ir".to_string(),
             ..Default::default()
         }],
         metadata: Some(Box::new(PluginDescriptorMeta {
@@ -89,17 +89,17 @@ fn descriptor() -> PluginDescriptor {
 }
 
 /// The host calls `describe()` once at load to read the plugin's static
-/// self-report before dispatching `validate`.
+/// self-report before dispatching `verdict_ir`.
 #[plugin_fn]
 pub fn describe() -> FnResult<String> {
     Ok(encode_descriptor(&descriptor()))
 }
 
-/// The host calls `validate(input)` with the policy payload as a JSON string
+/// The host calls `verdict_ir(input)` with the policy payload as a JSON string
 /// and reads back the fired verdicts. An evaluation failure propagates as an
 /// error, which the host surfaces as a build fault.
 #[plugin_fn]
-pub fn validate(input: String) -> FnResult<String> {
+pub fn verdict_ir(input: String) -> FnResult<String> {
     let out = evaluate(&input)?;
     Ok(serde_json::to_string(&out)?)
 }

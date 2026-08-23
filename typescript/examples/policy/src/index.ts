@@ -20,7 +20,7 @@ import {
 } from "@aggrega-ai/aggrega-pdk-typescript";
 
 // The static describe() self-report: a v1alpha1 policy plugin
-// evaluating the ir stage, whose validate export the host validates before
+// evaluating the ir stage, whose verdict_ir export the host validates before
 // dispatch.
 function descriptor(): PluginDescriptor {
   return {
@@ -28,18 +28,18 @@ function descriptor(): PluginDescriptor {
     plugin_type: "governance",
     description:
       "Report deterministic halt and info policy verdicts over the build graph.",
-    exports: [{ name: "validate" }],
+    exports: [{ name: "verdict_ir" }],
     metadata: { author: "aggrega", license: "Apache-2.0" },
   };
 }
 
 // The host calls describe() once at load to read the plugin's static
-// self-report before dispatching validate.
+// self-report before dispatching verdict_ir.
 function describe(): void {
   Host.outputString(encodeDescriptor(descriptor()));
 }
 
-function validate(): void {
+function verdict_ir(): void {
   // Read input for runtime parity with the other fixtures' shape;
   // the policy fixture's contract is constant output, so
   // the input value is discarded.
@@ -57,4 +57,4 @@ function validate(): void {
   Host.outputString(JSON.stringify(out));
 }
 
-module.exports = { validate, describe };
+module.exports = { verdict_ir, describe };

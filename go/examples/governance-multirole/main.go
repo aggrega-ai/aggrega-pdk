@@ -16,11 +16,12 @@
 //   - ir-verdict / render-verdict: emits a single verdict whose severity is taken
 //     from the attachment's settings (settings.severity), defaulting to info.
 //
-// The verdict export reads only settings.severity, which both the IR and render
-// payloads carry, so one validate export serves both verdict roles; the IR-vs-
-// render facet is fixed by the attachment role, never by the guest.
+// Each verdict role has its own export, and both read only settings.severity,
+// which the IR and render payloads both carry — so the two exports share one
+// implementation, and the export the host dispatches is what says which stage
+// the guest is running at.
 //
-// It self-describes via describe() as a governance plugin declaring all three
+// It self-describes via describe() as a governance plugin declaring all four
 // governance exports; the host validates the export a role requires before it
 // dispatches that role.
 //
@@ -58,8 +59,9 @@ const (
 )
 
 // descriptor is the static describe() self-report: a governance plugin declaring
-// all three governance exports. The host validates the export a role requires
-// (transform_annotations / mutate / validate) before dispatching that role.
+// all four governance exports. The host validates the export a role requires
+// (transform_annotations / mutate / verdict_ir / verdict_render) before
+// dispatching that role.
 func descriptor() aggrega.PluginDescriptor {
 	return aggrega.PluginDescriptor{
 		AbiVersion:  aggrega.APIVersion,
@@ -68,7 +70,8 @@ func descriptor() aggrega.PluginDescriptor {
 		Exports: []aggrega.PluginExport{
 			{Name: "transform_annotations"},
 			{Name: "mutate"},
-			{Name: "validate"},
+			{Name: "verdict_ir"},
+			{Name: "verdict_render"},
 		},
 		Metadata: &aggrega.PluginDescriptorMeta{Author: "aggrega", License: "Apache-2.0"},
 	}
@@ -197,8 +200,8 @@ func mutate() int32 {
 // verdictInput is the narrow projection both verdict payloads share: the
 // attachment settings. The IR payload also carries the graph and precalculated
 // paths, and the render payload the rendered artifacts; this proof reads neither,
-// only the settings-driven severity, so one validate export serves both verdict
-// roles and the role fixes which stage it runs at.
+// only the settings-driven severity, so the two verdict exports share one
+// implementation and the role fixes which stage it runs at.
 type verdictInput struct {
 	Settings struct {
 		Severity string `json:"severity"`
@@ -210,8 +213,23 @@ type verdictResult struct {
 	Message  string `json:"message"`
 }
 
-//go:wasmexport validate
-func validate() int32 {
+// verdict_ir serves the ir-verdict role.
+//
+//go:wasmexport verdict_ir
+func verdict_ir() int32 {
+	return verdict()
+}
+
+// verdict_render serves the render-verdict role.
+//
+//go:wasmexport verdict_render
+func verdict_render() int32 {
+	return verdict()
+}
+
+// verdict is the implementation both verdict exports share. It reads the one
+// field both payloads carry, so neither role needs a reading of its own.
+func verdict() int32 {
 	var in verdictInput
 	_ = json.Unmarshal(pdk.Input(), &in)
 

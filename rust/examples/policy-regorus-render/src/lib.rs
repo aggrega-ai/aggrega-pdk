@@ -113,7 +113,7 @@ use serde::Deserialize;
 use serde_json::json;
 
 /// The static `describe()` self-report: a v1alpha1 `policy` plugin
-/// evaluating the render stage, whose `validate` export the host validates
+/// evaluating the render stage, whose `verdict_render` export the host validates
 /// before dispatch.
 fn descriptor() -> PluginDescriptor {
     PluginDescriptor {
@@ -123,7 +123,7 @@ fn descriptor() -> PluginDescriptor {
             "Evaluate operator-supplied Rego policies against the rendered YAML/JSON output artifacts with an embedded Rego engine."
                 .to_string(),
         exports: vec![PluginExport {
-            name: "validate".to_string(),
+            name: "verdict_render".to_string(),
             ..Default::default()
         }],
         metadata: Some(Box::new(PluginDescriptorMeta {
@@ -136,18 +136,18 @@ fn descriptor() -> PluginDescriptor {
 }
 
 /// The host calls `describe()` once at load to read the plugin's static
-/// self-report before dispatching `validate`.
+/// self-report before dispatching `verdict_render`.
 #[plugin_fn]
 pub fn describe() -> FnResult<String> {
     Ok(encode_descriptor(&descriptor()))
 }
 
-/// The host calls `validate(input)` with the render-stage payload as a JSON
+/// The host calls `verdict_render(input)` with the render-stage payload as a JSON
 /// string and reads back the fired verdicts. A malformed payload or an
 /// evaluation failure propagates as an error, which the host surfaces as a
 /// build fault.
 #[plugin_fn]
-pub fn validate(input: String) -> FnResult<String> {
+pub fn verdict_render(input: String) -> FnResult<String> {
     let out = evaluate(&input)?;
     Ok(serde_json::to_string(&out)?)
 }

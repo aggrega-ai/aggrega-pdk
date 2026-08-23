@@ -172,13 +172,13 @@ const (
 )
 
 // descriptor is the static describe() self-report: a v1alpha1 governance plugin
-// whose validate export the host validates before dispatch.
+// whose verdict_ir export the host validates before dispatch.
 func descriptor() aggrega.PluginDescriptor {
 	return aggrega.PluginDescriptor{
 		AbiVersion:  aggrega.APIVersion,
 		PluginType:  "governance",
 		Description: "Judge a build from each attachment's catalog labels, declared-slot binding and sensitivity marking.",
-		Exports:     []aggrega.PluginExport{{Name: "validate"}},
+		Exports:     []aggrega.PluginExport{{Name: "verdict_ir"}},
 		Metadata:    &aggrega.PluginDescriptorMeta{Author: "aggrega", License: "Apache-2.0"},
 	}
 }
@@ -194,8 +194,8 @@ func describe() int32 {
 	return 0
 }
 
-//go:wasmexport validate
-func validate() int32 {
+//go:wasmexport verdict_ir
+func verdict_ir() int32 {
 	var in input
 	if err := json.Unmarshal(pdk.Input(), &in); err != nil {
 		pdk.SetError(fmt.Errorf("governance-attachment-facts: unmarshal PolicyInput: %w", err))

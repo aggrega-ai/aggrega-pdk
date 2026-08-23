@@ -23,12 +23,13 @@
 //! | --- | --- | --- |
 //! | `annotation-transform` | `transform_annotations` | the components that may be annotated |
 //! | `label-transform` | `mutate` | the build's nodes and their labels |
-//! | `ir-verdict` | `validate` | the build graph |
-//! | `render-verdict` | `validate` | the rendered output files |
+//! | `ir-verdict` | `verdict_ir` | the build graph |
+//! | `render-verdict` | `verdict_render` | the rendered output files |
 //!
-//! One `validate` export serves both verdict roles. The two payloads identify
-//! themselves by shape, so the guest reads what it was handed rather than
-//! declaring which role it expects.
+//! Each role has its own export, so the export the host dispatches is what says
+//! which role the guest is serving and which payload it is reading. The two
+//! verdict exports share one implementation, because the two verdict payloads
+//! carry the same two members the seam needs.
 //!
 //! # The four things an adapter maps
 //!
@@ -103,8 +104,15 @@ fn descriptor() -> PluginDescriptor {
                 ..Default::default()
             },
             PluginExport {
-                name: "validate".to_string(),
-                description: "Report the verdicts the policy reached.".to_string(),
+                name: "verdict_ir".to_string(),
+                description: "Report the verdicts the policy reached over the build graph."
+                    .to_string(),
+                ..Default::default()
+            },
+            PluginExport {
+                name: "verdict_render".to_string(),
+                description: "Report the verdicts the policy reached over the rendered output."
+                    .to_string(),
                 ..Default::default()
             },
         ],
@@ -137,8 +145,20 @@ pub fn mutate(input: Vec<u8>) -> FnResult<Vec<u8>> {
     Ok(labels::changes(&input)?.encode_cbor()?)
 }
 
-/// Serves both verdict roles.
+/// Serves the ir-verdict role.
 #[plugin_fn]
-pub fn validate(input: String) -> FnResult<String> {
-    Ok(serde_json::to_string(&verdicts::verdicts(&input)?)?)
+pub fn verdict_ir(input: String) -> FnResult<String> {
+    Ok(serde_json::to_string(&verdicts::verdicts(
+        &input,
+        "ir-verdict",
+    )?)?)
+}
+
+/// Serves the render-verdict role.
+#[plugin_fn]
+pub fn verdict_render(input: String) -> FnResult<String> {
+    Ok(serde_json::to_string(&verdicts::verdicts(
+        &input,
+        "render-verdict",
+    )?)?)
 }

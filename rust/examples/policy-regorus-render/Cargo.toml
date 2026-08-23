@@ -27,7 +27,7 @@ path = "src/lib.rs"
 # the render-stage input's definitional home.
 aggrega-pdk-rust = { path = "../.." }
 aggrega-abi = { path = "../../../../aggrega-abi/rust" }
-# The describe()/validate() export macros for our ABI. Our own extism export is
+# The describe()/verdict_render() export macros for our ABI. Our own extism export is
 # the sole entry point.
 extism-pdk = "1.4"
 serde = { version = "1", features = ["derive"] }

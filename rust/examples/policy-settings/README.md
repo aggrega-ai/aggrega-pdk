@@ -3,7 +3,7 @@
 A Rust policy plugin that **types its attachment settings**. Its
 `describe()` self-report carries a `settings_schema` — a JSON Schema the host
 compiles at load and validates the operator's `with.settings` against before
-dispatching `validate`.
+dispatching `verdict_ir`.
 
 The declared schema requires an integer `max_replicas` of at least 1 and
 forbids unknown keys:
@@ -19,7 +19,7 @@ forbids unknown keys:
 
 An attachment whose settings omit `max_replicas`, give it the wrong type, or add
 an unknown key halts the build loudly (naming the offending key) before the
-plugin runs. A conforming attachment reaches `validate`, which reads the typed
+plugin runs. A conforming attachment reaches `verdict_ir`, which reads the typed
 setting and emits a single info verdict echoing the value it read — proof the
 setting flowed through as the declared type.
 

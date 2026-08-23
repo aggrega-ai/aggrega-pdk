@@ -12,7 +12,7 @@
 //! in-guest:
 //!
 //!   - Outward, it speaks the Aggrega plugin ABI: `describe()` reports a
-//!     `policy` plugin evaluating the `render` stage, and `validate`
+//!     `policy` plugin evaluating the `render` stage, and `verdict_render`
 //!     consumes the render-stage payload and returns policy verdicts. The host
 //!     stays free of any Kubewarden or admission-control logic.
 //!   - Inward, it absorbs the Kubewarden contract: for each rendered object it
@@ -28,7 +28,7 @@
 //! crate because the SDK depends on `wapc-guest`, whose unconditional
 //! `#[no_mangle] __guest_call` export forces a `wapc` host-module import — the
 //! waPC guest ABI — that this runtime's plugin loader does not host. Our own
-//! `validate` export is the sole entry point, and the local types keep the wire
+//! `verdict_render` export is the sole entry point, and the local types keep the wire
 //! contract identical to a real Kubewarden policy without linking the waPC ABI.
 //!
 //! Reference policy. The bundled policy is a require-label rule — a common
@@ -61,7 +61,7 @@ use extism_pdk::{plugin_fn, FnResult};
 use serde::{Deserialize, Serialize};
 
 /// The static `describe()` self-report: a v1alpha1 `policy` plugin
-/// evaluating the render stage, whose `validate` export the host validates
+/// evaluating the render stage, whose `verdict_render` export the host validates
 /// before dispatch.
 fn descriptor() -> PluginDescriptor {
     PluginDescriptor {
@@ -70,7 +70,7 @@ fn descriptor() -> PluginDescriptor {
         description: "Run a Kubewarden-style validating policy over the rendered Kubernetes manifests."
             .to_string(),
         exports: vec![PluginExport {
-            name: "validate".to_string(),
+            name: "verdict_render".to_string(),
             ..Default::default()
         }],
         metadata: Some(Box::new(PluginDescriptorMeta {
@@ -83,17 +83,17 @@ fn descriptor() -> PluginDescriptor {
 }
 
 /// The host calls `describe()` once at load to read the plugin's static
-/// self-report before dispatching `validate`.
+/// self-report before dispatching `verdict_render`.
 #[plugin_fn]
 pub fn describe() -> FnResult<String> {
     Ok(encode_descriptor(&descriptor()))
 }
 
-/// The host calls `validate(input)` with the render-stage payload as a JSON
+/// The host calls `verdict_render(input)` with the render-stage payload as a JSON
 /// string and reads back the fired verdicts. A malformed payload propagates as
 /// an error, which the host surfaces as a build fault.
 #[plugin_fn]
-pub fn validate(input: String) -> FnResult<String> {
+pub fn verdict_render(input: String) -> FnResult<String> {
     let payload: RenderPolicyInput = serde_json::from_str(&input)?;
     let settings: AdapterSettings = match &payload.settings {
         Some(raw) => serde_json::from_str(raw.get())?,

@@ -17,9 +17,9 @@
 // stamps that label upstream flips this verdict — the mechanism a mutator->verdict
 // chain proof exercises.
 //
-// It self-describes via describe() as a governance plugin whose validate export
-// the host validates before dispatch; the role it is attached at fixes whether it
-// runs at the IR stage or the render stage.
+// It self-describes via describe() as a governance plugin whose verdict_ir
+// export the host validates before dispatch. That export names the role it
+// serves, so this guest runs at the ir-verdict role over the build graph.
 //
 // Build: GOOS=wasip1 GOARCH=wasm go build -buildmode=c-shared -o policy-graph-rule-go.wasm ./
 package main
@@ -63,13 +63,13 @@ type output struct {
 }
 
 // descriptor is the static describe() self-report: a v1alpha1 governance plugin
-// whose validate export the host validates before dispatch.
+// whose verdict_ir export the host validates before dispatch.
 func descriptor() aggrega.PluginDescriptor {
 	return aggrega.PluginDescriptor{
 		AbiVersion:  aggrega.APIVersion,
 		PluginType:  "governance",
 		Description: "Deny a build when an IR node lacks a required governance label, reading the rule target from the graph.",
-		Exports:     []aggrega.PluginExport{{Name: "validate"}},
+		Exports:     []aggrega.PluginExport{{Name: "verdict_ir"}},
 		Metadata:    &aggrega.PluginDescriptorMeta{Author: "aggrega", License: "Apache-2.0"},
 	}
 }
@@ -85,8 +85,8 @@ func describe() int32 {
 	return 0
 }
 
-//go:wasmexport validate
-func validate() int32 {
+//go:wasmexport verdict_ir
+func verdict_ir() int32 {
 	var in input
 	if err := json.Unmarshal(pdk.Input(), &in); err != nil {
 		pdk.SetError(fmt.Errorf("policy-graph-rule: unmarshal PolicyInput: %w", err))

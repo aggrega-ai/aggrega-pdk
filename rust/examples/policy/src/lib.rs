@@ -15,7 +15,7 @@ use aggrega_pdk_rust::{
 use extism_pdk::{plugin_fn, FnResult};
 
 /// The static `describe()` self-report: a v1alpha1 `policy`
-/// plugin evaluating the ir stage, whose `validate` export the host
+/// plugin evaluating the ir stage, whose `verdict_ir` export the host
 /// validates before dispatch.
 fn descriptor() -> PluginDescriptor {
     PluginDescriptor {
@@ -24,7 +24,7 @@ fn descriptor() -> PluginDescriptor {
         description: "Report deterministic halt and info policy verdicts over the build graph."
             .to_string(),
         exports: vec![PluginExport {
-            name: "validate".to_string(),
+            name: "verdict_ir".to_string(),
             ..Default::default()
         }],
         metadata: Some(Box::new(PluginDescriptorMeta {
@@ -37,14 +37,14 @@ fn descriptor() -> PluginDescriptor {
 }
 
 /// The host calls `describe()` once at load to read the plugin's static
-/// self-report before dispatching `validate`.
+/// self-report before dispatching `verdict_ir`.
 #[plugin_fn]
 pub fn describe() -> FnResult<String> {
     Ok(encode_descriptor(&descriptor()))
 }
 
 #[plugin_fn]
-pub fn validate(_input: String) -> FnResult<String> {
+pub fn verdict_ir(_input: String) -> FnResult<String> {
     let out = PolicyOutput {
         results: vec![
             Diagnostic {

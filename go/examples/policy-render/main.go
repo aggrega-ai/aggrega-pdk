@@ -50,7 +50,7 @@ func descriptor() aggrega.PluginDescriptor {
 		AbiVersion:  aggrega.APIVersion,
 		PluginType:  "governance",
 		Description: "Echo the rendered artifacts and emit a settings-driven verdict over the render output.",
-		Exports:     []aggrega.PluginExport{{Name: "validate"}},
+		Exports:     []aggrega.PluginExport{{Name: "verdict_render"}},
 		Metadata:    &aggrega.PluginDescriptorMeta{Author: "aggrega", License: "Apache-2.0"},
 	}
 }
@@ -66,8 +66,8 @@ func describe() int32 {
 	return 0
 }
 
-//go:wasmexport validate
-func validate() int32 {
+//go:wasmexport verdict_render
+func verdict_render() int32 {
 	var in input
 	_ = json.Unmarshal(pdk.Input(), &in)
 

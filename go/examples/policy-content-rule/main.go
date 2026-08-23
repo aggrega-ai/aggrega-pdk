@@ -14,9 +14,9 @@
 // guest read the rendered content rather than emitting a constant. When no
 // artifact contains the token the guest emits no verdict and the build proceeds.
 //
-// It self-describes via describe() as a governance plugin whose validate export
-// the host validates before dispatch; the render-verdict role fixes that it runs
-// after render over the artifacts.
+// It self-describes via describe() as a governance plugin whose verdict_render
+// export the host validates before dispatch. That export names the role it
+// serves, so this guest runs at the render-verdict role over the artifacts.
 //
 // Build: GOOS=wasip1 GOARCH=wasm go build -buildmode=c-shared -o policy-content-rule-go.wasm ./
 package main
@@ -54,13 +54,13 @@ type output struct {
 }
 
 // descriptor is the static describe() self-report: a v1alpha1 governance plugin
-// whose validate export the host validates before dispatch.
+// whose verdict_render export the host validates before dispatch.
 func descriptor() aggrega.PluginDescriptor {
 	return aggrega.PluginDescriptor{
 		AbiVersion:  aggrega.APIVersion,
 		PluginType:  "governance",
 		Description: "Deny a build when a rendered artifact contains a forbidden token, reading the rule target from the rendered content.",
-		Exports:     []aggrega.PluginExport{{Name: "validate"}},
+		Exports:     []aggrega.PluginExport{{Name: "verdict_render"}},
 		Metadata:    &aggrega.PluginDescriptorMeta{Author: "aggrega", License: "Apache-2.0"},
 	}
 }
@@ -76,8 +76,8 @@ func describe() int32 {
 	return 0
 }
 
-//go:wasmexport validate
-func validate() int32 {
+//go:wasmexport verdict_render
+func verdict_render() int32 {
 	var in input
 	if err := json.Unmarshal(pdk.Input(), &in); err != nil {
 		pdk.SetError(fmt.Errorf("policy-content-rule: unmarshal RenderPolicyInput: %w", err))

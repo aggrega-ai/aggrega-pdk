@@ -47,45 +47,52 @@ var verdictCollections = []struct {
 	{auditDecision, aggrega.SeverityInfo},
 }
 
-// validate serves both verdict roles.
+// verdict_ir serves the ir-verdict role.
 //
-// One export serves both because the payload identifies itself by shape: the
-// render-verdict payload carries the rendered output files, the ir-verdict
-// payload carries the build graph. Reading the shape is what lets this guest
-// serve both without declaring which role it is attached at — and the role, not
-// the guest, is what decides which payload arrives.
+// What arrives: the build graph, and the routing paths enumerated alongside it so
+// a policy can reason about what reaches what without walking the graph itself.
 //
-// What arrives at the ir-verdict role: the build graph, and the routing paths
-// enumerated alongside it so a policy can reason about what reaches what without
-// walking the graph itself.
+//go:wasmexport verdict_ir
+func verdict_ir() int32 {
+	return verdicts("ir-verdict")
+}
+
+// verdict_render serves the render-verdict role.
 //
-// What arrives at the render-verdict role: the rendered output files, each with
-// its output path, its rendered text, the format it was rendered in, and — where
-// the host parsed the content before handing it over — a structured view of that
-// content, so a policy can reason about a document it does not read natively. A
-// file the host did not parse carries no structured view and is read as text.
+// What arrives: the rendered output files, each with its output path, its
+// rendered text, the format it was rendered in, and — where the host parsed the
+// content before handing it over — a structured view of that content, so a policy
+// can reason about a document it does not read natively. A file the host did not
+// parse carries no structured view and is read as text.
+//
+//go:wasmexport verdict_render
+func verdict_render() int32 {
+	return verdicts("render-verdict")
+}
+
+// verdicts is the implementation the two verdict exports share.
+//
+// The role arrives as an argument because the export the host dispatched is what
+// names it. Each role's payload is therefore read as the shape that role carries,
+// and a payload that does not read that way is refused rather than tried again as
+// the other role's shape and quietly found to contain nothing.
 //
 // What may be emitted: verdicts, and nothing else. A verdict role reports an
 // outcome; the build reads it as an outcome and never applies it as a change. An
 // empty result means no verdict fired, which is a policy that allowed the build.
-//
-//go:wasmexport validate
-func validate() int32 {
+func verdicts(role string) int32 {
 	raw := pdk.Input()
 
-	// Which facet arrived is read from the payload rather than assumed, so a
-	// payload this guest cannot read is refused instead of being evaluated as the
-	// other facet and quietly finding nothing.
-	facet, err := readVerdictFacet(raw)
+	payload, err := readVerdictPayload(raw, role)
 	if err != nil {
 		return fail(err)
 	}
 
 	var results []abi.Diagnostic
 	for _, collection := range verdictCollections {
-		decisions, err := Evaluate(facet.Programs, facet.Settings, raw, collection.Decision)
+		decisions, err := Evaluate(payload.Programs, payload.Settings, raw, collection.Decision)
 		if err != nil {
-			return fail(fmt.Errorf("evaluating the %s policy: %w", facet.Role, err))
+			return fail(fmt.Errorf("evaluating the %s policy: %w", role, err))
 		}
 		for _, decision := range decisions {
 			var message string
@@ -103,46 +110,40 @@ func validate() int32 {
 		results = []abi.Diagnostic{}
 	}
 
-	return emit(abi.PolicyOutput{Results: results}, facet.Role)
+	return emit(abi.PolicyOutput{Results: results}, role)
 }
 
-// verdictFacet is what the two verdict payloads have in common once the facet is
-// known: the role that delivered it, its programs, and its settings.
-type verdictFacet struct {
-	Role     string
+// verdictPayload is what the two verdict payloads have in common once decoded:
+// the programs the attachment supplied and its settings.
+type verdictPayload struct {
 	Programs []Program
 	Settings json.RawMessage
 }
 
-// readVerdictFacet reads the payload and reports which verdict role delivered it.
-func readVerdictFacet(raw []byte) (verdictFacet, error) {
-	var probe struct {
-		Artifacts json.RawMessage `json:"artifacts"`
-	}
-	if err := json.Unmarshal(raw, &probe); err != nil {
-		return verdictFacet{}, fmt.Errorf("reading the verdict payload: %w", err)
-	}
-
+// readVerdictPayload reads one verdict role's payload.
+//
+// The two roles carry different payloads and the same two members out of them,
+// which is why one reader serves both. Which payload to expect is the caller's to
+// say, so this reads the shape it was told to and nothing else.
+func readVerdictPayload(raw []byte, role string) (verdictPayload, error) {
 	read := func(s abi.PolicySource) (string, string) { return s.Path, s.Content }
 
-	if probe.Artifacts != nil {
-		in, err := decode[abi.RenderPolicyInput](raw, "render-verdict")
+	if role == "render-verdict" {
+		in, err := decode[abi.RenderPolicyInput](raw, role)
 		if err != nil {
-			return verdictFacet{}, err
+			return verdictPayload{}, err
 		}
-		return verdictFacet{
-			Role:     "render-verdict",
+		return verdictPayload{
 			Programs: programs(in.Sources, read),
 			Settings: in.Settings,
 		}, nil
 	}
 
-	in, err := decode[abi.PolicyInput](raw, "ir-verdict")
+	in, err := decode[abi.PolicyInput](raw, role)
 	if err != nil {
-		return verdictFacet{}, err
+		return verdictPayload{}, err
 	}
-	return verdictFacet{
-		Role:     "ir-verdict",
+	return verdictPayload{
 		Programs: programs(in.Sources, read),
 		Settings: in.Settings,
 	}, nil
