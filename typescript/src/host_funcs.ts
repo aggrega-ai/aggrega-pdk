@@ -18,14 +18,15 @@
  */
 
 import {
+  decodeCBORParseSourceResponse,
   decodeCLIRunInput,
   decodeFetchExternalInputResponse,
-  decodeParseSourceResponse,
   decodeSourceFileResponse,
   decodeSourcePackResponse,
-  encodeParseInput,
+  encodeCBORParseInput,
   encodeSourceFileRequest,
   encodeSourcePackRequest,
+  type ParseInput,
   type SourceProjection,
 } from "@aggrega-ai/aggrega-abi";
 
@@ -38,6 +39,10 @@ declare module "extism:host" {
     aggrega_fetch_external_input(url_ptr: I64): I64;
     aggrega_pack_source(request_ptr: I64): I64;
     aggrega_read_source_file(request_ptr: I64): I64;
+    // Both slots on this call carry canonical CBOR. The declaration is a pointer
+    // either way, so the shape is carried by how the memory behind each pointer
+    // is allocated and read — `Memory.fromBuffer` and `readBytes` rather than
+    // `Memory.fromString` and `readString` — and not by this signature.
     aggrega_parse_source(request_ptr: I64): I64;
     aggrega_cli_write_stdout(ptr: I64, len: I64): void;
     aggrega_cli_write_stderr(ptr: I64, len: I64): void;
@@ -193,8 +198,8 @@ export function readSourceFile(path: string): ArrayBuffer {
  * that calls `parseSource` again is denied — so a consumer calls it once per
  * source and may consume many sources in sequence.
  *
- * Failure is in-band: the host returns a JSON envelope carrying either the tree or
- * an error message naming the failure; this wrapper throws an Error carrying that
+ * Failure is in-band: the host returns an envelope carrying either the tree or an
+ * error message naming the failure; this wrapper throws an Error carrying that
  * message. Plugin code should treat a parse-source error as a failure to report,
  * not a condition to mask.
  */
@@ -204,8 +209,8 @@ export function parseSource(
   options?: unknown,
 ): unknown {
   const { aggrega_parse_source } = Host.getFunctions();
-  const reqMem = Memory.fromString(
-    encodeParseInput({
+  const reqMem = Memory.fromBuffer(
+    encodeParseSourceRequest({
       format,
       bytes: Host.arrayBufferToBase64(source as ArrayBuffer),
       options,
@@ -215,13 +220,56 @@ export function parseSource(
   if (offset === BigInt(0)) {
     throw new Error("aggrega_parse_source: host returned no envelope");
   }
-  const response = decodeParseSourceResponse(Memory.find(offset).readString());
+  return decodeParseSourceReply(Memory.find(offset).readBytes());
+}
+
+/**
+ * Builds the request bytes for one `aggrega_parse_source` call.
+ *
+ * The request slot carries canonical CBOR, so the bytes are an opaque byte run
+ * rather than UTF-8 text, and they come from the payload type's own generated
+ * encoder rather than from anything assembled here. The payload's `bytes` field
+ * holds base64, and the generated encoder decodes that back to the raw run before
+ * writing it, so the source bytes reach the host once rather than twice-encoded.
+ *
+ * It takes the payload value rather than the raw source because base64-encoding a
+ * buffer is a guest-runtime capability: keeping that call in `parseSource` is what
+ * leaves this function reachable off Wasm, which is the whole point of splitting
+ * it out. The host bindings exist only inside the guest runtime, so a test can
+ * reach this and cannot reach the call.
+ *
+ * Deliberately not re-exported from the package entry point — a plugin author
+ * calls `parseSource`.
+ */
+export function encodeParseSourceRequest(request: ParseInput): ArrayBuffer {
+  const encoded = encodeCBORParseInput(request);
+  // Copy into an exactly-sized buffer rather than handing over the view's own:
+  // a Uint8Array may be a window onto a larger buffer, and passing that buffer
+  // would hand the host bytes outside the payload.
+  const out = new ArrayBuffer(encoded.byteLength);
+  new Uint8Array(out).set(encoded);
+  return out;
+}
+
+/**
+ * Reads one `aggrega_parse_source` reply and returns the canonical tree it
+ * carries, throwing the failure it reports.
+ *
+ * The reply slot carries canonical CBOR in both the success and the failure case:
+ * a guest reads one slot and cannot know before decoding which of the two it
+ * holds, so one decoder reads both. A reported failure is thrown as a `HostError`
+ * carrying the host's machine-matchable code beside its message; a reply carrying
+ * neither a tree nor a failure is itself an error, so an empty reply cannot pass
+ * as an empty tree.
+ */
+export function decodeParseSourceReply(reply: ArrayBuffer): unknown {
+  const response = decodeCBORParseSourceResponse(new Uint8Array(reply));
   if (response.error) {
     throw new HostError(response.error_code ?? "", response.error);
   }
   if (response.tree === undefined) {
     throw new Error(
-      "aggrega_parse_source: response carries neither a tree nor an error",
+      "aggrega_parse_source: reply carries neither a tree nor an error",
     );
   }
   return response.tree;

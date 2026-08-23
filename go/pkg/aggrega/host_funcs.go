@@ -194,11 +194,11 @@ func ReadSourceFile(path string) ([]byte, error) {
 // This is the wasip1 build of the binding; the off-Wasm build at
 // host_funcs_stub.go returns a not-available error.
 func ParseSource(format string, source []byte, options json.RawMessage) (json.RawMessage, error) {
-	reqBytes, err := ParseInput{Format: format, Bytes: source, Options: options}.MarshalJSON()
+	reqBytes, err := encodeParseSourceRequest(format, source, options)
 	if err != nil {
-		return nil, fmt.Errorf("aggrega_parse_source: encode request: %w", err)
+		return nil, err
 	}
-	mem := pdk.AllocateString(string(reqBytes))
+	mem := pdk.AllocateBytes(reqBytes)
 	defer mem.Free()
 	offset := aggregaParseSource(uint64(mem.Offset()))
 	if offset == 0 {
@@ -208,17 +208,7 @@ func ParseSource(format string, source []byte, options json.RawMessage) (json.Ra
 	respBytes := respMem.ReadBytes()
 	respMem.Free()
 
-	var resp ParseSourceResponse
-	if err := resp.UnmarshalJSON(respBytes); err != nil {
-		return nil, fmt.Errorf("aggrega_parse_source: decode response: %w", err)
-	}
-	if resp.Error != "" {
-		return nil, &HostError{Code: resp.ErrorCode, Message: resp.Error}
-	}
-	if len(resp.Tree) == 0 {
-		return nil, errors.New("aggrega_parse_source: response carries neither a tree nor an error")
-	}
-	return resp.Tree, nil
+	return decodeParseSourceReply(respBytes)
 }
 
 // WriteStdout streams a chunk of bytes to the Aggrega host's standard-output
@@ -307,9 +297,15 @@ func aggregaReadSourceFile(requestPtr uint64) uint64
 
 // aggregaParseSource is the host-imported binding for the Aggrega parse-source
 // host function. Signature: (request_ptr i64) -> envelope_ptr i64; the argument
-// addresses a ParseInput JSON document in plugin memory and the returned offset
-// addresses a ParseSourceResponse JSON envelope carrying either the canonical
-// tree or an error. Offset 0 means no envelope was delivered.
+// addresses a ParseInput document in plugin memory and the returned offset
+// addresses a ParseSourceResponse envelope carrying either the canonical tree or
+// an error. Offset 0 means no envelope was delivered.
+//
+// Both slots carry canonical CBOR, so each addresses an opaque byte run rather
+// than UTF-8 text. The Wasm-level signature is a pointer either way, so the
+// shape is carried by how the memory on each side of it is allocated and read —
+// pdk.AllocateBytes and MemoryHandle.ReadBytes here — and not by this
+// declaration.
 //
 //go:wasmimport extism:host/user aggrega_parse_source
 func aggregaParseSource(requestPtr uint64) uint64

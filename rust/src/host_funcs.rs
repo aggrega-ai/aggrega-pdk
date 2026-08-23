@@ -28,7 +28,11 @@ extern "ExtismHost" {
     fn aggrega_fetch_external_input(url: String) -> String;
     fn aggrega_pack_source(request: String) -> String;
     fn aggrega_read_source_file(request: String) -> String;
-    fn aggrega_parse_source(request: String) -> String;
+    // Both slots on this call carry canonical CBOR, so each is declared as an
+    // opaque byte run rather than as UTF-8 text. The declared type is the
+    // contract here, not a formatting choice: `String` would put the request
+    // through a text conversion that binary bytes do not survive.
+    fn aggrega_parse_source(request: Vec<u8>) -> Vec<u8>;
 }
 
 // The streaming CLI emitters take an explicit (pointer, length) pair, so they
@@ -233,15 +237,49 @@ pub fn parse_source(
     source: &[u8],
     options: Option<Box<RawValue>>,
 ) -> Result<Box<RawValue>, Error> {
-    let request = serde_json::to_string(&ParseInput {
+    let request = encode_parse_source_request(format, source, options)?;
+    let raw = unsafe { aggrega_parse_source(request)? };
+    decode_parse_source_reply(&raw)
+}
+
+/// Builds the request bytes for one `aggrega_parse_source` call.
+///
+/// The request slot carries canonical CBOR, so the bytes are an opaque byte run
+/// rather than UTF-8 text, and they come from the payload type's own generated
+/// encoder rather than from anything assembled here. The payload's `bytes` field
+/// holds base64 in the textual encoding, and the generated encoder decodes that
+/// back to the raw run before writing it, so the source bytes reach the host once
+/// rather than twice-encoded.
+///
+/// Split out from [`parse_source`] so the wire is exercisable where the call is
+/// not: the host import only a running host resolves, so a test off Wasm can
+/// reach this and cannot reach the call.
+fn encode_parse_source_request(
+    format: &str,
+    source: &[u8],
+    options: Option<Box<RawValue>>,
+) -> Result<Vec<u8>, Error> {
+    ParseInput {
         format: format.to_string(),
         bytes: base64::engine::general_purpose::STANDARD.encode(source),
         options,
-    })
-    .map_err(|e| Error::msg(format!("aggrega_parse_source: encode request: {e}")))?;
-    let raw = unsafe { aggrega_parse_source(request)? };
-    let response: ParseSourceResponse = serde_json::from_str(&raw)
-        .map_err(|e| Error::msg(format!("aggrega_parse_source: decode response: {e}")))?;
+    }
+    .encode_cbor()
+    .map_err(|e| Error::msg(format!("aggrega_parse_source: encode request: {e}")))
+}
+
+/// Reads one `aggrega_parse_source` reply and returns the canonical tree it
+/// carries, or the failure it reports.
+///
+/// The reply slot carries canonical CBOR in both the success and the failure
+/// case: a guest reads one slot and cannot know before decoding which of the two
+/// it holds, so one decoder reads both. A reported failure surfaces as a
+/// [`HostError`] carrying the host's machine-matchable code beside its message; a
+/// reply carrying neither a tree nor a failure is itself an error, so an empty
+/// reply cannot pass as an empty tree.
+fn decode_parse_source_reply(reply: &[u8]) -> Result<Box<RawValue>, Error> {
+    let response = ParseSourceResponse::decode_cbor(reply)
+        .map_err(|e| Error::msg(format!("aggrega_parse_source: decode reply: {e}")))?;
     if !response.error.is_empty() {
         return Err(Error::new(HostError {
             code: response.error_code,
@@ -251,7 +289,7 @@ pub fn parse_source(
     match response.tree {
         Some(tree) => Ok(tree),
         None => Err(Error::msg(
-            "aggrega_parse_source: response carries neither a tree nor an error",
+            "aggrega_parse_source: reply carries neither a tree nor an error",
         )),
     }
 }
@@ -300,4 +338,183 @@ pub fn cli_args() -> Result<Vec<String>, Error> {
     let parsed: CLIRunInput = serde_json::from_str(&raw)
         .map_err(|e| Error::msg(format!("aggrega_cli_run: decode CLIRunInput: {e}")))?;
     Ok(parsed.args)
+}
+
+#[cfg(test)]
+mod tests {
+    //! Wire tests for the `aggrega_parse_source` call, driven against the shared
+    //! payload vectors the ABI crate publishes rather than against bytes produced
+    //! here. That is what makes them discriminating: a kit that built its request
+    //! with the wrong encoder, or read its reply with the wrong decoder, produces
+    //! bytes that do not match a vector an independent instrument has already
+    //! anchored — whereas a kit checked only against its own output round-trips
+    //! cleanly however wrong both halves are, because the same mistake is on both
+    //! sides.
+    //!
+    //! The tests exercise the two wire functions and never the host call itself:
+    //! the call's import is resolved only by a running host, so a test off Wasm
+    //! that reached it would not link.
+
+    use super::{decode_parse_source_reply, encode_parse_source_request, HostError};
+    use base64::Engine as _;
+    use std::path::PathBuf;
+
+    /// Resolves the directory holding the shared payload vectors. Resolution
+    /// only; whether it can be read is decided in one place, by `read_vector`.
+    fn vector_dir() -> PathBuf {
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("..")
+            .join("..")
+            .join("aggrega-abi")
+            .join("testdata")
+    }
+
+    /// Reads one shared vector file. A run that could not read the vectors has
+    /// verified nothing, so this refuses with a diagnostic naming the path rather
+    /// than skipping quietly.
+    fn read_vector(name: &str) -> String {
+        let path = vector_dir().join(name);
+        std::fs::read_to_string(&path).unwrap_or_else(|e| {
+            panic!(
+                "shared payload vector {name} is not readable at {}: {e}; run scripts/setup-workspace.sh from the umbrella checkout so the sibling ABI checkout is present",
+                path.display()
+            )
+        })
+    }
+
+    /// Reads one shared canonical-CBOR vector and decodes its hex.
+    fn read_hex_vector(name: &str) -> Vec<u8> {
+        let raw = read_vector(name);
+        let raw = raw.trim();
+        assert!(
+            raw.len() % 2 == 0,
+            "shared vector {name} does not hold an even number of hex digits"
+        );
+        (0..raw.len())
+            .step_by(2)
+            .map(|i| {
+                u8::from_str_radix(&raw[i..i + 2], 16).unwrap_or_else(|e| {
+                    panic!("shared vector {name} does not hold decodable hex: {e}")
+                })
+            })
+            .collect()
+    }
+
+    /// The request the kit builds is byte-identical to the shared `ParseInput`
+    /// vector, for the very field values that vector's companion document
+    /// declares. A kit still building a text request fails here, because a text
+    /// document and the canonical binary encoding of the same value are different
+    /// bytes.
+    #[test]
+    fn encode_request_matches_shared_vector() {
+        // The companion document carries the field values in the textual
+        // encoding, where the source bytes are base64. Read them from there
+        // rather than restating them, so the two vectors cannot drift apart from
+        // this test.
+        let golden: serde_json::Value =
+            serde_json::from_str(&read_vector("ParseInput.golden.json"))
+                .expect("ParseInput.golden.json is readable as JSON");
+        let format = golden["format"].as_str().expect("golden carries a format");
+        let source = base64::engine::general_purpose::STANDARD
+            .decode(golden["bytes"].as_str().expect("golden carries bytes"))
+            .expect("golden source bytes are base64");
+        let options = serde_json::value::to_raw_value(&golden["options"])
+            .expect("golden options re-serialise");
+
+        let got = encode_parse_source_request(format, &source, Some(options))
+            .expect("encode_parse_source_request");
+        let want = read_hex_vector("ParseInput.cbor.hex");
+        assert_eq!(
+            hex(&got),
+            hex(&want),
+            "request bytes do not match the shared ParseInput vector"
+        );
+    }
+
+    /// The kit reads a reported failure out of the shared `ParseSourceResponse`
+    /// vector and surfaces it as a `HostError` carrying both the
+    /// machine-matchable code and the message.
+    #[test]
+    fn decode_reply_failure_from_shared_vector() {
+        let golden: serde_json::Value =
+            serde_json::from_str(&read_vector("ParseSourceResponse.golden.json"))
+                .expect("ParseSourceResponse.golden.json is readable as JSON");
+        let want_message = golden["error"].as_str().expect("golden carries an error");
+        let want_code = golden["error_code"]
+            .as_str()
+            .expect("golden carries an error_code");
+
+        let err = decode_parse_source_reply(&read_hex_vector("ParseSourceResponse.cbor.hex"))
+            .expect_err("a failure reply must not decode as a success");
+        let host_err = err
+            .downcast_ref::<HostError>()
+            .expect("the failure surfaces as a HostError");
+        assert_eq!(host_err.code, want_code);
+        assert_eq!(host_err.message, want_message);
+    }
+
+    /// The kit reads the success shape too — the one production guests take, and
+    /// the only one carrying the tree.
+    ///
+    /// Both shapes are asserted because each hides the other's defect: a decoder
+    /// that only reads the failure fields passes any test built from failure
+    /// replies alone, and one that only reads the tree passes any test built from
+    /// success replies alone.
+    ///
+    /// The vector is authored from the canonical encoding's own rules rather than
+    /// captured, and it is short enough to read off:
+    ///
+    /// ```text
+    /// a1                      map, 1 pair
+    /// 64 74 72 65 65          text, 4 bytes: "tree"
+    /// 47 7b 22 61 22 3a 31 7d byte run, 7 bytes: {"a":1}
+    /// ```
+    ///
+    /// One pair is what a tree-only envelope carries, since the two failure
+    /// fields are omitted when empty; and the tree travels as a byte run holding
+    /// its own document verbatim, which is why an over- or under-declared pair
+    /// count would move the head byte and fail here rather than pass silently.
+    #[test]
+    fn decode_reply_success_shape() {
+        let reply: Vec<u8> = vec![
+            0xa1, 0x64, 0x74, 0x72, 0x65, 0x65, 0x47, 0x7b, 0x22, 0x61, 0x22, 0x3a, 0x31, 0x7d,
+        ];
+        let tree = decode_parse_source_reply(&reply).expect("decode_parse_source_reply");
+        assert_eq!(tree.get(), r#"{"a":1}"#);
+    }
+
+    /// The reply decoder is not silently tolerant of a textual reply. Without
+    /// this, a host left on the other encoding would be reported as some
+    /// downstream shape error rather than as an undecodable reply, and the two are
+    /// not the same diagnosis.
+    #[test]
+    fn decode_reply_refuses_the_other_encoding() {
+        let textual = br#"{"tree":{"a":1}}"#;
+        assert!(
+            decode_parse_source_reply(textual).is_err(),
+            "a textual reply decoded without error; the reply slot carries the binary encoding only"
+        );
+    }
+
+    /// An envelope carrying neither a tree nor a failure is reported rather than
+    /// passing as an empty tree. The distinction matters because an empty tree is
+    /// itself a legitimate outcome, so a lenient decode would make "the host said
+    /// nothing" and "the parser produced nothing" indistinguishable.
+    #[test]
+    fn decode_reply_empty_envelope_is_an_error() {
+        // a0: map, 0 pairs — every field omitted.
+        assert!(decode_parse_source_reply(&[0xa0]).is_err());
+    }
+
+    /// Renders bytes as hex so a mismatch assertion prints something readable
+    /// rather than two long integer slices.
+    fn hex(b: &[u8]) -> String {
+        use std::fmt::Write as _;
+        b.iter()
+            .fold(String::with_capacity(b.len() * 2), |mut out, x| {
+                // Writing into a String cannot fail, so there is no error to carry.
+                let _ = write!(out, "{x:02x}");
+                out
+            })
+    }
 }
