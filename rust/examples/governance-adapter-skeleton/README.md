@@ -224,6 +224,11 @@ aggrega plugin run-local --plugin dist/governance-adapter-skeleton-rust.wasm \
   --type governance --export validate --with @render-verdict-payload.json
 ```
 
+The response reaches you exactly as the guest emitted it, and the wire an export
+carries is fixed by the socket that export serves rather than by any flag, so
+these calls legitimately differ in what they print: the `mutate` call prints
+bytes, and the rest print readable text.
+
 An unmodified skeleton reaches no engine, so each role emits its own neutral
 result — no annotations, no label changes, and one `info` note per verdict role
 naming the programs that reached the seam. That note is the wiring proof: the

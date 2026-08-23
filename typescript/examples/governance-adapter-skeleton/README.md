@@ -238,6 +238,10 @@ aggrega plugin run-local --plugin dist/governance-adapter-skeleton-typescript.wa
   --type governance --export validate --with @render-verdict-payload.json
 ```
 
+The response reaches you exactly as the guest emitted it, so the per-role wires
+above are what you see here, and these calls legitimately differ: the `mutate`
+call prints bytes, and the rest print readable text.
+
 An unmodified skeleton reaches no engine, so each role emits its own neutral
 result — no annotations, no label changes, and one `info` note per verdict role
 naming the programs that reached the seam. That note is the wiring proof: the
