@@ -99,8 +99,8 @@ plugins:
 
 `required_label` is the Kubewarden policy's own setting. `severity` is the
 adapter's mapping knob: a rejection maps to a `halt` verdict by default, which
-halts the build; `warn` flags the build and lets it proceed; `audit` records
-without affecting the outcome. Any other value maps to `deny`.
+halts the build; `warn` flags the build and lets it proceed; `info` records
+without affecting the outcome. Any other value maps to `halt`.
 
 ## Determinism
 
