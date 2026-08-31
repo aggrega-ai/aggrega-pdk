@@ -332,3 +332,85 @@ func TestPolicyOutput_RoundTripJSONSchema(t *testing.T) {
 		t.Errorf("round-trip inequality:\n  before: %+v\n  after:  %+v", fixture, round)
 	}
 }
+
+// TestNameBoundOutput_KeepsAnAbsentBoundDistinctFromZero asserts the three
+// states a verdict's bound can be in survive the wire as three states.
+//
+// The distinction is why the field is a pointer rather than an integer with a
+// sentinel. Absent says length is not what the target objected to — either it
+// imposes none, or the objection is one no shortening repairs. Zero says no
+// identity of any length reaches an acceptable name of that kind. A host unable
+// to tell them apart would narrow a name toward a bound that was never the
+// obstacle, and keep narrowing until it ran out of passes.
+//
+// The assertion reads the emitted TEXT and not only the decoded value, because
+// the emitted text is where the two would collapse: a bound written as a plain
+// integer emits 0 for the absent case, and nothing downstream recovers the
+// difference.
+func TestNameBoundOutput_KeepsAnAbsentBoundDistinctFromZero(t *testing.T) {
+	t.Parallel()
+	schema := loadSchema(t, "wasm-provider-v1alpha1.schema.json")
+
+	shortened := 31
+	nothingFits := 0
+	fixture := aggrega.NameBoundOutput{
+		Names: []aggrega.DerivedNameVerdict{
+			{Kind: "release name", Usable: false, Bound: &shortened, Reason: "a release name is at most 53 characters"},
+			{Kind: "logical id", Usable: false, Bound: &nothingFits, Reason: "this target accepts no name of this kind"},
+			{Kind: "service name", Usable: false, Reason: "the first character is one the alphabet does not admit"},
+		},
+	}
+
+	if err := schema.Validate(jsonInstance(t, fixture)); err != nil {
+		t.Errorf("schema validation failed for NameBoundOutput fixture: %v", err)
+	}
+
+	raw, err := fixture.MarshalJSON()
+	if err != nil {
+		t.Fatalf("MarshalJSON: %v", err)
+	}
+	if !strings.Contains(string(raw), `"bound":0`) {
+		t.Errorf("a zero bound must reach the wire as a stated length; got %s", raw)
+	}
+
+	var round aggrega.NameBoundOutput
+	if err := round.UnmarshalJSON(raw); err != nil {
+		t.Fatalf("UnmarshalJSON: %v", err)
+	}
+	if round.Names[0].Bound == nil || *round.Names[0].Bound != 31 {
+		t.Errorf("a stated bound did not survive the round trip: %v", round.Names[0].Bound)
+	}
+	if round.Names[1].Bound == nil || *round.Names[1].Bound != 0 {
+		t.Errorf("a zero bound must survive as a stated length, not as absence: %v", round.Names[1].Bound)
+	}
+	if round.Names[2].Bound != nil {
+		t.Errorf("an absent bound must survive as absent, not as zero: %v", *round.Names[2].Bound)
+	}
+}
+
+// TestNameBoundInput_RoundTripJSONSchema pins the question shape a provider
+// guest reads: the proposed identity, and whether a person wrote it. The flag is
+// carried so a guest can phrase its reason for the reader who can act on it;
+// what a refusal DOES is the host's decision, not the guest's.
+func TestNameBoundInput_RoundTripJSONSchema(t *testing.T) {
+	t.Parallel()
+	schema := loadSchema(t, "wasm-provider-v1alpha1.schema.json")
+
+	fixture := aggrega.NameBoundInput{Proposed: "payments-api", Authored: true}
+
+	if err := schema.Validate(jsonInstance(t, fixture)); err != nil {
+		t.Errorf("schema validation failed for NameBoundInput fixture: %v", err)
+	}
+
+	raw, err := fixture.MarshalJSON()
+	if err != nil {
+		t.Fatalf("MarshalJSON: %v", err)
+	}
+	var round aggrega.NameBoundInput
+	if err := round.UnmarshalJSON(raw); err != nil {
+		t.Fatalf("UnmarshalJSON: %v", err)
+	}
+	if !reflect.DeepEqual(fixture, round) {
+		t.Errorf("round-trip inequality:\n  before: %+v\n  after:  %+v", fixture, round)
+	}
+}

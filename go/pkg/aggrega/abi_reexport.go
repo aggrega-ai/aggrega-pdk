@@ -91,6 +91,28 @@ type (
 	SubChart                   = abi.SubChart
 )
 
+// Name bounds. A provider guest whose target bounds or restricts the names it
+// accepts declares the optional name_bound export: it receives one proposed
+// component identity and returns one verdict per kind of name it would derive
+// from that identity. A verdict carries a CONSTRAINT — usable, or bounded to a
+// shorter length, with the target's own reason — and never a name the guest
+// built, because a name crossing back would put the compiler in the business of
+// composing names for a target it knows nothing about.
+//
+// The bound is a pointer so its absence is expressible and distinct from zero.
+// Absent says length is not what the target objected to: either it imposes none,
+// or the objection is one no shortening repairs. Zero says no identity of any
+// length reaches an acceptable name of that kind.
+//
+// A guest that omits the export is never asked and renders exactly as before, so
+// declaring it is a choice rather than an obligation — it belongs to no
+// minimum-export rule.
+type (
+	NameBoundInput     = abi.NameBoundInput
+	NameBoundOutput    = abi.NameBoundOutput
+	DerivedNameVerdict = abi.DerivedNameVerdict
+)
+
 // CLI socket. A cli plugin extends the compiler's command surface: the host
 // resolves a subcommand to a guest and hands it the invocation's argument
 // vector on the cli_run export. CLIRunInput carries that argument vector; the

@@ -32,6 +32,11 @@ import {
   type CLIRunInput,
   encodeCLIRunInput,
   decodeCLIRunInput,
+  type NameBoundInput,
+  type NameBoundOutput,
+  encodeNameBoundInput,
+  encodeNameBoundOutput,
+  decodeNameBoundOutput,
   type MutatorInput,
   type MutatorOutput,
   type PolicyInput,
@@ -317,4 +322,53 @@ test("PolicyOutput round-trips through wasm-policy schema", (t) => {
 
   const round = JSON.parse(JSON.stringify(fixture)) as PolicyOutput;
   assert.deepStrictEqual(round, fixture);
+});
+
+test("NameBoundOutput keeps an absent bound distinct from a bound of zero", (t) => {
+  if (requireSchemas(t, "wasm-provider-v1alpha1.schema.json")) return;
+
+  const validate = makeValidator("wasm-provider-v1alpha1.schema.json");
+
+  // The three states the bound can be in. Absent says length is not what the
+  // target objected to — either it imposes none, or the objection is one no
+  // shortening repairs. Zero says no identity of any length reaches an
+  // acceptable name. A host unable to tell them apart would narrow a name
+  // toward a bound that was never the obstacle.
+  const fixture: NameBoundOutput = {
+    names: [
+      { kind: "release name", usable: false, bound: 31, reason: "a release name is at most 53 characters" },
+      { kind: "logical id", usable: false, bound: 0, reason: "this target accepts no name of this kind" },
+      { kind: "service name", usable: false, reason: "the first character is one the alphabet does not admit" },
+    ],
+  };
+
+  const wire = encodeNameBoundOutput(fixture);
+  const ok = validate(JSON.parse(wire));
+  assert.equal(ok, true, `schema validation failed: ${JSON.stringify(validate.errors)}`);
+
+  // The emitted text is what is asserted, not only the decoded value: a bound
+  // written as a plain number would emit 0 for the absent case and nothing
+  // downstream could recover the difference.
+  assert.equal(wire.includes('"bound":0'), true, `a zero bound must reach the wire as a stated length; got ${wire}`);
+
+  const round = decodeNameBoundOutput(wire);
+  assert.equal(round.names?.[0].bound, 31);
+  assert.equal(round.names?.[1].bound, 0, "a zero bound must survive as a stated length");
+  assert.equal(round.names?.[2].bound, undefined, "an absent bound must survive as absent, not as zero");
+});
+
+test("NameBoundInput round-trips through the wasm-provider schema", (t) => {
+  if (requireSchemas(t, "wasm-provider-v1alpha1.schema.json")) return;
+
+  const validate = makeValidator("wasm-provider-v1alpha1.schema.json");
+
+  const fixture: NameBoundInput = { proposed: "payments-api", authored: true };
+
+  const wire = encodeNameBoundInput(fixture);
+  const ok = validate(JSON.parse(wire));
+  assert.equal(ok, true, `schema validation failed: ${JSON.stringify(validate.errors)}`);
+
+  const round = JSON.parse(wire) as NameBoundInput;
+  assert.equal(round.proposed, fixture.proposed);
+  assert.equal(round.authored, true);
 });

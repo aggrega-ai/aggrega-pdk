@@ -33,7 +33,8 @@ use std::path::{Path, PathBuf};
 use aggrega_pdk_rust::{
     CLIRunInput, CompilationContext, Diagnostic, IREdge, IRGraph, IRMetadata, IRNode, IRProvenance,
     IRSpec, LinterInput, LinterOutput, MutatorGraph, MutatorInput, MutatorNode, MutatorOutput,
-    Policies, PolicyInput, PolicyOutput, PrecalculatedPath, API_VERSION,
+    DerivedNameVerdict, NameBoundInput, NameBoundOutput, Policies, PolicyInput, PolicyOutput,
+    PrecalculatedPath, API_VERSION,
 };
 use std::collections::BTreeMap;
 
@@ -480,4 +481,92 @@ fn linter_output_round_trip_json_schema() {
     validate(&schema, &serialised).expect("schema validation");
     let _round: LinterOutput =
         serde_json::from_value(serialised).expect("deserialize LinterOutput");
+}
+
+/// The three states a name-bound verdict's bound can be in are distinguishable
+/// on the wire: present with a value, present as zero, and absent.
+///
+/// The distinction is the whole reason the field is optional rather than an
+/// integer with a sentinel. Absent says length is not what the target objected
+/// to — either it imposes none, or the objection is one no shortening repairs.
+/// Zero says no identity of any length reaches an acceptable name. A host that
+/// could not tell them apart would narrow a name toward a bound that was never
+/// the obstacle, and would do it until it ran out of passes.
+///
+/// Serialising is where the two could collapse: a bound written as a plain
+/// integer would emit `0` for the absent case, and nothing downstream could
+/// recover the difference. So the assertion is over the emitted TEXT and not
+/// only over the round-tripped value.
+#[test]
+fn name_bound_output_distinguishes_an_absent_bound_from_zero() {
+    let schema = require_schema!("wasm-provider-v1alpha1.schema.json");
+
+    let fixture = NameBoundOutput {
+        names: vec![
+            DerivedNameVerdict {
+                kind: "release name".to_string(),
+                usable: false,
+                bound: Some(31),
+                reason: "a release name is at most 53 characters".to_string(),
+            },
+            DerivedNameVerdict {
+                kind: "logical id".to_string(),
+                usable: false,
+                bound: Some(0),
+                reason: "this target accepts no name of this kind".to_string(),
+            },
+            DerivedNameVerdict {
+                kind: "service name".to_string(),
+                usable: false,
+                bound: None,
+                reason: "the first character is one the alphabet does not admit".to_string(),
+            },
+        ],
+        error: String::new(),
+    };
+
+    let value = serde_json::to_value(&fixture).expect("serialise NameBoundOutput");
+    if let Err(e) = validate(&schema, &value) {
+        panic!("schema validation failed for NameBoundOutput fixture: {e}");
+    }
+
+    let raw = serde_json::to_string(&fixture).expect("marshal NameBoundOutput");
+    assert!(
+        raw.contains("\"bound\":0"),
+        "a zero bound must reach the wire as a stated length; got {raw}"
+    );
+    let round: NameBoundOutput = serde_json::from_str(&raw).expect("unmarshal NameBoundOutput");
+    assert_eq!(round.names[0].bound, Some(31));
+    assert_eq!(
+        round.names[1].bound,
+        Some(0),
+        "a zero bound must survive the round trip as a stated length"
+    );
+    assert_eq!(
+        round.names[2].bound, None,
+        "an absent bound must survive the round trip as absent, not as zero"
+    );
+}
+
+/// A guest reads the proposed identity and whether a person wrote it. The flag
+/// is carried so a guest can phrase its reason for the reader who can act on it;
+/// what a refusal DOES is the host's decision, not the guest's.
+#[test]
+fn name_bound_input_round_trip_json_schema() {
+    let schema = require_schema!("wasm-provider-v1alpha1.schema.json");
+
+    let fixture = NameBoundInput {
+        proposed: "payments-api".to_string(),
+        authored: true,
+    };
+
+    let value = serde_json::to_value(&fixture).expect("serialise NameBoundInput");
+    if let Err(e) = validate(&schema, &value) {
+        panic!("schema validation failed for NameBoundInput fixture: {e}");
+    }
+
+    let raw = serde_json::to_string(&fixture).expect("marshal NameBoundInput");
+    let round: NameBoundInput = serde_json::from_str(&raw).expect("unmarshal NameBoundInput");
+    assert_eq!(fixture.proposed, round.proposed);
+    assert!(round.authored);
 }
