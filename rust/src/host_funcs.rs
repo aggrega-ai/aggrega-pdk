@@ -132,7 +132,7 @@ pub fn fetch_external_input(url: &str) -> Result<Vec<u8>, Error> {
         .map_err(|e| Error::msg(format!("aggrega_fetch_external_input: decode envelope: {e}")))?;
     if !envelope.error.is_empty() {
         return Err(Error::new(HostError {
-            code: envelope.error_code,
+            code: envelope.hostfunc_error_code,
             message: envelope.error,
         }));
     }
@@ -204,7 +204,7 @@ fn decode_pack_source_reply(reply: &[u8]) -> Result<SourceProjection, Error> {
         .map_err(|e| Error::msg(format!("aggrega_pack_source: decode response: {e}")))?;
     if !response.error.is_empty() {
         return Err(Error::new(HostError {
-            code: response.error_code,
+            code: response.hostfunc_error_code,
             message: response.error,
         }));
     }
@@ -266,7 +266,7 @@ fn decode_read_source_file_reply(reply: &[u8]) -> Result<Vec<u8>, Error> {
         .map_err(|e| Error::msg(format!("aggrega_read_source_file: decode response: {e}")))?;
     if !response.error.is_empty() {
         return Err(Error::new(HostError {
-            code: response.error_code,
+            code: response.hostfunc_error_code,
             message: response.error,
         }));
     }
@@ -343,7 +343,7 @@ fn decode_parse_source_reply(reply: &[u8]) -> Result<Box<RawValue>, Error> {
         .map_err(|e| Error::msg(format!("aggrega_parse_source: decode reply: {e}")))?;
     if !response.error.is_empty() {
         return Err(Error::new(HostError {
-            code: response.error_code,
+            code: response.hostfunc_error_code,
             message: response.error,
         }));
     }
@@ -506,9 +506,9 @@ mod tests {
             serde_json::from_str(&read_vector("ParseSourceResponse.golden.json"))
                 .expect("ParseSourceResponse.golden.json is readable as JSON");
         let want_message = golden["error"].as_str().expect("golden carries an error");
-        let want_code = golden["error_code"]
+        let want_code = golden["hostfunc_error_code"]
             .as_str()
-            .expect("golden carries an error_code");
+            .expect("golden carries a hostfunc_error_code");
 
         let err = decode_parse_source_reply(&read_hex_vector("ParseSourceResponse.cbor.hex"))
             .expect_err("a failure reply must not decode as a success");
@@ -661,9 +661,9 @@ mod tests {
             serde_json::from_str(&read_vector("ErrorEnvelopeSourcePackResponse.golden.json"))
                 .expect("ErrorEnvelopeSourcePackResponse.golden.json is readable as JSON");
         let want_message = golden["error"].as_str().expect("golden carries an error");
-        let want_code = golden["error_code"]
+        let want_code = golden["hostfunc_error_code"]
             .as_str()
-            .expect("golden carries an error_code");
+            .expect("golden carries a hostfunc_error_code");
 
         let err =
             decode_pack_source_reply(&read_hex_vector("ErrorEnvelopeSourcePackResponse.cbor.hex"))
@@ -699,9 +699,9 @@ mod tests {
             serde_json::from_str(&read_vector("ErrorEnvelopeSourceFileResponse.golden.json"))
                 .expect("ErrorEnvelopeSourceFileResponse.golden.json is readable as JSON");
         let want_message = golden["error"].as_str().expect("golden carries an error");
-        let want_code = golden["error_code"]
+        let want_code = golden["hostfunc_error_code"]
             .as_str()
-            .expect("golden carries an error_code");
+            .expect("golden carries a hostfunc_error_code");
 
         let err = decode_read_source_file_reply(&read_hex_vector(
             "ErrorEnvelopeSourceFileResponse.cbor.hex",

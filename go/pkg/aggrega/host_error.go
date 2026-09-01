@@ -33,7 +33,15 @@ func (e *HostError) Error() string { return e.Message }
 // The host-function error codes, re-exported from the portable aggrega-abi
 // module so a plugin author writes aggrega.Code* while the vocabulary stays
 // single-sourced in the schema. The values are the closed set the host sets on
-// a host-function reply envelope's error_code field.
+// a host-function reply envelope's hostfunc_error_code field.
+//
+// That key names this catalog and only this catalog. A guest reporting a halting
+// condition it raised puts that condition's own identifiers on its socket
+// output, under condition_code and condition_short_code, and those values are
+// drawn from the open set of conditions the compiler registers rather than from
+// the closed catalog below. Comparing a condition_code against one of these
+// constants therefore never matches, and is not meant to: each key names the
+// vocabulary its value comes from, so neither reads as the general case.
 const (
 	CodeFetchRequestUnreadable     = abi.CodeFetchRequestUnreadable
 	CodeFetchInputUnavailable      = abi.CodeFetchInputUnavailable

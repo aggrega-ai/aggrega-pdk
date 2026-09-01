@@ -130,8 +130,8 @@ func TestDecodePackSourceReply_FailureFromSharedVector(t *testing.T) {
 	t.Parallel()
 
 	var golden struct {
-		Error     string `json:"error"`
-		ErrorCode string `json:"error_code"`
+		Error             string `json:"error"`
+		HostfuncErrorCode string `json:"hostfunc_error_code"`
 	}
 	if err := json.Unmarshal(readVector(t, "ErrorEnvelopeSourcePackResponse.golden.json"), &golden); err != nil {
 		t.Fatalf("ErrorEnvelopeSourcePackResponse.golden.json is not readable as a SourcePackResponse: %v", err)
@@ -145,8 +145,8 @@ func TestDecodePackSourceReply_FailureFromSharedVector(t *testing.T) {
 	if !errors.As(err, &he) {
 		t.Fatalf("decodePackSourceReply returned %T (%v); want a *HostError", err, err)
 	}
-	if he.Code != golden.ErrorCode {
-		t.Errorf("HostError code = %q; want the vector's %q", he.Code, golden.ErrorCode)
+	if he.Code != golden.HostfuncErrorCode {
+		t.Errorf("HostError code = %q; want the vector's %q", he.Code, golden.HostfuncErrorCode)
 	}
 	if he.Message != golden.Error {
 		t.Errorf("HostError message = %q; want the vector's %q", he.Message, golden.Error)
@@ -186,8 +186,8 @@ func TestDecodeReadSourceFileReply_FailureFromSharedVector(t *testing.T) {
 	t.Parallel()
 
 	var golden struct {
-		Error     string `json:"error"`
-		ErrorCode string `json:"error_code"`
+		Error             string `json:"error"`
+		HostfuncErrorCode string `json:"hostfunc_error_code"`
 	}
 	if err := json.Unmarshal(readVector(t, "ErrorEnvelopeSourceFileResponse.golden.json"), &golden); err != nil {
 		t.Fatalf("ErrorEnvelopeSourceFileResponse.golden.json is not readable as a SourceFileResponse: %v", err)
@@ -201,8 +201,8 @@ func TestDecodeReadSourceFileReply_FailureFromSharedVector(t *testing.T) {
 	if !errors.As(err, &he) {
 		t.Fatalf("decodeReadSourceFileReply returned %T (%v); want a *HostError", err, err)
 	}
-	if he.Code != golden.ErrorCode {
-		t.Errorf("HostError code = %q; want the vector's %q", he.Code, golden.ErrorCode)
+	if he.Code != golden.HostfuncErrorCode {
+		t.Errorf("HostError code = %q; want the vector's %q", he.Code, golden.HostfuncErrorCode)
 	}
 	if he.Message != golden.Error {
 		t.Errorf("HostError message = %q; want the vector's %q", he.Message, golden.Error)

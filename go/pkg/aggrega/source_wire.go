@@ -48,7 +48,7 @@ func decodePackSourceReply(reply []byte) (*SourceProjection, error) {
 		return nil, fmt.Errorf("aggrega_pack_source: decode response: %w", err)
 	}
 	if resp.Error != "" {
-		return nil, &HostError{Code: resp.ErrorCode, Message: resp.Error}
+		return nil, &HostError{Code: resp.HostfuncErrorCode, Message: resp.Error}
 	}
 	if resp.SourceProjection == nil {
 		return nil, errors.New("aggrega_pack_source: response carries neither a source projection nor an error")
@@ -82,7 +82,7 @@ func decodeReadSourceFileReply(reply []byte) ([]byte, error) {
 		return nil, fmt.Errorf("aggrega_read_source_file: decode response: %w", err)
 	}
 	if resp.Error != "" {
-		return nil, &HostError{Code: resp.ErrorCode, Message: resp.Error}
+		return nil, &HostError{Code: resp.HostfuncErrorCode, Message: resp.Error}
 	}
 	return resp.Content, nil
 }

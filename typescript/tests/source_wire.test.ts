@@ -152,7 +152,7 @@ test("the pack-source success shape decodes to its packed files", () => {
 test("a reported pack-source failure surfaces as a HostError from the shared vector", () => {
   const golden = JSON.parse(
     readVector("ErrorEnvelopeSourcePackResponse.golden.json"),
-  ) as { error: string; error_code: string };
+  ) as { error: string; hostfunc_error_code: string };
 
   assert.throws(
     () =>
@@ -164,7 +164,7 @@ test("a reported pack-source failure surfaces as a HostError from the shared vec
         err instanceof HostError,
         `the failure surfaces as a HostError, got ${String(err)}`,
       );
-      assert.equal(err.code, golden.error_code);
+      assert.equal(err.code, golden.hostfunc_error_code);
       assert.equal(err.message, golden.error);
       return true;
     },
@@ -189,7 +189,7 @@ test("the read-source-file success shape decodes to its content", () => {
 test("a reported read-source-file failure surfaces as a HostError from the shared vector", () => {
   const golden = JSON.parse(
     readVector("ErrorEnvelopeSourceFileResponse.golden.json"),
-  ) as { error: string; error_code: string };
+  ) as { error: string; hostfunc_error_code: string };
 
   assert.throws(
     () =>
@@ -201,7 +201,7 @@ test("a reported read-source-file failure surfaces as a HostError from the share
         err instanceof HostError,
         `the failure surfaces as a HostError, got ${String(err)}`,
       );
-      assert.equal(err.code, golden.error_code);
+      assert.equal(err.code, golden.hostfunc_error_code);
       assert.equal(err.message, golden.error);
       return true;
     },

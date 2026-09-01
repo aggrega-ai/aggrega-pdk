@@ -112,7 +112,7 @@ export function fetchExternalInput(url: string): ArrayBuffer {
     Memory.find(offset).readString(),
   );
   if (envelope.error) {
-    throw new HostError(envelope.error_code ?? "", envelope.error);
+    throw new HostError(envelope.hostfunc_error_code ?? "", envelope.error);
   }
   if (envelope.content === undefined) {
     throw new Error(
@@ -188,7 +188,7 @@ export function encodePackSourceRequest(
 export function decodePackSourceReply(reply: ArrayBuffer): SourceProjection {
   const response = decodeCBORSourcePackResponse(new Uint8Array(reply));
   if (response.error) {
-    throw new HostError(response.error_code ?? "", response.error);
+    throw new HostError(response.hostfunc_error_code ?? "", response.error);
   }
   if (response.source_projection === undefined) {
     throw new Error(
@@ -261,7 +261,7 @@ export function encodeReadSourceFileRequest(
 export function decodeReadSourceFileReply(reply: ArrayBuffer): string {
   const response = decodeCBORSourceFileResponse(new Uint8Array(reply));
   if (response.error) {
-    throw new HostError(response.error_code ?? "", response.error);
+    throw new HostError(response.hostfunc_error_code ?? "", response.error);
   }
   return response.content ?? "";
 }
@@ -355,7 +355,7 @@ function toExactBuffer(encoded: Uint8Array): ArrayBuffer {
 export function decodeParseSourceReply(reply: ArrayBuffer): unknown {
   const response = decodeCBORParseSourceResponse(new Uint8Array(reply));
   if (response.error) {
-    throw new HostError(response.error_code ?? "", response.error);
+    throw new HostError(response.hostfunc_error_code ?? "", response.error);
   }
   if (response.tree === undefined) {
     throw new Error(

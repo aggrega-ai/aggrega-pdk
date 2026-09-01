@@ -50,7 +50,7 @@ func decodeParseSourceReply(reply []byte) (json.RawMessage, error) {
 		return nil, fmt.Errorf("aggrega_parse_source: decode reply: %w", err)
 	}
 	if resp.Error != "" {
-		return nil, &HostError{Code: resp.ErrorCode, Message: resp.Error}
+		return nil, &HostError{Code: resp.HostfuncErrorCode, Message: resp.Error}
 	}
 	if len(resp.Tree) == 0 {
 		return nil, errors.New("aggrega_parse_source: reply carries neither a tree nor an error")

@@ -117,7 +117,7 @@ test("the parse-source request matches the shared ParseInput vector", () => {
 test("a reported parse-source failure surfaces as a HostError from the shared vector", () => {
   const golden = JSON.parse(readVector("ParseSourceResponse.golden.json")) as {
     error: string;
-    error_code: string;
+    hostfunc_error_code: string;
   };
 
   assert.throws(
@@ -130,7 +130,7 @@ test("a reported parse-source failure surfaces as a HostError from the shared ve
         err instanceof HostError,
         `the failure surfaces as a HostError, got ${String(err)}`,
       );
-      assert.equal(err.code, golden.error_code);
+      assert.equal(err.code, golden.hostfunc_error_code);
       assert.equal(err.message, golden.error);
       return true;
     },

@@ -75,7 +75,7 @@ func FetchExternalInput(url string) ([]byte, error) {
 		return nil, fmt.Errorf("aggrega_fetch_external_input: decode envelope: %w", err)
 	}
 	if envelope.Error != "" {
-		return nil, &HostError{Code: envelope.ErrorCode, Message: envelope.Error}
+		return nil, &HostError{Code: envelope.HostfuncErrorCode, Message: envelope.Error}
 	}
 	if envelope.Content == nil {
 		return nil, errors.New("aggrega_fetch_external_input: envelope carries neither content nor error")
