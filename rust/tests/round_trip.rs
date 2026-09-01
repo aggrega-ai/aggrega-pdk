@@ -523,6 +523,8 @@ fn name_bound_output_distinguishes_an_absent_bound_from_zero() {
             },
         ],
         error: String::new(),
+        error_code: String::new(),
+        error_short_code: String::new(),
     };
 
     let value = serde_json::to_value(&fixture).expect("serialise NameBoundOutput");

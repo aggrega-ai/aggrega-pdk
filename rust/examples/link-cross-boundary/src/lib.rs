@@ -132,6 +132,7 @@ pub fn link_publish(input: String) -> FnResult<String> {
             file: LINK_FILE.to_string(),
             ops: vec![one_op(LINK_FILE, "/published", &pointer)?],
         }],
+        ..Default::default()
     };
     Ok(serde_json::to_string(&out)?)
 }
@@ -148,6 +149,7 @@ pub fn link_resolve(input: String) -> FnResult<String> {
             file: LINK_FILE.to_string(),
             ops: vec![one_op(LINK_FILE, "/resolved", &pointer)?],
         }],
+        ..Default::default()
     };
     Ok(serde_json::to_string(&out)?)
 }
