@@ -80,14 +80,23 @@ go/
 ├── pkg/aggrega/
 │   ├── doc.go        (package doc)
 │   ├── version.go    (APIVersion constant)
-│   ├── types.go      (socket payload types — mirror the JSON Schemas)
+│   ├── abi_reexport.go (socket payload types, aliased from aggrega-abi)
+│   ├── describe.go   (descriptor helpers for the describe export)
+│   ├── source_wire.go, parse_source_wire.go (source-wire helpers)
 │   ├── host_funcs.go (wasip1-build-tagged host function bindings)
 │   ├── host_funcs_stub.go (host-build stubs for non-wasm targets)
-│   └── aggrega_test.go (round-trip mirroring tests against the schemas)
-└── examples/
-    ├── mutator/      (fixture mutator plugin)
-    └── policy/          (fixture policy plugin)
+│   ├── host_error.go (host-call error handling)
+│   └── aggrega_test.go (round-trip tests against the schemas)
+└── examples/         (one directory per worked plugin — a mutator, a
+                      policy, a governance adapter skeleton, an FRP
+                      step, a CLI plugin, and others)
 ```
+
+`types.go` carries no types: the socket payload types are generated
+into the shared `aggrega-abi` module and aliased into this package by
+`abi_reexport.go`, so `aggrega.<Type>` is the same type the codec
+marshals. See the [kit overview](../README.md) for the generation and
+the gates that hold it.
 
 ## Standalone reuse
 

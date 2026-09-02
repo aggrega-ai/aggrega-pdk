@@ -100,16 +100,22 @@ typescript/
 ├── tsconfig.json       (strict + ES2022 + CommonJS + extism:host types)
 ├── .gitignore          (excludes node_modules/, dist/)
 ├── src/
-│   ├── index.ts        (public-surface re-exports)
+│   ├── index.ts        (public surface, re-exporting the abi types)
 │   ├── version.ts      (API_VERSION constant)
-│   ├── types.ts        (socket payload TypeScript interfaces)
+│   ├── describe.ts     (descriptor helpers for the describe export)
+│   ├── host_error.ts   (host-call error handling)
 │   └── host_funcs.ts   (ambient extism:host declaration + safe wrappers)
 ├── tests/
-│   └── round_trip.test.ts (round-trip mirroring against the schemas)
-└── examples/
-    ├── mutator/        (fixture mutator plugin)
-    └── policy/ (fixture policy plugin)
+│   └── round_trip.test.ts (round-trip tests against the schemas)
+└── examples/           (one directory per worked plugin — a mutator, a
+                        policy, a governance adapter skeleton, and others)
 ```
+
+`types.ts` carries no interfaces: the socket payload types are
+generated into the shared `@aggrega-ai/aggrega-abi` package and
+re-exported from `index.ts`, so the names a plugin author imports are
+the ones the codec serializes. See the [kit overview](../README.md) for
+the generation and the gates that hold it.
 
 ## Toolchain dependencies
 

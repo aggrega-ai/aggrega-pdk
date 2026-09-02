@@ -11,13 +11,16 @@ language:
 - **`typescript/`** — TypeScript PDK; targets publication to npm as
   `@aggrega-ai/aggrega-pdk-typescript`.
 
-Each PDK is a thin, hand-authored wrapper over the corresponding
-upstream [Extism](https://extism.org) PDK
-(`extism-pdk-<language>`), adding Aggrega-typed builders for the
-Wasm socket payloads and bindings for the Aggrega host functions
-(`aggrega_log`, `aggrega_emit_warning`). Plugin authors targeting a
-mutator, policy, or any future Aggrega socket consume the
-language-appropriate PDK and write idiomatic source against it.
+Each PDK is a thin wrapper over the corresponding upstream
+[Extism](https://extism.org) PDK (`extism-pdk-<language>`), adding
+Aggrega-typed builders for the Wasm socket payloads and bindings for
+the Aggrega host functions (`aggrega_log`, `aggrega_emit_warning`).
+The socket payload types themselves are generated from the canonical
+schemas into the shared `aggrega-abi` package and re-exported by each
+PDK, so the host, the guest codec and all three PDKs carry one wire
+shape. Plugin authors targeting a mutator, policy, or any future
+Aggrega socket consume the language-appropriate PDK and write
+idiomatic source against it.
 
 Contract floor: `v1alpha1`. The three PDKs export a common version
 constant and stay coordinated at every socket-shape change.
@@ -37,81 +40,82 @@ aggrega-pdk/
 Per-language authoring entry points live in `<language>/README.md`.
 Start there for the language you author plugins in.
 
-## Mirroring discipline
+## Where the socket types come from
 
-Three sources of truth describe each socket shape:
+One artifact describes each socket shape, and it is the only one
+authored: the **JSON Schema 2020-12** in the Aggrega schema
+distribution, which is the wire-format contract crossing the
+host/guest boundary.
 
-1. **Go canonical type** in the Aggrega compiler core (the host's
-   in-memory representation).
-2. **JSON Schema 2020-12** in the Aggrega schema distribution (the
-   wire-format contract crossing the host/guest boundary).
-3. **Per-language PDK type** in each subdirectory here (the
-   author-facing surface in each source language).
+From that schema a generator in the compiler writes the
+**per-language codecs** — Go, Rust and TypeScript — into the shared
+`aggrega-abi` package, where they are committed alongside it. Each
+PDK re-exports the codec types for its own language rather than
+declaring them: Go aliases them in `go/pkg/aggrega/abi_reexport.go`,
+Rust re-exports them from `rust/src/lib.rs`, TypeScript from
+`typescript/src/index.ts`. A Go alias is the same type, so a value a
+plugin author builds against the `aggrega.<Type>` spelling is the
+value the codec marshals — no conversion step, and no second
+declaration that can drift.
 
-All three are hand-authored. The JSON wire format the schema
-describes is the shared contract joining them; source-level textual
-equivalence between the Go canonical type and a PDK type is **not**
-required and **not** verified. Each PDK type follows the target
-language's idioms — Rust's `serde` attributes, TypeScript's
-discriminated unions, Go's `json` tags — while serializing to the
-same JSON shape.
+Source-level textual equivalence between the host's in-memory
+representation and a generated codec type is **not** required and
+**not** verified; the JSON wire format is the shared contract. Each
+language's codec follows that language's idioms — Rust's `serde`
+attributes, TypeScript's discriminated unions, Go's `json` tags —
+while serializing to the same JSON shape.
 
-Drift between any two mirrors is caught by round-trip tests on the
-side that owns the mirror:
+Two gates hold the arrangement together:
 
-- A host-side round-trip test marshals a Go fixture, validates
-  against the JSON Schema, and unmarshals back. Catches Go-struct ↔
-  schema drift.
-- Each PDK's tests do the equivalent: marshal a fixture in the PDK's
-  package namespace, validate against the same JSON Schema, and
-  unmarshal back. Catches PDK-type ↔ schema drift on the PDK side.
+- **Regeneration is byte-compared.** The compiler's own regeneration
+  tests re-run the generator and fail when the committed codec bytes
+  differ from what it now produces, so a schema edit that was never
+  regenerated is loud rather than latent.
+- **The three languages are checked against one corpus.** Shared
+  golden vectors under `aggrega-abi/testdata/` are read by parity
+  tests in each language, so Go, Rust and TypeScript are held to the
+  same encoded bytes rather than to each other's word.
 
-The schema is the pivot. A schema edit fans out to one Go canonical
-type update and N PDK type updates; the per-language tests gate the
-fan-out.
-
-## Why hand-authored
+## Why one generated codec
 
 The Aggrega contract is JSON Schema 2020-12, the same schema corpus
-the compiler validates Catalog content against. Hand-authored PDKs
-let the project reuse one schema language end-to-end: no second IDL
-(no `.proto`, no XTP Schema YAML, no service-definition DSL), no
-codegen toolchain, and no platform-CLI coupling sitting between
-plugin authors and the typed surface they write against.
+the compiler validates Catalog content against. Generating the codecs
+from that corpus keeps one schema language end-to-end: there is no
+second IDL (no `.proto`, no XTP Schema YAML, no service-definition
+DSL) and no platform-CLI coupling sitting between plugin authors and
+the typed surface they write against. The generator consumes the
+schemas the project already maintains.
 
-The trade-off is a bounded maintenance cost: a socket-shape edit
-touches the Go canonical type, the JSON Schema, and three PDK type
-modules at once. The round-trip tests make every drift loud at CI
-time, so the cost is real but predictable — and small in absolute
-terms because the socket count is small.
-
-If, at a future re-evaluation, a codegen tool that consumes JSON
-Schema 2020-12 directly and produces reusable library-shape output
-(not full plugin scaffolds) becomes available, the hand-authored
-PDKs can be replaced with generated ones without changing the
-round-trip discipline: the same tests validate generated output the
-same way they validate hand-authored output today.
+Generating rather than mirroring by hand is what keeps the fan-out
+bounded. A socket-shape edit is one schema change plus a
+regeneration, instead of the same edit repeated in each language; the
+byte-comparison and the shared golden corpus above are what make a
+missed regeneration or a diverging language fail rather than ship.
 
 ## Maintenance contract
 
 Adding a new socket — or extending an existing one — touches the
 following surfaces together, in one coordinated commit set:
 
-1. The Go canonical type in the Aggrega compiler core.
-2. The JSON Schema in the Aggrega schema distribution.
-3. Each per-language PDK's mirror type module.
-4. Each per-language PDK's round-trip test fixture.
-5. The host-side round-trip test fixture.
-6. The integration test that exercises the loader end-to-end against
+1. The JSON Schema in the Aggrega schema distribution.
+2. A regeneration of the `aggrega-abi` codecs, committed with the
+   schema change.
+3. The shared golden vectors under `aggrega-abi/testdata/`.
+4. Each per-language PDK's builders and host-function bindings, where
+   the socket adds an authored surface beyond the codec types.
+5. Each per-language PDK's round-trip test fixture.
+6. The host-side round-trip test fixture.
+7. The integration test that exercises the loader end-to-end against
    the per-language fixtures.
 
 A PDK CI workflow gates the per-language builds and tests; a
 host-side integration test in the compiler's own test suite loads
 the committed fixture `.wasm` artifacts and exercises them
-end-to-end. Drift between the schema and a PDK fails the PDK's
-round-trip test in PDK CI; drift between a committed `.wasm`
-fixture and the host's expectations fails the integration test in
-the compiler's CI.
+end-to-end. A schema edit left unregenerated fails the compiler's
+regeneration comparison; a codec that disagrees with its siblings
+fails the shared golden-vector parity tests; and drift between a
+committed `.wasm` fixture and the host's expectations fails the
+integration test in the compiler's CI.
 
 ## Module-path identity
 

@@ -112,16 +112,22 @@ rust/
 ├── Cargo.toml          (workspace root; crate aggrega-pdk-rust + fixture members)
 ├── Cargo.lock          (workspace-wide lockfile shared by all members)
 ├── src/
-│   ├── lib.rs          (module declarations + public re-exports)
+│   ├── lib.rs          (module declarations + the aggrega_abi re-exports)
 │   ├── version.rs      (API_VERSION constant)
-│   ├── types.rs        (socket payload types — derive(Serialize, Deserialize))
+│   ├── describe.rs     (descriptor helpers for the describe export)
 │   └── host_funcs.rs   (#[host_fn] bindings + safe wrappers)
 ├── tests/
-│   └── round_trip.rs   (round-trip mirroring tests against the schemas)
-└── examples/
-    ├── mutator/        (fixture mutator plugin)
-    └── policy/ (fixture policy plugin)
+│   └── round_trip.rs   (round-trip tests against the schemas)
+└── examples/           (one directory per worked plugin — a mutator, a
+                        policy, a governance adapter skeleton, FRP
+                        steps, a CLI plugin, and others)
 ```
+
+`types.rs` carries no types: the socket payload types are generated
+into the shared `aggrega-abi` crate and re-exported from `lib.rs` with
+`pub use`, so the spelling a plugin author writes is the type the codec
+serializes. See the [kit overview](../README.md) for the generation and
+the gates that hold it.
 
 ## Standalone reuse
 
