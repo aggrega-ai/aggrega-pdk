@@ -9,7 +9,7 @@
 // verbatim catalog annotations, whether the attachment fills a declared slot or
 // is free, and the sensitivity marking at each of the units the wire carries it
 // at — one answer for the whole attachment, one per inject delivery key, and one
-// per authored leaf. The host supplies those facts and makes no judgement about
+// per payload leaf. The host supplies those facts and makes no judgement about
 // them; each rule below is this plugin's own judgement.
 //
 // Five rules, selected by the attachment's settings.rule:
@@ -21,17 +21,17 @@
 //   - no-sensitive-by-value — deny a build that carries a declared-sensitive
 //     datum by value, by EITHER of the two routes the wire marks per datum: an
 //     inject delivery key whose referenced provides key the Feature declares
-//     sensitive, or a leaf of the attachment's own authored payload that the
-//     Feature declares sensitive. The verdict names which route it found and
-//     which datum, because the two are separate findings and an operator acting
-//     on one needs to know which one it has. Delivery keys are examined before
-//     authored leaves, so a build offending on both is reported at the narrower
+//     sensitive, or a leaf of the attachment's own payload that the Feature
+//     declares sensitive. The verdict names which route it found and which
+//     datum, because the two are separate findings and an operator acting on
+//     one needs to know which one it has. Delivery keys are examined before
+//     payload leaves, so a build offending on both is reported at the narrower
 //     finding — a marked delivery key names the datum AND where it travels,
-//     where an authored leaf names only the datum.
+//     where a payload leaf names only the datum.
 //
 //     Neither route needs the value inspected, and neither is inspected. At a
 //     marked delivery key the compiler already raises a build-succeeding
-//     advisory and never halts; at an authored leaf it raises nothing at all,
+//     advisory and never halts; at a payload leaf it raises nothing at all,
 //     because whether the author wrote the material there or a locator pointing
 //     at it elsewhere is the author's choice and the compiler resolves neither.
 //     This rule refuses the carry rather than the content, so it does not need
@@ -101,9 +101,9 @@ type input struct {
 // attachment: true when the Feature declares sensitivity anywhere, or when the
 // slot it fills does. SensitiveInject maps a delivery mechanism to the delivery
 // keys carrying declared-sensitive material, valued by the provides key each
-// inherited its marking from. SensitiveAuthoredLeaves names the leaves of the
-// attachment's own authored payload that the Feature declares sensitive, each as
-// the pillar-prefixed path the datum occupies. A rule wanting per-datum
+// inherited its marking from. SensitivePayloadLeaves names the leaves of the
+// attachment's own payload that the Feature declares sensitive, each as the
+// pillar-prefixed path the datum occupies. A rule wanting per-datum
 // precision reads one of the latter two: Sensitive says the attachment handles
 // secret material somewhere, which is not a statement about any one datum, so
 // treating it as one would object to data an author left readable.
@@ -118,18 +118,18 @@ type input struct {
 // the observe rule below could no longer report it. Rules that need one key's
 // value decode locally instead.
 //
-// SensitiveAuthoredLeaves is a slice for the same reason read the other way: the
-// wire carries the leaves in the order the attachment authored them, and a slice
-// keeps that order, so nothing has to be re-established on arrival and the
-// observe rule reports the order the payload actually had.
+// SensitivePayloadLeaves is a slice for the same reason read the other way: the
+// wire carries the leaves in the order the payload holds them, and a slice keeps
+// that order, so nothing has to be re-established on arrival and the observe
+// rule reports the order the payload actually had.
 type attachment struct {
-	Type                    string                       `json:"type"`
-	Labels                  map[string]string            `json:"labels"`
-	CatalogAnnotations      json.RawMessage              `json:"catalog_annotations,omitempty"`
-	Binding                 string                       `json:"binding"`
-	Sensitive               bool                         `json:"sensitive"`
-	SensitiveInject         map[string]map[string]string `json:"sensitive_inject"`
-	SensitiveAuthoredLeaves []string                     `json:"sensitive_authored_leaves"`
+	Type                   string                       `json:"type"`
+	Labels                 map[string]string            `json:"labels"`
+	CatalogAnnotations     json.RawMessage              `json:"catalog_annotations,omitempty"`
+	Binding                string                       `json:"binding"`
+	Sensitive              bool                         `json:"sensitive"`
+	SensitiveInject        map[string]map[string]string `json:"sensitive_inject"`
+	SensitivePayloadLeaves []string                     `json:"sensitive_payload_leaves"`
 }
 
 type result struct {
@@ -235,9 +235,9 @@ walk:
 						nodeID, name, mech, deliveryKey, providesKey, echo(a, in.Settings.EchoLabel))})
 					break walk
 				}
-				if leaf, found := firstMarkedAuthoredLeaf(a); found {
+				if leaf, found := firstMarkedPayloadLeaf(a); found {
 					results = append(results, result{Severity: severity, Message: fmt.Sprintf(
-						"governance rule: node %q attachment %q carries declared-sensitive material by value at authored leaf %q%s",
+						"governance rule: node %q attachment %q carries declared-sensitive material by value at payload leaf %q%s",
 						nodeID, name, leaf, echo(a, in.Settings.EchoLabel))})
 					break walk
 				}
@@ -282,21 +282,20 @@ func firstMarkedDelivery(a attachment) (mechanism, deliveryKey, providesKey stri
 	return "", "", "", false
 }
 
-// firstMarkedAuthoredLeaf returns the attachment's first marked authored leaf,
-// as the pillar-prefixed coordinate the wire carries.
+// firstMarkedPayloadLeaf returns the attachment's first marked payload leaf, as
+// the pillar-prefixed coordinate the wire carries.
 //
 // No sort here, unlike firstMarkedDelivery above, and the difference is the
 // container rather than an inconsistency: the wire carries these leaves in a
 // sequence and this decoded them into a slice, so the payload's own order
-// survived arrival and the first element is already the first leaf the
-// attachment authored. The delivery marking arrives as nested objects decoded
-// into Go maps, which hold no order, so there the order has to be
-// re-established.
-func firstMarkedAuthoredLeaf(a attachment) (leaf string, found bool) {
-	if len(a.SensitiveAuthoredLeaves) == 0 {
+// survived arrival and the first element is already the first leaf the payload
+// holds. The delivery marking arrives as nested objects decoded into Go maps,
+// which hold no order, so there the order has to be re-established.
+func firstMarkedPayloadLeaf(a attachment) (leaf string, found bool) {
+	if len(a.SensitivePayloadLeaves) == 0 {
 		return "", false
 	}
-	return a.SensitiveAuthoredLeaves[0], true
+	return a.SensitivePayloadLeaves[0], true
 }
 
 // annotationValue decodes the attachment's verbatim catalog annotations and
