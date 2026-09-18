@@ -28,8 +28,8 @@ payload arrives and what the guest may emit.
 
 | Role | Export | What arrives | What may be emitted |
 | --- | --- | --- | --- |
-| `annotation-transform` | `transform_annotations` | the components that may be annotated, plus the annotation keys the deployment has registered a meaning for | annotations to add to components that already exist |
-| `label-transform` | `mutate` | the build's nodes with the labels they currently carry, plus the deployment's name and environment | label changes, one per decision |
+| `annotation-transform` | `transform_annotations` | the components that may be annotated, plus the annotation keys the Manifest has registered a meaning for | annotations to add to components that already exist |
+| `label-transform` | `mutate` | the build's nodes with the labels they currently carry, plus the Release's name and environment | label changes, one per decision |
 | `ir-verdict` | `verdict_ir` | the build graph, plus the routing paths enumerated alongside it | verdicts |
 | `render-verdict` | `verdict_render` | the rendered output files, each with its text and, where the host parsed it, a structured view of its content | verdicts |
 

@@ -7,7 +7,7 @@
 //!
 //! The build's nodes keyed by name, each carrying the component it instantiates,
 //! the version resolved for it and the labels it currently has; plus the
-//! deployment's name and environment, so a policy can decide differently per
+//! Release's name and environment, so a policy can decide differently per
 //! environment.
 //!
 //! # What may be emitted

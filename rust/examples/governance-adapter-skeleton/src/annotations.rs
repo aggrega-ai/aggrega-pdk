@@ -7,7 +7,7 @@
 //!
 //! The components this attachment may annotate, each with the boundary it sits
 //! under, its own name and the annotations it already carries; plus the
-//! annotation keys the deployment has registered a meaning for. An annotation
+//! annotation keys the Manifest has registered a meaning for. An annotation
 //! under one of those keys goes on to expand into an attached feature, so a
 //! policy reads that list to inject keys that will take effect.
 //!
@@ -16,7 +16,7 @@
 //! Annotations to add to components that already exist. A decision carries a
 //! coordinate, a key and a string value, and there is no other field it could
 //! carry, so this role cannot express any other change. A decision naming a
-//! component the deployment does not have is refused by the build, naming the
+//! component the payload does not carry is refused by the build, naming the
 //! coordinate.
 //!
 //! A decision is read straight into the wire's own injection shape, so the field

@@ -95,7 +95,7 @@ function descriptor(): PluginDescriptor {
     exports: [
       {
         name: "transform_annotations",
-        description: "Report the annotations the deployment's components should carry.",
+        description: "Report the annotations the build's components should carry.",
       },
       { name: "mutate", description: "Report the labels the build's nodes should carry." },
       {

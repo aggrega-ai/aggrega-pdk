@@ -94,7 +94,7 @@ fn descriptor() -> PluginDescriptor {
         exports: vec![
             PluginExport {
                 name: "transform_annotations".to_string(),
-                description: "Report the annotations the deployment's components should carry."
+                description: "Report the annotations the build's components should carry."
                     .to_string(),
                 ..Default::default()
             },

@@ -76,7 +76,7 @@ func descriptor() aggrega.PluginDescriptor {
 		PluginType:  "governance",
 		Description: "Adapter skeleton: wire a policy engine to the governance roles.",
 		Exports: []aggrega.PluginExport{
-			{Name: "transform_annotations", Description: "Report the annotations the deployment's components should carry."},
+			{Name: "transform_annotations", Description: "Report the annotations the build's components should carry."},
 			{Name: "mutate", Description: "Report the labels the build's nodes should carry."},
 			{Name: "verdict_ir", Description: "Report the verdicts the policy reached over the build graph."},
 			{Name: "verdict_render", Description: "Report the verdicts the policy reached over the rendered output."},
