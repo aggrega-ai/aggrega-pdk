@@ -63,7 +63,14 @@ jobs:
         uses: actions/setup-go@v6
         with:
           go-version: '1.26'
-          cache-dependency-path: aggrega-pdk/go/go.sum
+          # 🔴 CACHING OFF, consistent with every other workflow here. setup-go
+          # caches GOMODCACHE and GOCACHE by default, which is right on an
+          # ephemeral hosted runner where both vanish between jobs. On a persistent
+          # self-hosted runner they are still on disk next run, so the post-job step
+          # tars and uploads gigabytes to re-obtain files that never left — minutes
+          # per run, and it evicts entries from the shared cache budget that are not
+          # redundant. Reverse it if this job moves to a hosted runner.
+          cache: false
 
       - name: Build Go PDK
         working-directory: aggrega-pdk/go
@@ -201,24 +208,39 @@ jobs:
           cache: npm
           cache-dependency-path: aggrega-pdk/typescript/package-lock.json
 
+      # 🔴 NEITHER TOOL IS INSTALLED WITH sudo. A hosted runner grants passwordless
+      # sudo; a self-hosted one does not, and `sudo tar` there fails the whole job
+      # with "a terminal is required to read the password" — a provisioning fact
+      # reported as a build failure, on a step that has nothing to do with the
+      # build. The same pattern failed in the umbrella's full battery.
+      #
+      # Both install into a writable per-run directory added to PATH. That needs no
+      # privilege, and since the tools are downloaded from the network either way,
+      # placing them there rather than in /usr/local changes nothing about what runs.
       - name: Install binaryen
         run: |
           BIN_VER="version_129"
+          PREFIX="$RUNNER_TEMP/tools"
+          mkdir -p "$PREFIX"
           curl -fsSL -o /tmp/binaryen.tar.gz \
             "https://github.com/WebAssembly/binaryen/releases/download/${BIN_VER}/binaryen-${BIN_VER}-x86_64-linux.tar.gz"
-          sudo tar -C /usr/local --strip-components=1 -xzf /tmp/binaryen.tar.gz
-          wasm-merge --version
-          wasm-opt --version
+          tar -C "$PREFIX" --strip-components=1 -xzf /tmp/binaryen.tar.gz
+          echo "$PREFIX/bin" >> "$GITHUB_PATH"
+          "$PREFIX/bin/wasm-merge" --version
+          "$PREFIX/bin/wasm-opt" --version
 
       - name: Install extism-js
         run: |
           EJS_VER="v1.6.0"
+          PREFIX="$RUNNER_TEMP/tools"
+          mkdir -p "$PREFIX/bin"
           curl -fsSL -o /tmp/extism-js.gz \
             "https://github.com/extism/js-pdk/releases/download/${EJS_VER}/extism-js-x86_64-linux-${EJS_VER}.gz"
           gunzip -f /tmp/extism-js.gz
           chmod +x /tmp/extism-js
-          sudo mv /tmp/extism-js /usr/local/bin/extism-js
-          extism-js --version
+          mv /tmp/extism-js "$PREFIX/bin/extism-js"
+          echo "$PREFIX/bin" >> "$GITHUB_PATH"
+          "$PREFIX/bin/extism-js" --version
 
       - name: Install TS PDK deps
         working-directory: aggrega-pdk/typescript
