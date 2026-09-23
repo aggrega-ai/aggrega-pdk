@@ -73,7 +73,6 @@ test("encodeDescriptor emits a full provider contract and round-trips", () => {
       input_kinds: { sourced: true, synthesized: true, artifacts_standalone: false },
       boundary_assembly: "merge",
       artifact_delimiters: { left: "[[", right: "]]" },
-      source_filter: ["templates/", "values.yaml"],
       assembly_name_annotation: {
         annotation: "aggrega.ai/release-name",
         require_unique: true,
@@ -88,7 +87,6 @@ test("encodeDescriptor emits a full provider contract and round-trips", () => {
     '"boundary_assembly":"merge"',
     '"artifact_delimiters"',
     '"[["',
-    '"source_filter"',
     '"assembly_name_annotation"',
     '"require_unique":true',
     '"reusable_instance":true',

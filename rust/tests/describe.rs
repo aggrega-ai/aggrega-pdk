@@ -101,7 +101,6 @@ fn encode_provider_full_contract_round_trips() {
                 left: "[[".to_string(),
                 right: "]]".to_string(),
             })),
-            source_filter: vec!["templates/".to_string(), "values.yaml".to_string()],
             assembly_name_annotation: Some(Box::new(AssemblyNameAnnotation {
                 annotation: "aggrega.ai/release-name".to_string(),
                 require_unique: true,
@@ -126,7 +125,6 @@ fn encode_provider_full_contract_round_trips() {
         "\"boundary_assembly\":\"merge\"",
         "\"artifact_delimiters\"",
         "\"[[\"",
-        "\"source_filter\"",
         "\"assembly_name_annotation\"",
         "\"require_unique\":true",
         "\"reusable_instance\":true",

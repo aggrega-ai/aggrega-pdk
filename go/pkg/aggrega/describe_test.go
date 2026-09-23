@@ -72,7 +72,6 @@ func TestMarshalDescriptor_ProviderFullContract(t *testing.T) {
 				Left:  "[[",
 				Right: "]]",
 			},
-			SourceFilter: []string{"templates/", "values.yaml"},
 			AssemblyNameAnnotation: &aggrega.AssemblyNameAnnotation{
 				Annotation:    "aggrega.ai/release-name",
 				RequireUnique: true,
@@ -88,7 +87,7 @@ func TestMarshalDescriptor_ProviderFullContract(t *testing.T) {
 	t.Logf("provider descriptor wire: %s", got)
 	for _, want := range []string{
 		`"contract"`, `"input_kinds"`, `"boundary_assembly":"merge"`,
-		`"artifact_delimiters"`, `"[["`, `"source_filter"`,
+		`"artifact_delimiters"`, `"[["`,
 		`"assembly_name_annotation"`, `"require_unique":true`, `"reusable_instance":true`,
 	} {
 		if !bytes.Contains(got, []byte(want)) {
