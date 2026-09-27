@@ -51,7 +51,7 @@ pub use aggrega_abi::{
     Policies,
     PolicyInput, PolicyOutput, PrecalculatedPath, ProviderContract, RenderEdge, RenderNodeInput,
     RenderNodeOutput, RenderedFile, RenderedNode,
-    SourceEntry, SourceFile, SourceFileRequest,
+    SourceEntry, SourceFile, SourceFileRequest, SourceIgnore,
     SourceFileResponse, SourceListing, SourcePackRequest, SourcePackResponse, SourceProjection,
     SourceSpan, Span, SubChart, WorkloadProjection,
     CandidateSignals, DecisionChoice, DecisionSourceNode, Diagnostic, EmittedEntity,

@@ -125,10 +125,11 @@ type (
 // Describe socket. Every plugin returns a descriptor from its describe()
 // export, which the host reads once at load: the ABI-compatibility handshake,
 // the plugin type, the offered exports, and the optional per-type surfaces (a
-// provider's render-behavior contract, a CLI plugin's commands and their
-// flags, a settings schema, authorship and build-provenance metadata). A guest
-// constructs a typed PluginDescriptor and marshals it to the wire bytes through
-// [MarshalDescriptor] rather than hand-assembling the JSON.
+// provider's render-behavior contract and the files its ecosystem never ships
+// beside a source, a CLI plugin's commands and their flags, a settings schema,
+// authorship and build-provenance metadata). A guest constructs a typed
+// PluginDescriptor and marshals it to the wire bytes through [MarshalDescriptor]
+// rather than hand-assembling the JSON.
 type (
 	PluginDescriptor       = abi.PluginDescriptor
 	PluginExport           = abi.PluginExport
@@ -139,6 +140,7 @@ type (
 	InputKinds             = abi.InputKinds
 	ArtifactDelimiters     = abi.ArtifactDelimiters
 	AssemblyNameAnnotation = abi.AssemblyNameAnnotation
+	SourceIgnore           = abi.SourceIgnore
 )
 
 // Parser socket. A parser guest turns a foreign source text into a canonical
