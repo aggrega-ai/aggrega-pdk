@@ -46,19 +46,23 @@ type (
 	PrecalculatedPath = abi.PrecalculatedPath
 )
 
-// IR graph (the policy socket's graph shape).
+// IR graph (the policy socket's graph shape). AttachmentConnection is the
+// connection an attachment written on one of a node's connections carries, so a
+// plugin reading IRFeatureEntry.Connection names its type through this package
+// like every other type of the graph.
 type (
-	IRGraph           = abi.IRGraph
-	IRMetadata        = abi.IRMetadata
-	IRSpec            = abi.IRSpec
-	IRNode            = abi.IRNode
-	IREdge            = abi.IREdge
-	IRFeatureEntry    = abi.IRFeatureEntry
-	IRBoundaryFeature = abi.IRBoundaryFeature
-	IRProvenance      = abi.IRProvenance
-	FieldProvenance   = abi.FieldProvenance
-	CatalogMetadata   = abi.CatalogMetadata
-	Maintainer        = abi.Maintainer
+	IRGraph              = abi.IRGraph
+	IRMetadata           = abi.IRMetadata
+	IRSpec               = abi.IRSpec
+	IRNode               = abi.IRNode
+	IREdge               = abi.IREdge
+	IRFeatureEntry       = abi.IRFeatureEntry
+	AttachmentConnection = abi.AttachmentConnection
+	IRBoundaryFeature    = abi.IRBoundaryFeature
+	IRProvenance         = abi.IRProvenance
+	FieldProvenance      = abi.FieldProvenance
+	CatalogMetadata      = abi.CatalogMetadata
+	Maintainer           = abi.Maintainer
 )
 
 // Provider render socket. A guest renders one IR node into output files on
