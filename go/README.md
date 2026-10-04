@@ -41,6 +41,22 @@ than a framework — the role wiring, the generated wire types and the pointer
 escaping are done; the engine is not. Its README carries the role table, the four
 things an adapter maps, and how to check the guest runs before attaching it.
 
+### Values an input marks sensitive
+
+A plugin never quotes, in a refusal or a warning it returns, a value whose key
+its input marks sensitive: the host carries a plugin's refusal and warning text
+to the reader unchanged, so the plugin is the only party able to keep the value
+out. That includes text a library writes for the plugin — a template engine's or
+a schema validator's failure over a marked value. The marking arrives on the
+typed payloads: on a provider's render input (`aggrega.RenderNodeInput`),
+`Node.SensitiveRenderedKeys`, and on each `Node.Features` entry read as an
+`aggrega.IRFeatureEntry`, `SensitivePayloadLeaves`, `SensitiveInject` and
+`Sensitive`; on the governance socket's `ir-verdict` input
+(`aggrega.PolicyInput`), the same attachment fields and each node's
+`SensitivePayloadLeaves` in the graph. The plugin contract in the Aggrega
+documentation lists where each socket marks a key, and what an absent key does
+and does not say.
+
 ## Build provenance
 
 A plugin can stamp its version and commit into its `describe()`
