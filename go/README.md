@@ -43,19 +43,22 @@ things an adapter maps, and how to check the guest runs before attaching it.
 
 ### Values an input marks sensitive
 
-A plugin never quotes, in a refusal or a warning it returns, a value whose key
-its input marks sensitive: the host carries a plugin's refusal and warning text
-to the reader unchanged, so the plugin is the only party able to keep the value
-out. That includes text a library writes for the plugin — a template engine's or
-a schema validator's failure over a marked value. The marking arrives on the
-typed payloads: on a provider's render input (`aggrega.RenderNodeInput`),
-`Node.SensitiveRenderedKeys`, and on each `Node.Features` entry read as an
-`aggrega.IRFeatureEntry`, `SensitivePayloadLeaves`, `SensitiveInject` and
-`Sensitive`; on the governance socket's `ir-verdict` input
+A plugin never quotes, in a refusal or a warning it returns, a value its input
+marks sensitive, by its key or as part of a payload marked as a whole: the host
+carries a plugin's refusal and warning text to the reader unchanged, so the
+plugin is the only party able to keep the value out. That includes text a library
+writes for the plugin — a template engine's, a schema validator's or a parser's
+failure over a marked value. The marking arrives on the typed payloads: on a
+provider's render input (`aggrega.RenderNodeInput`), `Node.SensitiveRenderedKeys`
+by key; `Node.SensitiveValues`, `WorkloadProjection.SensitiveWorkload` and each
+`ArtifactsProjection.Entries` element's `SensitiveContent` for a whole payload
+whose producing template read a declared value; and on each `Node.Features` entry
+read as an `aggrega.IRFeatureEntry`, `SensitivePayloadLeaves`, `SensitiveInject`
+and `Sensitive`; on the governance socket's `ir-verdict` input
 (`aggrega.PolicyInput`), the same attachment fields and each node's
 `SensitivePayloadLeaves` in the graph. The plugin contract in the Aggrega
-documentation lists where each socket marks a key, and what an absent key does
-and does not say.
+documentation lists where each socket marks a key or a payload, and what an
+absent marking does and does not say.
 
 ## Build provenance
 

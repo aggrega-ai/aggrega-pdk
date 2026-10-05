@@ -71,18 +71,21 @@ when a decision has to match the reference engine exactly.
 
 ### Values an input marks sensitive
 
-A plugin never quotes, in a refusal or a warning it returns, a value whose key
-its input marks sensitive: the host carries a plugin's refusal and warning text
-to the reader unchanged, so the plugin is the only party able to keep the value
-out. That includes text a library writes for the plugin — a template engine's or
-a schema validator's failure over a marked value. The typed payloads carry the
-marking under its wire names: on a provider's render input,
-`node.sensitive_rendered_keys`, and on each `node.features` entry read as the
-IR's feature entry, `sensitive_payload_leaves`, `sensitive_inject` and
+A plugin never quotes, in a refusal or a warning it returns, a value its input
+marks sensitive, by its key or as part of a payload marked as a whole: the host
+carries a plugin's refusal and warning text to the reader unchanged, so the
+plugin is the only party able to keep the value out. That includes text a library
+writes for the plugin — a template engine's, a schema validator's or a parser's
+failure over a marked value. The typed payloads carry the marking under its wire
+names: on a provider's render input, `node.sensitive_rendered_keys` by key;
+`node.sensitive_values`, `workload_projection.sensitive_workload` and each
+`artifacts_projection.entries` element's `sensitive_content` for a whole payload
+whose producing template read a declared value; and on each `node.features` entry
+read as the IR's feature entry, `sensitive_payload_leaves`, `sensitive_inject` and
 `sensitive`; on the governance socket's `ir-verdict` input, the same attachment
 fields and each node's `sensitive_payload_leaves` in the graph. The plugin
-contract in the Aggrega documentation lists where each socket marks a key, and
-what an absent key does and does not say.
+contract in the Aggrega documentation lists where each socket marks a key or a
+payload, and what an absent marking does and does not say.
 
 ## Build provenance
 
