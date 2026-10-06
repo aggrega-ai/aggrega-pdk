@@ -60,6 +60,18 @@ and `Sensitive`; on the governance socket's `ir-verdict` input
 documentation lists where each socket marks a key or a payload, and what an
 absent marking does and does not say.
 
+### Reporting facts about what a provider emitted
+
+A provider's `render_node` may return `RenderFacts` beside its files: an ordered
+list of `aggrega.RenderFact`, each a `Name` and a `Value` holding the JSON your
+guest writes. Both are your provider's own vocabulary, which you document for the
+authors who read them; the host carries the list verbatim and in your order,
+reads neither half, and writes the same files whether or not facts accompany
+them. A `Value` is `json.RawMessage`, so marshal a struct rather than a map when
+the order of an object's keys matters: `encoding/json` writes a struct's fields
+in declaration order and a map's keys sorted. `examples/render/` reports two
+facts.
+
 ## Build provenance
 
 A plugin can stamp its version and commit into its `describe()`

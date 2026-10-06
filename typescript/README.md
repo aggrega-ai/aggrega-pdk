@@ -76,6 +76,18 @@ fields and each node's `sensitive_payload_leaves` in the graph. The plugin
 contract in the Aggrega documentation lists where each socket marks a key or a
 payload, and what an absent marking does and does not say.
 
+### Reporting facts about what a provider emitted
+
+A provider's `render_node` may return `render_facts` beside its files: an
+ordered `RenderFact[]`, each a `name` and a `value` that is any JSON value. Both
+are your provider's own vocabulary, which you document for the authors who read
+them; the host carries the list verbatim and in your order, reads neither half,
+and writes the same files whether or not facts accompany them. `JSON.stringify`
+writes an object's keys in the order they were inserted, except that keys which
+read as array indexes come first in numeric order, so give a value's keys a fixed
+insertion order and avoid numeric-looking keys where the order matters.
+`examples/render-node/` reports two facts.
+
 ## Build provenance
 
 A plugin can stamp its version and commit into its `describe()`

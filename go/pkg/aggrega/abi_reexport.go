@@ -71,10 +71,13 @@ type (
 // AssembleBoundaryOutput). A sourced provider reconstructs its source in memory
 // from the input's SourceProjection. The guest returns each file's serialized
 // bytes (RenderedFile.Content); the host writes them verbatim and runs no
-// serializer.
+// serializer. Beside the files a guest may report RenderFacts about what it
+// emitted — each a name and a JSON value the provider defines — which the host
+// carries verbatim, in the guest's order, without reading them.
 type (
 	RenderNodeInput            = abi.RenderNodeInput
 	RenderNodeOutput           = abi.RenderNodeOutput
+	RenderFact                 = abi.RenderFact
 	IRNodeProjection           = abi.IRNodeProjection
 	NodeProvenance             = abi.NodeProvenance
 	SourceProjection           = abi.SourceProjection

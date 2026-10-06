@@ -7,6 +7,12 @@ as the sole `RenderedFile` of a `RenderNodeOutput`. The transform matches
 the per-language render fixtures, so identical input yields equivalent
 output whichever language rendered it.
 
+Beside the file it reports two `RenderFact`s about what it emitted — the
+paths it wrote (`emitted_paths`) and the node it echoed (`echoed_node`) —
+in that order, which is deliberately not name order. Each value is JSON the
+guest writes itself; the echoed node is marshalled from a struct so its keys
+keep the order they are declared in.
+
 ## Build
 
 Standard Go required (the build targets `GOOS=wasip1`). Run from this

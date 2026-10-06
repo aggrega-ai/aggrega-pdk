@@ -20,6 +20,8 @@
 //     render socket carries file content as base64 on the JSON wire; the
 //     guest sets the raw bytes and the codec base64-encodes them, and the
 //     host decodes them verbatim.
+//   - The facts the fixture reports about what it emitted reach the host in
+//     the order listed here, each value byte for byte as written here.
 //
 // The wire types are re-exported from the PDK's aggrega package as aliases
 // of the generated ABI codec types, so a value built here is the same
@@ -81,6 +83,33 @@ func describe() int32 {
 	return 0
 }
 
+// echoedNode is the value of the echoed_node fact. Its fields are declared
+// prefix first, and encoding/json writes a struct's fields in declaration
+// order, so the value's key order is this guest's own choice — a map here would
+// have its keys sorted instead.
+type echoedNode struct {
+	Prefix string `json:"prefix"`
+	ID     string `json:"id"`
+}
+
+// renderFacts returns the facts this fixture reports about what it emitted. A
+// fact is a name and a JSON value, and both are this provider's own vocabulary:
+// the host carries them verbatim and in the order listed, and reads neither.
+func renderFacts(nodeID string) ([]aggrega.RenderFact, error) {
+	paths, err := json.Marshal([]string{outputPath})
+	if err != nil {
+		return nil, err
+	}
+	node, err := json.Marshal(echoedNode{Prefix: contentPrefix, ID: nodeID})
+	if err != nil {
+		return nil, err
+	}
+	return []aggrega.RenderFact{
+		{Name: "emitted_paths", Value: paths},
+		{Name: "echoed_node", Value: node},
+	}, nil
+}
+
 //go:wasmexport render_node
 func render_node() int32 {
 	var in aggrega.RenderNodeInput
@@ -94,12 +123,19 @@ func render_node() int32 {
 	// host decodes it verbatim.
 	content := []byte(contentPrefix + in.Node.ID)
 
+	facts, err := renderFacts(in.Node.ID)
+	if err != nil {
+		pdk.SetError(fmt.Errorf("render-node-go: compose render facts: %w", err))
+		return 1
+	}
+
 	out := aggrega.RenderNodeOutput{
 		Files: []aggrega.RenderedFile{{
 			Path:    outputPath,
 			Content: content,
 			Format:  outputFormat,
 		}},
+		RenderFacts: facts,
 	}
 	outputBytes, err := json.Marshal(out)
 	if err != nil {

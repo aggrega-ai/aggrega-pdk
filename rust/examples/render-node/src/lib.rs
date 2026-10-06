@@ -12,7 +12,9 @@
 //! rendered it. The second is deliberately allowed to differ: it reports what
 //! this language's generated codec does with an author-ordered map, which is a
 //! property of the language's own map container rather than of the socket.
-//! The host verifies end-to-end that:
+//! Beside the files it reports two [`RenderFact`]s about what it emitted, in a
+//! fixed order that is deliberately not name order: the paths it wrote, and the
+//! node it echoed. The host verifies end-to-end that:
 //!
 //!  - The plugin loaded successfully via the Aggrega Wasm loader.
 //!  - Input JSON deserialised to [`RenderNodeInput`].
@@ -20,13 +22,16 @@
 //!  - An attachment's sensitivity marking is readable from the payload alone.
 //!  - Output JSON serialises to a [`RenderNodeOutput`] whose file content
 //!    round-trips through the render socket's base64 wire encoding.
+//!  - The reported facts reach the host in the order listed here, each value
+//!    byte for byte as written here.
 
 use aggrega_pdk_rust::{
     encode_descriptor, IRFeatureEntry, PluginDescriptor, PluginDescriptorMeta, PluginExport,
-    RenderNodeInput, RenderNodeOutput, RenderedFile, API_VERSION,
+    RenderFact, RenderNodeInput, RenderNodeOutput, RenderedFile, API_VERSION,
 };
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 use extism_pdk::{plugin_fn, FnResult};
+use serde_json::value::RawValue;
 
 /// The fixed on-disk path the fixture emits its node-id echo at. Constant
 /// across the per-language render fixtures so their outputs compare equal.
@@ -128,6 +133,33 @@ fn attachment_echo(parsed: &RenderNodeInput) -> String {
         .join(",")
 }
 
+/// The facts this fixture reports about what it emitted, identical across the
+/// per-language render fixtures so the host can compare them byte for byte.
+///
+/// A fact is a name and a value, and both are this provider's own vocabulary:
+/// the host carries them verbatim and in the order listed, and reads neither. The
+/// value is the JSON this guest writes, so it is built here as text rather than
+/// through a map type that would re-order its keys — `prefix` deliberately
+/// precedes `id`.
+fn render_facts(node_id: &str) -> Result<Vec<RenderFact>, serde_json::Error> {
+    let emitted_paths = serde_json::to_string(&[OUTPUT_PATH, ATTACHMENTS_PATH])?;
+    let echoed_node = format!(
+        "{{\"prefix\":{},\"id\":{}}}",
+        serde_json::to_string(CONTENT_PREFIX)?,
+        serde_json::to_string(node_id)?
+    );
+    Ok(vec![
+        RenderFact {
+            name: "emitted_paths".to_string(),
+            value: RawValue::from_string(emitted_paths)?,
+        },
+        RenderFact {
+            name: "echoed_node".to_string(),
+            value: RawValue::from_string(echoed_node)?,
+        },
+    ])
+}
+
 #[plugin_fn]
 pub fn render_node(input: String) -> FnResult<String> {
     let parsed: RenderNodeInput = serde_json::from_str(&input)?;
@@ -151,6 +183,7 @@ pub fn render_node(input: String) -> FnResult<String> {
                 format: OUTPUT_FORMAT.to_string(),
             },
         ],
+        render_facts: render_facts(&parsed.node.id)?,
         diagnostics: Vec::new(),
         ..Default::default()
     };

@@ -17,7 +17,10 @@
  * the render transform ran against the node projection, an attachment's
  * sensitivity marking is readable from the payload alone, and output JSON
  * serialised to a shape whose file content round-trips through the render
- * socket's base64 wire encoding.
+ * socket's base64 wire encoding. Beside the files it reports two render facts
+ * about what it emitted — the paths it wrote and the node it echoed — in a fixed
+ * order that is deliberately not name order, and the host verifies they arrive
+ * in that order, each value byte for byte as written here.
  *
  * Entry convention follows the Extism JS PDK: parameterless function,
  * read input via Host.inputString(), write output via
@@ -28,6 +31,7 @@ import {
   API_VERSION,
   encodeDescriptor,
   type PluginDescriptor,
+  type RenderFact,
 } from "@aggrega-ai/aggrega-pdk-typescript";
 
 // A deliberately narrow view of the node projection: the fixture reads only
@@ -78,6 +82,7 @@ interface RenderedFile {
 
 interface RenderNodeOutput {
   files: RenderedFile[];
+  render_facts?: RenderFact[];
 }
 
 // The fixed on-disk path the fixture emits its node-id echo at. Constant
@@ -172,6 +177,19 @@ function attachmentEcho(input: RenderNodeInput): string {
     .join(",");
 }
 
+// renderFacts returns the facts this fixture reports about what it emitted,
+// identical across the per-language render fixtures so the host can compare them
+// byte for byte. A fact is a name and a JSON value, and both are this provider's
+// own vocabulary: the host carries them verbatim and in the order listed, and
+// reads neither. JSON.stringify writes an object's keys in insertion order, so
+// `prefix` deliberately precedes `id`.
+function renderFacts(nodeId: string): RenderFact[] {
+  return [
+    { name: "emitted_paths", value: [OUTPUT_PATH, ATTACHMENTS_PATH] },
+    { name: "echoed_node", value: { prefix: CONTENT_PREFIX, id: nodeId } },
+  ];
+}
+
 function render_node(): void {
   const input: RenderNodeInput = JSON.parse(Host.inputString());
   const content = CONTENT_PREFIX + input.node.id;
@@ -188,6 +206,7 @@ function render_node(): void {
         format: OUTPUT_FORMAT,
       },
     ],
+    render_facts: renderFacts(input.node.id),
   };
   Host.outputString(JSON.stringify(out));
 }

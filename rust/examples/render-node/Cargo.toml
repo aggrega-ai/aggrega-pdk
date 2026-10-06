@@ -11,5 +11,7 @@ path = "src/lib.rs"
 [dependencies]
 aggrega-pdk-rust = { path = "../.." }
 extism-pdk = "1.4"
-serde_json = "1"
+# raw_value carries each reported fact's value as the JSON the guest wrote,
+# which the host forwards verbatim and never parses.
+serde_json = { version = "1", features = ["raw_value"] }
 base64 = "0.22"

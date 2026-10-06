@@ -87,6 +87,18 @@ fields and each node's `sensitive_payload_leaves` in the graph. The plugin
 contract in the Aggrega documentation lists where each socket marks a key or a
 payload, and what an absent marking does and does not say.
 
+### Reporting facts about what a provider emitted
+
+A provider's `render_node` may return `render_facts` beside its files: an
+ordered `Vec<RenderFact>`, each a `name` and a `value` holding the JSON your
+guest writes as a `Box<RawValue>`. Both are your provider's own vocabulary,
+which you document for the authors who read them; the host carries the list
+verbatim and in your order, reads neither half, and writes the same files whether
+or not facts accompany them. Build a value from a struct or from text rather than
+from a `serde_json::Value` object when the order of its keys matters: serde
+writes a struct's fields in declaration order, while `serde_json`'s default map
+sorts its keys. `examples/render-node/` reports two facts.
+
 ## Build provenance
 
 A plugin can stamp its version and commit into its `describe()`
