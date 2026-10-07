@@ -179,14 +179,16 @@ function attachmentEcho(input: RenderNodeInput): string {
 
 // renderFacts returns the facts this fixture reports about what it emitted,
 // identical across the per-language render fixtures so the host can compare them
-// byte for byte. A fact is a name and a JSON value, and both are this provider's
-// own vocabulary: the host carries them verbatim and in the order listed, and
-// reads neither. JSON.stringify writes an object's keys in insertion order, so
-// `prefix` deliberately precedes `id`.
+// byte for byte. A fact is a name and a list of entries, and both are this
+// provider's own vocabulary: the host carries them in the order listed, refuses a
+// value that is not a list, and learns nothing else about either. Every value is
+// a list even with one entry, because the host joins the lists one name gets from
+// every render of a node. JSON.stringify writes an object's keys in insertion
+// order, so `prefix` deliberately precedes `id`.
 function renderFacts(nodeId: string): RenderFact[] {
   return [
     { name: "emitted_paths", value: [OUTPUT_PATH, ATTACHMENTS_PATH] },
-    { name: "echoed_node", value: { prefix: CONTENT_PREFIX, id: nodeId } },
+    { name: "echoed_node", value: [{ prefix: CONTENT_PREFIX, id: nodeId }] },
   ];
 }
 

@@ -414,3 +414,33 @@ func TestNameBoundInput_RoundTripJSONSchema(t *testing.T) {
 		t.Errorf("round-trip inequality:\n  before: %+v\n  after:  %+v", fixture, round)
 	}
 }
+
+// TestRenderNodeOutput_EveryRenderFactValueIsAList holds what the published schema
+// says about a render fact's value: it is a list, even with one entry. A render
+// output whose facts are all lists validates; the same output with one value of
+// any other kind does not. The host refuses such a fact when a guest returns it, so
+// a provider author validating against the schema learns of it before the host
+// does.
+func TestRenderNodeOutput_EveryRenderFactValueIsAList(t *testing.T) {
+	t.Parallel()
+	schema := loadSchema(t, "wasm-provider-v1alpha1.schema.json")
+
+	output := func(value string) aggrega.RenderNodeOutput {
+		return aggrega.RenderNodeOutput{
+			Files: []aggrega.RenderedFile{{Path: "out.txt", Content: []byte("ok\n")}},
+			RenderFacts: []aggrega.RenderFact{
+				{Name: "emitted_paths", Value: json.RawMessage(`["out.txt"]`)},
+				{Name: "pod_labels", Value: json.RawMessage(value)},
+			},
+		}
+	}
+
+	if err := schema.Validate(jsonInstance(t, output(`[{"app":"api"}]`))); err != nil {
+		t.Fatalf("a render output whose every fact is a list failed validation: %v", err)
+	}
+	for _, value := range []string{`{"app":"api"}`, `"api"`, `3`, `true`, `null`} {
+		if err := schema.Validate(jsonInstance(t, output(value))); err == nil {
+			t.Errorf("a render fact whose value is %s validated; the schema must declare every value a list", value)
+		}
+	}
+}

@@ -83,9 +83,9 @@ func describe() int32 {
 	return 0
 }
 
-// echoedNode is the value of the echoed_node fact. Its fields are declared
+// echoedNode is the one entry of the echoed_node fact. Its fields are declared
 // prefix first, and encoding/json writes a struct's fields in declaration
-// order, so the value's key order is this guest's own choice — a map here would
+// order, so the entry's key order is this guest's own choice — a map here would
 // have its keys sorted instead.
 type echoedNode struct {
 	Prefix string `json:"prefix"`
@@ -93,14 +93,17 @@ type echoedNode struct {
 }
 
 // renderFacts returns the facts this fixture reports about what it emitted. A
-// fact is a name and a JSON value, and both are this provider's own vocabulary:
-// the host carries them verbatim and in the order listed, and reads neither.
+// fact is a name and a list of entries, and both are this provider's own
+// vocabulary: the host carries them in the order listed, refuses a value that is
+// not a list, and learns nothing else about either. Every value is a list even
+// with one entry, because the host joins the lists one name gets from every
+// render of a node.
 func renderFacts(nodeID string) ([]aggrega.RenderFact, error) {
 	paths, err := json.Marshal([]string{outputPath})
 	if err != nil {
 		return nil, err
 	}
-	node, err := json.Marshal(echoedNode{Prefix: contentPrefix, ID: nodeID})
+	node, err := json.Marshal([]echoedNode{{Prefix: contentPrefix, ID: nodeID}})
 	if err != nil {
 		return nil, err
 	}

@@ -65,12 +65,16 @@ absent marking does and does not say.
 A provider's `render_node` may return `RenderFacts` beside its files: an ordered
 list of `aggrega.RenderFact`, each a `Name` and a `Value` holding the JSON your
 guest writes. Both are your provider's own vocabulary, which you document for the
-authors who read them; the host carries the list verbatim and in your order,
-reads neither half, and writes the same files whether or not facts accompany
-them. A `Value` is `json.RawMessage`, so marshal a struct rather than a map when
-the order of an object's keys matters: `encoding/json` writes a struct's fields
-in declaration order and a map's keys sorted. `examples/render/` reports two
-facts.
+authors who read them. **Report every fact's `Value` as a JSON array, even when it
+holds one entry:** one name can be reported by more than one render of a
+component — its own render calls and the renders of the Features attached to
+it — and the host joins those lists into one under the name, so it refuses a
+fact whose value is anything but a list and halts the build. That is all the host
+learns of a value; it keys facts by name, hands each list to the templates that
+read it, and writes the same files whether or not facts accompany them. A `Value`
+is `json.RawMessage`, so marshal a slice of structs rather than of maps when the
+order of an entry's keys matters: `encoding/json` writes a struct's fields in
+declaration order and a map's keys sorted. `examples/render/` reports two facts.
 
 ## Build provenance
 

@@ -136,15 +136,17 @@ fn attachment_echo(parsed: &RenderNodeInput) -> String {
 /// The facts this fixture reports about what it emitted, identical across the
 /// per-language render fixtures so the host can compare them byte for byte.
 ///
-/// A fact is a name and a value, and both are this provider's own vocabulary:
-/// the host carries them verbatim and in the order listed, and reads neither. The
-/// value is the JSON this guest writes, so it is built here as text rather than
-/// through a map type that would re-order its keys — `prefix` deliberately
-/// precedes `id`.
+/// A fact is a name and a list of entries, and both are this provider's own
+/// vocabulary: the host carries them in the order listed, refuses a value that is
+/// not a list, and learns nothing else about either. Every value is a list even
+/// with one entry, because the host joins the lists one name gets from every
+/// render of a node. The value is the JSON this guest writes, so it is built here
+/// as text rather than through a map type that would re-order its keys — `prefix`
+/// deliberately precedes `id`.
 fn render_facts(node_id: &str) -> Result<Vec<RenderFact>, serde_json::Error> {
     let emitted_paths = serde_json::to_string(&[OUTPUT_PATH, ATTACHMENTS_PATH])?;
     let echoed_node = format!(
-        "{{\"prefix\":{},\"id\":{}}}",
+        "[{{\"prefix\":{},\"id\":{}}}]",
         serde_json::to_string(CONTENT_PREFIX)?,
         serde_json::to_string(node_id)?
     );

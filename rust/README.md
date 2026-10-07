@@ -92,12 +92,17 @@ payload, and what an absent marking does and does not say.
 A provider's `render_node` may return `render_facts` beside its files: an
 ordered `Vec<RenderFact>`, each a `name` and a `value` holding the JSON your
 guest writes as a `Box<RawValue>`. Both are your provider's own vocabulary,
-which you document for the authors who read them; the host carries the list
-verbatim and in your order, reads neither half, and writes the same files whether
-or not facts accompany them. Build a value from a struct or from text rather than
-from a `serde_json::Value` object when the order of its keys matters: serde
-writes a struct's fields in declaration order, while `serde_json`'s default map
-sorts its keys. `examples/render-node/` reports two facts.
+which you document for the authors who read them. **Report every fact's `value`
+as a JSON array, even when it holds one entry:** one name can be reported by more
+than one render of a component — its own render calls and the renders of the
+Features attached to it — and the host joins those lists into one under the
+name, so it refuses a fact whose value is anything but a list and halts the
+build. That is all the host learns of a value; it keys facts by name, hands each
+list to the templates that read it, and writes the same files whether or not
+facts accompany them. Build an entry from a struct or from text rather than from
+a `serde_json::Value` object when the order of its keys matters: serde writes a
+struct's fields in declaration order, while `serde_json`'s default map sorts its
+keys. `examples/render-node/` reports two facts.
 
 ## Build provenance
 

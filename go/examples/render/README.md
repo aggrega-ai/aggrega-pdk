@@ -9,9 +9,10 @@ output whichever language rendered it.
 
 Beside the file it reports two `RenderFact`s about what it emitted — the
 paths it wrote (`emitted_paths`) and the node it echoed (`echoed_node`) —
-in that order, which is deliberately not name order. Each value is JSON the
-guest writes itself; the echoed node is marshalled from a struct so its keys
-keep the order they are declared in.
+in that order, which is deliberately not name order. Each value is a list the
+guest writes itself as JSON, even the one holding a single entry; the echoed
+node's entry is marshalled from a struct so its keys keep the order they are
+declared in.
 
 ## Build
 
