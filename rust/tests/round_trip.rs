@@ -436,6 +436,22 @@ fn linter_input_round_trip_json_schema() {
             )
             .unwrap(),
         ),
+        // The two deployment fields are populated for the same reason: each then
+        // crosses serialize -> schema-validate -> deserialize, so a schema that did
+        // not admit the Release, or a components value of the wrong shape, fails here.
+        release: Some(
+            serde_json::value::RawValue::from_string(
+                r#"{"kind":"Release","spec":{"aggregate":"./aggregate.yaml"}}"#.into(),
+            )
+            .unwrap(),
+        ),
+        components: BTreeMap::from([(
+            "router".to_string(),
+            serde_json::value::RawValue::from_string(
+                r#"{"kind":"Component","spec":{"featuresSchema":{"api_key":{"sensitive":true}}}}"#.into(),
+            )
+            .unwrap(),
+        )]),
         source_path: "core/compute/api-server/api-server.yaml".to_string(),
         policies: Policies {
             allow_dynamic_refs: false,
@@ -445,6 +461,7 @@ fn linter_input_round_trip_json_schema() {
             allow_nonstandard_names: false,
             allow_category_mismatches: false,
             allow_undeclared_recipe_provides: false,
+            allow_connection_credential_mismatches: false,
         },
     };
 
