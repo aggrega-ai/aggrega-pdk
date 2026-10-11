@@ -43,7 +43,6 @@ var embeddedCatalog = []componentKnowledge{
 		category:     "ai-model",
 		domainLabels: map[string]string{"model.aggrega.ai/capability": "generative", "component.aggrega.ai/hosting": "managed"},
 		values:       []string{"model", "temperature", "strict_response_format"},
-		secrets:      []string{"api_key"},
 	},
 	{
 		name:         "core/ai-model/anthropic",
@@ -51,7 +50,6 @@ var embeddedCatalog = []componentKnowledge{
 		category:     "ai-model",
 		domainLabels: map[string]string{"model.aggrega.ai/capability": "generative", "component.aggrega.ai/hosting": "managed"},
 		values:       []string{"model", "temperature"},
-		secrets:      []string{"api_key"},
 	},
 	{
 		name:         "core/ai-model/openai-embedding",
@@ -59,7 +57,6 @@ var embeddedCatalog = []componentKnowledge{
 		category:     "ai-model",
 		domainLabels: map[string]string{"model.aggrega.ai/capability": "embedding", "component.aggrega.ai/hosting": "managed"},
 		values:       []string{"model"},
-		secrets:      []string{"api_key"},
 	},
 	{
 		name:         "core/ai-tool/retrieval",
