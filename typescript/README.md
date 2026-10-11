@@ -67,9 +67,10 @@ plugin is the only party able to keep the value out. That includes text a librar
 writes for the plugin — a template engine's, a schema validator's or a parser's
 failure over a marked value. The typed payloads carry the marking under its wire
 names: on a provider's render input, `node.sensitive_rendered_keys` by key;
-`node.sensitive_values`, `workload_projection.sensitive_workload` and each
-`artifacts_projection.entries` element's `sensitive_content` for a whole payload
-whose producing template read a declared value; and on each `node.features` entry
+`node.sensitive_values`, `workload_projection.sensitive_workload`, each
+`artifacts_projection.entries` element's `sensitive_content` and each `omits`
+element's `sensitive` for a whole payload whose producing template read a
+declared value; and on each `node.features` entry
 read as the IR's feature entry, `sensitive_payload_leaves`, `sensitive_inject` and
 `sensitive`; on the governance socket's `ir-verdict` input, the same attachment
 fields and each node's `sensitive_payload_leaves` in the graph. The plugin
@@ -105,7 +106,10 @@ its `render_facts` — and returns `omitted`: one count per entry, in the order 
 entries arrived, each the number of units that entry matched whether or not
 another entry matched them too. A zero is a complete answer. A render handed no
 entries is rendered exactly as it would be without the field, and leaves
-`omitted` empty.
+`omitted` empty. An entry whose `sensitive` is set had at least one of its fields
+produced from a value an author declared sensitive: match and count it like any
+other, and keep every one of its fields out of a refusal, a warning or a log line,
+as with every other value the input marks.
 
 ## Build provenance
 

@@ -75,9 +75,11 @@ type (
 // emitted — each a name and a JSON value the provider defines — which the host
 // carries verbatim, in the guest's order, without reading them. A source render
 // may also carry Omits, entries naming rendered units to leave out, each an
-// OmitEntry whose kind, name and namespace the provider gives meaning to. A guest
-// that honours them says so with ProviderContract.Omits, leaves every matched unit
-// out of what it returns, and reports in Omitted how many units each entry matched.
+// OmitEntry whose kind, name and namespace the provider gives meaning to, and whose
+// Sensitive marks an entry any of whose fields was produced from a value declared
+// sensitive. A guest that honours them says so with ProviderContract.Omits, leaves
+// every matched unit out of what it returns, and reports in Omitted how many units
+// each entry matched.
 type (
 	RenderNodeInput            = abi.RenderNodeInput
 	RenderNodeOutput           = abi.RenderNodeOutput

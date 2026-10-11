@@ -50,9 +50,10 @@ plugin is the only party able to keep the value out. That includes text a librar
 writes for the plugin — a template engine's, a schema validator's or a parser's
 failure over a marked value. The marking arrives on the typed payloads: on a
 provider's render input (`aggrega.RenderNodeInput`), `Node.SensitiveRenderedKeys`
-by key; `Node.SensitiveValues`, `WorkloadProjection.SensitiveWorkload` and each
-`ArtifactsProjection.Entries` element's `SensitiveContent` for a whole payload
-whose producing template read a declared value; and on each `Node.Features` entry
+by key; `Node.SensitiveValues`, `WorkloadProjection.SensitiveWorkload`, each
+`ArtifactsProjection.Entries` element's `SensitiveContent` and each `Omits`
+element's `Sensitive` for a whole payload whose producing template read a
+declared value; and on each `Node.Features` entry
 read as an `aggrega.IRFeatureEntry`, `SensitivePayloadLeaves`, `SensitiveInject`
 and `Sensitive`; on the governance socket's `ir-verdict` input
 (`aggrega.PolicyInput`), the same attachment fields and each node's
@@ -89,7 +90,10 @@ matched unit out of everything it returns — its `Files`, its `DerivedKeys` and
 entries arrived, each the number of units that entry matched whether or not
 another entry matched them too. A zero is a complete answer. A render handed no
 entries is rendered exactly as it would be without the field, and leaves
-`Omitted` empty.
+`Omitted` empty. An entry whose `Sensitive` is set had at least one of its fields
+produced from a value an author declared sensitive: match and count it like any
+other, and keep every one of its fields out of a refusal, a warning or a log line,
+as with every other value the input marks.
 
 ## Build provenance
 
