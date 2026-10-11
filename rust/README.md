@@ -104,6 +104,21 @@ a `serde_json::Value` object when the order of its keys matters: serde writes a
 struct's fields in declaration order, while `serde_json`'s default map sorts its
 keys. `examples/render-node/` reports two facts.
 
+### Leaving rendered units out
+
+A source render may carry `omits` beside its `source_listing`: an ordered
+`Vec<OmitEntry>`, each a `kind`, a `name` and an optional `namespace`, already
+resolved to plain strings. What an entry selects in your target's format is your
+provider's own contract, which you document for the authors who write the
+entries. A provider that honours them declares `omits: true` on its
+`ProviderContract`, matches every entry against what it rendered, leaves each
+matched unit out of everything it returns — its `files`, its `derived_keys` and
+its `render_facts` — and returns `omitted`: one count per entry, in the order the
+entries arrived, each the number of units that entry matched whether or not
+another entry matched them too. A zero is a complete answer. A render handed no
+entries is rendered exactly as it would be without the field, and leaves
+`omitted` empty.
+
 ## Build provenance
 
 A plugin can stamp its version and commit into its `describe()`

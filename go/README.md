@@ -76,6 +76,21 @@ is `json.RawMessage`, so marshal a slice of structs rather than of maps when the
 order of an entry's keys matters: `encoding/json` writes a struct's fields in
 declaration order and a map's keys sorted. `examples/render/` reports two facts.
 
+### Leaving rendered units out
+
+A source render may carry `Omits` beside its `SourceListing`: an ordered list of
+`aggrega.OmitEntry`, each a `Kind`, a `Name` and an optional `Namespace`, already
+resolved to plain strings. What an entry selects in your target's format is your
+provider's own contract, which you document for the authors who write the
+entries. A provider that honours them declares `Omits: true` on its
+`ProviderContract`, matches every entry against what it rendered, leaves each
+matched unit out of everything it returns — its `Files`, its `DerivedKeys` and its
+`RenderFacts` — and returns `Omitted`: one count per entry, in the order the
+entries arrived, each the number of units that entry matched whether or not
+another entry matched them too. A zero is a complete answer. A render handed no
+entries is rendered exactly as it would be without the field, and leaves
+`Omitted` empty.
+
 ## Build provenance
 
 A plugin can stamp its version and commit into its `describe()`
