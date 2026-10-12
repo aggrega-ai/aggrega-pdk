@@ -57,6 +57,11 @@ func parseNodes(format string, raw json.RawMessage) []sourceNode {
 	}
 	nodes := make([]sourceNode, 0, len(arr))
 	for _, n := range arr {
+		var outer string
+		_ = json.Unmarshal(n["type"], &outer)
+		if isCanvasNote(format, outer) {
+			continue
+		}
 		var id string
 		_ = json.Unmarshal(n["id"], &id)
 		var data map[string]json.RawMessage
@@ -67,14 +72,30 @@ func parseNodes(format string, raw json.RawMessage) []sourceNode {
 		switch format {
 		case "langflow":
 			_ = json.Unmarshal(data["type"], &typ)
-			fields = orderedKeys(nestedTemplate(data["node"]))
+			fields = templateFields(nestedTemplate(data["node"]))
 		case "flowise":
 			_ = json.Unmarshal(data["name"], &typ)
-			fields = orderedKeys(data["inputs"])
+			fields = subtract(orderedKeys(data["inputs"]), anchorNames(data["inputAnchors"]))
 		}
 		nodes = append(nodes, sourceNode{id: id, typ: typ, fields: fields, secrets: secretFields(fields)})
 	}
 	return nodes
+}
+
+// isCanvasNote reports whether a node's outer type marks it as a note an author
+// pinned to the flow's canvas — langflow's noteNode, flowise's stickyNote. A note
+// documents the flow and runs nothing, so it is not lifted as a node: lifting one
+// would draft a component for every note. An edge naming a note is then dropped,
+// as is any edge naming a node that was not lifted.
+func isCanvasNote(format, outerType string) bool {
+	switch format {
+	case "langflow":
+		return outerType == "noteNode"
+	case "flowise":
+		return outerType == "stickyNote"
+	default:
+		return false
+	}
 }
 
 // nestedTemplate returns the template object of a langflow node's data.node,
@@ -85,6 +106,45 @@ func nestedTemplate(nodeRaw json.RawMessage) json.RawMessage {
 		return nil
 	}
 	return node["template"]
+}
+
+// templateFields returns the names of a langflow template's parameter fields, in
+// the order the tree presents them. A template also carries entries that are not
+// parameters — a string naming the template's own kind, a boolean refresh flag,
+// an object holding only a value the editor keeps for itself — and only an entry
+// whose value is an object carrying a type is a parameter field.
+func templateFields(raw json.RawMessage) []string {
+	var fields []string
+	for _, e := range jsonObjectEntries(raw) {
+		var field map[string]json.RawMessage
+		if err := json.Unmarshal(e.value, &field); err != nil {
+			continue
+		}
+		if _, ok := field["type"]; ok {
+			fields = append(fields, e.key)
+		}
+	}
+	return fields
+}
+
+// anchorNames returns the names a flowise node's inputAnchors declare. An anchor
+// is where another node connects in — its entry in the node's inputs holds a
+// reference to that node, which the edge between the two already records — so
+// an anchor is a connection rather than a parameter field.
+func anchorNames(raw json.RawMessage) []string {
+	var anchors []struct {
+		Name string `json:"name"`
+	}
+	if err := json.Unmarshal(raw, &anchors); err != nil {
+		return nil
+	}
+	names := make([]string, 0, len(anchors))
+	for _, a := range anchors {
+		if a.Name != "" {
+			names = append(names, a.Name)
+		}
+	}
+	return names
 }
 
 func parseEdges(raw json.RawMessage) []sourceEdge {

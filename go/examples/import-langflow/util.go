@@ -9,11 +9,19 @@ import (
 	"strings"
 )
 
-// jsonObjectKeys returns the keys of a JSON object in the textual order the
-// document presents them, using a streaming token walk so the order is preserved
+// jsonEntry is one member of a JSON object: its key and its value, undecoded.
+type jsonEntry struct {
+	key   string
+	value json.RawMessage
+}
+
+// jsonObjectEntries returns the members of a JSON object in the textual order the
+// document presents them, using a streaming walk so the order is preserved
 // (decoding into a Go map would lose it). The host's parser emits object keys in
-// sorted order, so this order is deterministic across runs of the same source.
-func jsonObjectKeys(raw json.RawMessage) []string {
+// sorted order, so this order is deterministic across runs of the same source. A
+// document that is not an object yields no entries; one that breaks off yields
+// the entries read before the break.
+func jsonObjectEntries(raw json.RawMessage) []jsonEntry {
 	dec := json.NewDecoder(bytes.NewReader(raw))
 	tok, err := dec.Token()
 	if err != nil {
@@ -22,50 +30,37 @@ func jsonObjectKeys(raw json.RawMessage) []string {
 	if d, ok := tok.(json.Delim); !ok || d != '{' {
 		return nil
 	}
-	var keys []string
+	var entries []jsonEntry
 	for dec.More() {
 		keyTok, err := dec.Token()
 		if err != nil {
-			return keys
+			return entries
 		}
 		key, ok := keyTok.(string)
 		if !ok {
-			return keys
+			return entries
 		}
-		keys = append(keys, key)
-		// Skip the value, whatever its shape.
-		if err := skipValue(dec); err != nil {
-			return keys
+		var value json.RawMessage
+		if err := dec.Decode(&value); err != nil {
+			return entries
 		}
+		entries = append(entries, jsonEntry{key: key, value: value})
 	}
-	return keys
+	return entries
 }
 
-// skipValue consumes one JSON value from dec, descending through nested objects
-// and arrays so the decoder lands on the next key.
-func skipValue(dec *json.Decoder) error {
-	tok, err := dec.Token()
-	if err != nil {
-		return err
+// jsonObjectKeys returns the keys of a JSON object in the order
+// [jsonObjectEntries] reads them.
+func jsonObjectKeys(raw json.RawMessage) []string {
+	entries := jsonObjectEntries(raw)
+	if entries == nil {
+		return nil
 	}
-	if d, ok := tok.(json.Delim); ok && (d == '{' || d == '[') {
-		depth := 1
-		for depth > 0 {
-			t, err := dec.Token()
-			if err != nil {
-				return err
-			}
-			if dd, ok := t.(json.Delim); ok {
-				switch dd {
-				case '{', '[':
-					depth++
-				case '}', ']':
-					depth--
-				}
-			}
-		}
+	keys := make([]string, 0, len(entries))
+	for _, e := range entries {
+		keys = append(keys, e.key)
 	}
-	return nil
+	return keys
 }
 
 func containsFold(haystack, needle string) bool {
