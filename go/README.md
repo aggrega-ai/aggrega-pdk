@@ -2,7 +2,10 @@
 
 Go PDK for authoring Aggrega Wasm plugins.
 
-Import path: `github.com/aggrega-ai/aggrega-pdk-go/pkg/aggrega`.
+Import paths: `github.com/aggrega-ai/aggrega-pdk-go/pkg/aggrega` (the socket payload
+types and the host-function bindings every plugin uses) and
+`github.com/aggrega-ai/aggrega-pdk-go/pkg/importer` (the library an importer plugin is
+built on — see [Writing an importer](#writing-an-importer)).
 
 The canonical reference for the plugin author's contract — what a plugin is,
 the `describe()` self-report, exports and capability claims, runtime limits and
@@ -40,6 +43,49 @@ marked seam where an author drops their own evaluator. It is a skeleton rather
 than a framework — the role wiring, the generated wire types and the pointer
 escaping are done; the engine is not. Its README carries the role table, the four
 things an adapter maps, and how to check the guest runs before attaching it.
+
+### Writing an importer
+
+An importer turns a foreign flow definition into draft Aggrega entities.
+`pkg/importer` holds everything about that which does not depend on the source
+format, so an importer plugin built on it carries only what is particular to its
+one format.
+
+What you write:
+
+- the `describe()` descriptor: plugin type `importer`, the `import:<format>`
+  capability, and an `import` export declaring the `aggrega_parse_source` host
+  function;
+- an `importer.Format`: the format's name, the syntactic format the host parses a
+  source of it as, its mapping arm (`map[string]importer.Mapping`, from the node
+  types the format names to the components they map to), and a walker lifting the
+  `importer.Node` and `importer.Edge` values out of the canonical tree the host
+  returns;
+- the `import` export: decode the `aggrega.ImportInput`, hand it to
+  `importer.Import` with your `Format` and a parse callback that calls
+  `aggrega.ParseSource`, and encode the `aggrega.ImportOutput` it returns.
+
+What the package gives you: the confidence scorer and the candidate
+standard-library components it weighs a node against, the decision to reference a
+component or draft a new one, the drafted Component and Aggregate bodies, the
+`human` and `llm` renderers, and the importer's settings — `target_namespace`,
+`reuse_mode`, `reuse_threshold`, `emit_hints`, `render_mode` and
+`mapping_overrides` — with their defaults. `NodeList`, `EdgeList` and
+`ObjectEntries` read the shapes a walker commonly meets in a canonical tree. The
+package builds on the host toolchain as well as for `GOOS=wasip1`, so an importer is
+tested on the host by handing `Import` a parse function of the test's own. Its
+package documentation carries the scoring signals, the tiers and the settings in
+full.
+
+[`examples/import-langflow/`](examples/import-langflow) and
+[`examples/import-flowise/`](examples/import-flowise) are two importers built this
+way, one per format. Each holds its descriptor and export wiring (`main.go`), its
+walker (`walk.go`), and its format's mapping arm and syntactic format
+(`format.go`). Each builds with its own `./build.sh`, which writes
+`import-langflow-go.wasm` or `import-flowise-go.wasm` into `$AGGREGA_PDK_WASM_OUT`
+when that is set, and stamps the version the guest reports through `describe()`
+from `AGGREGA_PLUGIN_VERSION` (default `1.0.0`). The commit is left unstamped, so
+two builds of one tree are byte-identical.
 
 ### Values an input marks sensitive
 
@@ -141,9 +187,12 @@ go/
 │   ├── host_funcs_stub.go (host-build stubs for non-wasm targets)
 │   ├── host_error.go (host-call error handling)
 │   └── aggrega_test.go (round-trip tests against the schemas)
+├── pkg/importer/     (the importer library: scoring, decisions, drafts,
+│                     rendering, settings, and the tree readers walkers use)
 └── examples/         (one directory per worked plugin — a mutator, a
                       policy, a governance adapter skeleton, an FRP
-                      step, a CLI plugin, and others)
+                      step, a CLI plugin, an importer per agent-flow
+                      format, and others)
 ```
 
 `types.go` carries no types: the socket payload types are generated

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 Cognitio S.r.l.
 
-package main
+package importer
 
 import (
 	"sort"
@@ -10,11 +10,11 @@ import (
 )
 
 // The confidence scorer is deterministic and holds no model: it weighs a source
-// node against each embedded candidate component through five independent
-// signals, combined as a fixed weighted sum. Identical input yields byte-identical
-// scores, and ranking ties break by candidate name, so the ordering is stable
-// across runs. No language model participates in scoring; a downstream renderer
-// may narrate the decision record, but it never sets a score.
+// node against each candidate component through five independent signals,
+// combined as a fixed weighted sum. Identical input yields byte-identical scores,
+// and ranking ties break by candidate name, so the ordering is stable across
+// runs. No language model participates in scoring; a downstream renderer may
+// narrate the decision record, but it never sets a score.
 const (
 	weightTable        = 0.50
 	weightCategory     = 0.20
@@ -34,23 +34,23 @@ const (
 	maxCandidates = 4
 )
 
-// scoreNode ranks the embedded candidate components for one source node. It
-// returns the candidates whose score is positive, ordered by score descending and
-// then by component name ascending so ties resolve deterministically, capped to a
-// bounded head so the decision record stays compact. A node that matches nothing
-// returns no candidates, which the emitter treats as the draft-new fallback.
-func scoreNode(overrides mappingOverrides, format string, node sourceNode) []aggrega.ImportCandidate {
-	category := inferCategory(overrides, format, node)
-	traits := nodeTraits(overrides, format, node)
-	vendor := nodeVendor(overrides, format, node)
-	nodeShape := append(append([]string{}, node.fields...), node.secrets...)
+// scoreNode ranks the candidate components for one source node. It returns the
+// candidates whose score is positive, ordered by score descending and then by
+// component name ascending so ties resolve deterministically, capped to a bounded
+// head so the decision record stays compact. A node that matches nothing returns
+// no candidates, which the decision treats as the draft-new fallback.
+func scoreNode(table mappingTable, candidates []candidate, node Node) []aggrega.ImportCandidate {
+	category := inferCategory(table, node)
+	traits := nodeTraits(table, node)
+	vendor := nodeVendor(table, node)
+	nodeShape := append(append([]string{}, node.Fields...), node.Secrets...)
 
-	var candidates []aggrega.ImportCandidate
-	for i := range embeddedCatalog {
-		c := &embeddedCatalog[i]
+	var ranked []aggrega.ImportCandidate
+	for i := range candidates {
+		c := &candidates[i]
 		var sig aggrega.CandidateSignals
 
-		if e, ok := lookupMapping(overrides, format, node.typ); ok && e.component == c.name {
+		if e, ok := table.lookup(node.Type); ok && e.Component == c.name {
 			sig.Table = weightTable
 		}
 		if category != "" && category == c.category {
@@ -68,7 +68,7 @@ func scoreNode(overrides mappingOverrides, format string, node sourceNode) []agg
 		if score <= 0 {
 			continue
 		}
-		candidates = append(candidates, aggrega.ImportCandidate{
+		ranked = append(ranked, aggrega.ImportCandidate{
 			ComponentName: c.name,
 			Score:         round4(score),
 			Tier:          tierFor(round4(score)),
@@ -76,16 +76,16 @@ func scoreNode(overrides mappingOverrides, format string, node sourceNode) []agg
 		})
 	}
 
-	sort.SliceStable(candidates, func(i, j int) bool {
-		if candidates[i].Score != candidates[j].Score {
-			return candidates[i].Score > candidates[j].Score
+	sort.SliceStable(ranked, func(i, j int) bool {
+		if ranked[i].Score != ranked[j].Score {
+			return ranked[i].Score > ranked[j].Score
 		}
-		return candidates[i].ComponentName < candidates[j].ComponentName
+		return ranked[i].ComponentName < ranked[j].ComponentName
 	})
-	if len(candidates) > maxCandidates {
-		candidates = candidates[:maxCandidates]
+	if len(ranked) > maxCandidates {
+		ranked = ranked[:maxCandidates]
 	}
-	return candidates
+	return ranked
 }
 
 // traitMatchFraction returns the fraction of a node's implied traits that the
@@ -122,21 +122,21 @@ func bestNameRatio(vendor, componentName string) float64 {
 }
 
 // inferCategory returns the category a node belongs to: the mapping's category
-// when the node-type is mapped, otherwise a keyword read of the node-type. The
+// when the node type is mapped, otherwise a keyword read of the node type. The
 // keyword read lets the category signal contribute for an unmapped node without
-// forcing a table entry.
-func inferCategory(overrides mappingOverrides, format string, node sourceNode) string {
-	if e, ok := lookupMapping(overrides, format, node.typ); ok {
-		return e.category
+// forcing a mapping.
+func inferCategory(table mappingTable, node Node) string {
+	if e, ok := table.lookup(node.Type); ok {
+		return e.Category
 	}
 	switch {
-	case containsFold(node.typ, "embed"):
+	case containsFold(node.Type, "embed"):
 		return "ai-model"
-	case containsFold(node.typ, "model") || containsFold(node.typ, "llm") || containsFold(node.typ, "chat"):
+	case containsFold(node.Type, "model") || containsFold(node.Type, "llm") || containsFold(node.Type, "chat"):
 		return "ai-model"
-	case containsFold(node.typ, "tool") || containsFold(node.typ, "request") || containsFold(node.typ, "retriev") || containsFold(node.typ, "search"):
+	case containsFold(node.Type, "tool") || containsFold(node.Type, "request") || containsFold(node.Type, "retriev") || containsFold(node.Type, "search"):
 		return "ai-tool"
-	case containsFold(node.typ, "agent") || containsFold(node.typ, "flow"):
+	case containsFold(node.Type, "agent") || containsFold(node.Type, "flow"):
 		return "ai-agent"
 	default:
 		return ""
@@ -147,18 +147,18 @@ func inferCategory(overrides mappingOverrides, format string, node sourceNode) s
 // mapped, otherwise none. Traits are deliberately not inferred for an unmapped
 // node, so an unmapped node's candidates separate on category and shape rather
 // than on guessed traits.
-func nodeTraits(overrides mappingOverrides, format string, node sourceNode) map[string]string {
-	if e, ok := lookupMapping(overrides, format, node.typ); ok {
-		return e.traits
+func nodeTraits(table mappingTable, node Node) map[string]string {
+	if e, ok := table.lookup(node.Type); ok {
+		return e.Traits
 	}
 	return nil
 }
 
 // nodeVendor returns the vendor token a node carries: the mapping's vendor when
 // mapped, otherwise empty. An unmapped node draws no name-signal contribution.
-func nodeVendor(overrides mappingOverrides, format string, node sourceNode) string {
-	if e, ok := lookupMapping(overrides, format, node.typ); ok {
-		return e.vendor
+func nodeVendor(table mappingTable, node Node) string {
+	if e, ok := table.lookup(node.Type); ok {
+		return e.Vendor
 	}
 	return ""
 }

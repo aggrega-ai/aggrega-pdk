@@ -1,67 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 Cognitio S.r.l.
 
-package main
+package importer
 
-import (
-	"bytes"
-	"encoding/json"
-	"strings"
-)
-
-// jsonEntry is one member of a JSON object: its key and its value, undecoded.
-type jsonEntry struct {
-	key   string
-	value json.RawMessage
-}
-
-// jsonObjectEntries returns the members of a JSON object in the textual order the
-// document presents them, using a streaming walk so the order is preserved
-// (decoding into a Go map would lose it). The host's parser emits object keys in
-// sorted order, so this order is deterministic across runs of the same source. A
-// document that is not an object yields no entries; one that breaks off yields
-// the entries read before the break.
-func jsonObjectEntries(raw json.RawMessage) []jsonEntry {
-	dec := json.NewDecoder(bytes.NewReader(raw))
-	tok, err := dec.Token()
-	if err != nil {
-		return nil
-	}
-	if d, ok := tok.(json.Delim); !ok || d != '{' {
-		return nil
-	}
-	var entries []jsonEntry
-	for dec.More() {
-		keyTok, err := dec.Token()
-		if err != nil {
-			return entries
-		}
-		key, ok := keyTok.(string)
-		if !ok {
-			return entries
-		}
-		var value json.RawMessage
-		if err := dec.Decode(&value); err != nil {
-			return entries
-		}
-		entries = append(entries, jsonEntry{key: key, value: value})
-	}
-	return entries
-}
-
-// jsonObjectKeys returns the keys of a JSON object in the order
-// [jsonObjectEntries] reads them.
-func jsonObjectKeys(raw json.RawMessage) []string {
-	entries := jsonObjectEntries(raw)
-	if entries == nil {
-		return nil
-	}
-	keys := make([]string, 0, len(entries))
-	for _, e := range entries {
-		keys = append(keys, e.key)
-	}
-	return keys
-}
+import "strings"
 
 func containsFold(haystack, needle string) bool {
 	return strings.Contains(strings.ToLower(haystack), strings.ToLower(needle))

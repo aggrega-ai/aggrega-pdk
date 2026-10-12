@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 Cognitio S.r.l.
 
-package main
+package importer
 
 import (
 	"encoding/json"
@@ -12,103 +12,12 @@ import (
 	"github.com/aggrega-ai/aggrega-pdk-go/pkg/aggrega"
 )
 
-// runImport turns one import request into the entities, decisions, diagnostics,
-// and files it produced. It is the pure core of the guest: it takes the decoded
-// request and a parse callback — the guest's only channel to a source tree, which
-// the host mediates — and returns the assembled output, holding no state and
-// touching no ambient resource. The main package's export wires the real host
-// parse callback into this function; a test wires a local one.
-//
-// The flow is: decode the settings, walk each source into nodes and edges through
-// the host-mediated parse, score every node against the embedded candidates,
-// decide each node's disposition from its top candidate and the reuse mode, and
-// render the shared decision record into files through the selected renderer.
-func runImport(in aggrega.ImportInput, parse func(format string, source []byte) (json.RawMessage, error)) aggrega.ImportOutput {
-	settings := parseSettings(in.Settings)
-	format := in.Format
-
-	sources := in.Sources
-	if len(sources) == 0 {
-		sources = []aggrega.ImportSource{{Name: "", Bytes: in.Bytes}}
-	}
-	multiSource := len(sources) > 1
-
-	var out aggrega.ImportOutput
-	agg := newAggregateBuilder(settings, format)
-	usedNames := map[string]bool{}
-
-	for _, src := range sources {
-		tree, err := parse(syntacticFormat(format), src.Bytes)
-		if err != nil {
-			out.Diagnostics = append(out.Diagnostics, aggrega.Diagnostic{
-				Severity:  "halt",
-				Code:      "parse-failed",
-				Message:   fmt.Sprintf("could not parse source %q as %s: %s", src.Name, format, err.Error()),
-				SourceRef: src.Name,
-			})
-			continue
-		}
-		nodes, edges := walkTree(format, tree)
-		if len(nodes) == 0 {
-			out.Diagnostics = append(out.Diagnostics, aggrega.Diagnostic{
-				Severity:  "warn",
-				Code:      "no-nodes",
-				Message:   fmt.Sprintf("source %q carried no recognisable %s nodes", src.Name, format),
-				SourceRef: src.Name,
-			})
-			continue
-		}
-
-		idToKey := map[string]string{}
-		for _, node := range nodes {
-			ref := node.id
-			if multiSource {
-				ref = src.Name + "#" + node.id
-			}
-			key := uniqueKey(usedNames, kebab(node.id))
-			idToKey[node.id] = key
-
-			decision, entity := decideNode(settings, format, node, ref)
-			out.Decisions = append(out.Decisions, decision)
-			out.Entities = append(out.Entities, entity)
-			agg.addComponent(key, decision, entity)
-		}
-		for _, e := range edges {
-			consumer, ok1 := idToKey[e.target]
-			producer, ok2 := idToKey[e.source]
-			if ok1 && ok2 {
-				agg.addEdge(consumer, producer)
-			}
-		}
-	}
-
-	// The aggregate wiring the drafted and referenced components together is the
-	// last entity, emitted after the components it composes.
-	out.Entities = append(out.Entities, agg.entity())
-
-	out.Files = render(settings, out.Entities, out.Decisions)
-	return out
-}
-
-// syntacticFormat maps a semantic source format to the syntactic format the host
-// parses it as. The langflow and flowise agent-definition formats are both JSON,
-// so the guest asks the host for a JSON parse; the mapping is the guest's domain
-// knowledge, not the host's.
-func syntacticFormat(format string) string {
-	switch format {
-	case "langflow", "flowise":
-		return "json"
-	default:
-		return "json"
-	}
-}
-
 // decideNode scores a node, picks its disposition from the top candidate and the
 // reuse mode, and returns the decision record plus the entity emitted for it. A
 // high-confidence match under auto-apply mode is referenced; every other outcome
 // drafts a new component, carrying a hint whose strength tracks the match tier.
-func decideNode(settings importSettings, format string, node sourceNode, ref string) (aggrega.ImportDecision, aggrega.EmittedEntity) {
-	candidates := scoreNode(settings.MappingOverrides, format, node)
+func decideNode(settings importSettings, table mappingTable, node Node, ref string) (aggrega.ImportDecision, aggrega.EmittedEntity) {
+	candidates := scoreNode(table, standardCandidates, node)
 	decisionRef := "decision:" + ref
 
 	tier := tierNone
@@ -122,7 +31,7 @@ func decideNode(settings importSettings, format string, node sourceNode, ref str
 		len(candidates) > 0 && tier == tierHigh && top.Score >= settings.ReuseThreshold
 
 	decision := aggrega.ImportDecision{
-		SourceNode: aggrega.DecisionSourceNode{ID: ref, Type: node.typ, ParamsSummary: paramsSummary(node)},
+		SourceNode: aggrega.DecisionSourceNode{ID: ref, Type: node.Type, ParamsSummary: paramsSummary(node)},
 		Candidates: candidates,
 	}
 
@@ -143,8 +52,8 @@ func decideNode(settings importSettings, format string, node sourceNode, ref str
 	// Every non-auto-apply outcome drafts a new component; the hint strength
 	// tracks the tier so a strong match is loudly suggested and a weak one is only
 	// recorded.
-	draftName := draftComponentName(settings, format, node)
-	body := draftComponentBody(draftName, format, node)
+	draftName := draftComponentName(settings, table, node)
+	body := draftComponentBody(draftName, node)
 	entity := aggrega.EmittedEntity{
 		Kind:        "Component",
 		Name:        draftName,
@@ -180,13 +89,13 @@ func runnerUpHint(candidates []aggrega.ImportCandidate) string {
 	return fmt.Sprintf("swap to %s (score %.4f) by setting type: %s", r.ComponentName, r.Score, r.ComponentName)
 }
 
-func paramsSummary(node sourceNode) string {
+func paramsSummary(node Node) string {
 	var parts []string
-	if len(node.fields) > 0 {
-		parts = append(parts, "fields: "+strings.Join(node.fields, ", "))
+	if len(node.Fields) > 0 {
+		parts = append(parts, "fields: "+strings.Join(node.Fields, ", "))
 	}
-	if len(node.secrets) > 0 {
-		parts = append(parts, "secrets: "+strings.Join(node.secrets, ", "))
+	if len(node.Secrets) > 0 {
+		parts = append(parts, "secrets: "+strings.Join(node.Secrets, ", "))
 	}
 	if len(parts) == 0 {
 		return "no parameters"
@@ -198,14 +107,14 @@ func paramsSummary(node sourceNode) string {
 // author's namespace: <ns>/<category>/<name>. The namespace never collides with a
 // protected one; the category falls back to a neutral segment when the node's
 // category cannot be inferred.
-func draftComponentName(settings importSettings, format string, node sourceNode) string {
-	category := inferCategory(settings.MappingOverrides, format, node)
+func draftComponentName(settings importSettings, table mappingTable, node Node) string {
+	category := inferCategory(table, node)
 	if category == "" {
 		category = "component"
 	}
-	name := kebab(node.typ)
+	name := kebab(node.Type)
 	if name == "" {
-		name = kebab(node.id)
+		name = kebab(node.ID)
 	}
 	return settings.TargetNamespace + "/" + category + "/" + name
 }
@@ -223,7 +132,7 @@ func draftComponentName(settings importSettings, format string, node sourceNode)
 // values; under properties every key is a field name, so one shape compiles
 // whatever the source calls its fields, and it compiles to the same closed object
 // the compact form writes for fields that collide with no keyword.
-func draftComponentBody(name, format string, node sourceNode) string {
+func draftComponentBody(name string, node Node) string {
 	category := categoryFromName(name)
 	var b strings.Builder
 	b.WriteString("apiVersion: aggrega.ai/v1alpha1\n")
@@ -237,26 +146,26 @@ func draftComponentBody(name, format string, node sourceNode) string {
 		b.WriteString("    component.aggrega.ai/category: " + category + "\n")
 	}
 
-	if len(node.fields) == 0 && len(node.secrets) == 0 {
+	if len(node.Fields) == 0 && len(node.Secrets) == 0 {
 		b.WriteString("spec: {}\n")
 		return b.String()
 	}
 	b.WriteString("spec:\n")
-	if len(node.secrets) > 0 {
+	if len(node.Secrets) > 0 {
 		b.WriteString("  featuresSchema:\n")
-		for _, s := range node.secrets {
+		for _, s := range node.Secrets {
 			b.WriteString("    " + s + ":\n")
 			b.WriteString("      required: true\n")
 			b.WriteString("      inject: []\n")
 			b.WriteString("      description: Credential slot inferred from the source node; the recipe controls delivery.\n")
 		}
 	}
-	if len(node.fields) > 0 {
+	if len(node.Fields) > 0 {
 		b.WriteString("  schema:\n")
 		b.WriteString("    values:\n")
 		b.WriteString("      type: object\n")
 		b.WriteString("      properties:\n")
-		for _, f := range node.fields {
+		for _, f := range node.Fields {
 			b.WriteString("        " + f + ": { type: string }\n")
 		}
 		b.WriteString("      additionalProperties: false\n")
@@ -323,21 +232,6 @@ func renderLLM(decisions []aggrega.ImportDecision) []aggrega.ScaffoldFile {
 		return nil
 	}
 	return []aggrega.ScaffoldFile{{Path: "import-decisions.json", Content: string(raw)}}
-}
-
-// subtract returns the elements of a not present in b, preserving a's order.
-func subtract(a, b []string) []string {
-	drop := make(map[string]struct{}, len(b))
-	for _, s := range b {
-		drop[s] = struct{}{}
-	}
-	var out []string
-	for _, s := range a {
-		if _, ok := drop[s]; !ok {
-			out = append(out, s)
-		}
-	}
-	return out
 }
 
 // uniqueKey returns key, or key with a numeric suffix, so no two components share

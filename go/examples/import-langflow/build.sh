@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: Apache-2.0
-# Build the agent-flow importer plugin to a .wasm artifact.
+# Build the Langflow importer plugin to a .wasm artifact.
 #
 # Resolution order for the destination directory:
 #   1. $AGGREGA_PDK_WASM_OUT  (explicit override; the build invokes it

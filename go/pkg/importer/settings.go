@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 Cognitio S.r.l.
 
-package main
+package importer
 
 import "encoding/json"
 
-// importSettings is the guest's interpretation of the opaque settings document
+// importSettings is the importer's interpretation of the opaque settings document
 // the consumer supplies. The host pipes the document through without reading it;
-// the meaning of every field is the guest's. Absent or malformed settings leave
-// every field at its default, so a settings-free run is well-defined and
-// byte-identical to one carrying an empty document.
+// the meaning of every field is the importer's. An absent document, or one that is
+// not valid JSON, leaves every field at its default, so a settings-free run is
+// well-defined and byte-identical to one carrying an empty document.
 type importSettings struct {
 	// TargetNamespace is the namespace segment drafted entities are named under —
 	// the <ns> in <ns>/<category>/<name>. It never defaults to a protected
@@ -33,19 +33,23 @@ type importSettings struct {
 	// hints; llm serves the whole decision record as one document for a richer
 	// downstream narrative. Both renderers consume the identical decision record.
 	RenderMode string `json:"render_mode"`
-	// MappingOverrides extends or overrides the embedded node-type mapping table,
-	// keyed by format then node-type, with override precedence over the embedded
-	// defaults.
+	// MappingOverrides extends or overrides the served format's mapping arm,
+	// keyed by format then node type, with override precedence over the arm.
 	MappingOverrides mappingOverrides `json:"mapping_overrides"`
 }
 
-// mappingOverrides is the operator-supplied extension of the embedded mapping
-// table: format → node-type → mapping, layered over the embedded defaults with
-// override precedence.
-type mappingOverrides map[string]map[string]tableEntry
+// mappingOverrides is the operator-supplied extension of a mapping arm:
+// format → node type → mapping, layered over the arm with override precedence.
+type mappingOverrides map[string]map[string]Mapping
 
 // UnmarshalJSON decodes a mapping-overrides document, whose entries carry the
-// same shape as an embedded table entry but with lowercase JSON keys.
+// same shape as a [Mapping] with lowercase JSON keys.
+//
+// The document is decoded here rather than through tags on [Mapping], and that is
+// load-bearing: an error this decoder returns ends the decode of the whole settings
+// document, where a mismatched field under a tag-only decode would be skipped and
+// the decode carried on, so the two would leave different settings behind for one
+// malformed overrides block.
 func (m *mappingOverrides) UnmarshalJSON(data []byte) error {
 	var raw map[string]map[string]struct {
 		Component string            `json:"component"`
@@ -58,9 +62,9 @@ func (m *mappingOverrides) UnmarshalJSON(data []byte) error {
 	}
 	out := make(mappingOverrides, len(raw))
 	for format, arm := range raw {
-		entries := make(map[string]tableEntry, len(arm))
+		entries := make(map[string]Mapping, len(arm))
 		for nodeType, e := range arm {
-			entries[nodeType] = tableEntry{component: e.Component, category: e.Category, traits: e.Traits, vendor: e.Vendor}
+			entries[nodeType] = Mapping{Component: e.Component, Category: e.Category, Traits: e.Traits, Vendor: e.Vendor}
 		}
 		out[format] = entries
 	}
@@ -78,9 +82,9 @@ const (
 )
 
 // parseSettings decodes the opaque settings document into a typed, defaulted
-// settings value. A nil or malformed document yields the defaults rather than an
-// error, so an importer with no settings behaves identically to one whose
-// document decoded cleanly to the defaults.
+// settings value. A nil document, or one that is not valid JSON, yields the
+// defaults rather than an error, so an importer with no settings behaves
+// identically to one whose document decoded cleanly to the defaults.
 func parseSettings(raw json.RawMessage) importSettings {
 	s := importSettings{}
 	if len(raw) > 0 {
