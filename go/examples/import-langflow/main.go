@@ -30,7 +30,9 @@
 // than hand-declared wire types, so the wire shape stays single-sourced from the
 // schema.
 //
-// Build: GOOS=wasip1 GOARCH=wasm go build -buildmode=c-shared -o import-langflow-go.wasm ./
+// Build: ./build.sh, which stamps the version the guest reports through
+// describe() (AGGREGA_PLUGIN_VERSION, default 1.0.0) into
+// GOOS=wasip1 GOARCH=wasm go build -buildmode=c-shared -ldflags "-X github.com/aggrega-ai/aggrega-pdk-go/pkg/aggrega.Version=<version>" -o import-langflow-go.wasm ./
 package main
 
 import (
