@@ -212,10 +212,17 @@ func draftComponentName(settings importSettings, format string, node sourceNode)
 
 // draftComponentBody renders a drafted component as deterministic YAML: the
 // author's namespace-qualified name, the ontology type inferred from its category,
-// its category label, its non-secret fields as string value slots, and its
-// credential-named fields as blackbox secret slots. The body is hand-built rather
-// than marshalled so key order is fixed and the output is byte-identical across
-// runs.
+// its category label, its value fields as string value slots, and the fields the
+// source marks as credentials as blackbox secret slots. The body is hand-built
+// rather than marshalled so key order is fixed and the output is byte-identical
+// across runs.
+//
+// The value slots are always written as a closed object whose fields sit under
+// an explicit properties block. A source field may carry any name, including one
+// the compact schema form reads as a keyword when it appears directly under
+// values; under properties every key is a field name, so one shape compiles
+// whatever the source calls its fields, and it compiles to the same closed object
+// the compact form writes for fields that collide with no keyword.
 func draftComponentBody(name, format string, node sourceNode) string {
 	category := categoryFromName(name)
 	var b strings.Builder
@@ -230,8 +237,7 @@ func draftComponentBody(name, format string, node sourceNode) string {
 		b.WriteString("    component.aggrega.ai/category: " + category + "\n")
 	}
 
-	nonSecret := subtract(node.fields, node.secrets)
-	if len(nonSecret) == 0 && len(node.secrets) == 0 {
+	if len(node.fields) == 0 && len(node.secrets) == 0 {
 		b.WriteString("spec: {}\n")
 		return b.String()
 	}
@@ -245,12 +251,15 @@ func draftComponentBody(name, format string, node sourceNode) string {
 			b.WriteString("      description: Credential slot inferred from the source node; the recipe controls delivery.\n")
 		}
 	}
-	if len(nonSecret) > 0 {
+	if len(node.fields) > 0 {
 		b.WriteString("  schema:\n")
 		b.WriteString("    values:\n")
-		for _, f := range nonSecret {
-			b.WriteString("      " + f + ": { type: string }\n")
+		b.WriteString("      type: object\n")
+		b.WriteString("      properties:\n")
+		for _, f := range node.fields {
+			b.WriteString("        " + f + ": { type: string }\n")
 		}
+		b.WriteString("      additionalProperties: false\n")
 	}
 	return b.String()
 }

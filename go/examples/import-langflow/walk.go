@@ -6,14 +6,18 @@ package main
 import "encoding/json"
 
 // sourceNode is one node lifted from a parsed source tree: its identifier, the
-// type the source names it, and the field and secret names its parameters carry.
-// The walker produces these from the canonical tree the host returned; the scorer
-// and emitter read them, never the raw source.
+// type the source names it, and the names of the value fields and the credential
+// fields its parameters carry. The walker produces these from the canonical tree
+// the host returned; the scorer and emitter read them, never the raw source.
+//
+// The two name lists are disjoint: a parameter the source format marks as a
+// credential is in secrets and not in fields, and every other parameter field is
+// in fields.
 type sourceNode struct {
 	id      string
 	typ     string
-	fields  []string // parameter field names, in the order the tree presents them
-	secrets []string // the subset of fields whose names read as credentials
+	fields  []string // value field names, in the order the tree presents them
+	secrets []string // credential field names, as the source format marks them, in the order the tree presents them
 }
 
 // sourceEdge is one directed dependency lifted from a parsed source tree: the
@@ -68,16 +72,17 @@ func parseNodes(format string, raw json.RawMessage) []sourceNode {
 		_ = json.Unmarshal(n["data"], &data)
 
 		var typ string
-		fields := []string(nil)
+		var fields, secrets []string
 		switch format {
 		case "langflow":
 			_ = json.Unmarshal(data["type"], &typ)
-			fields = templateFields(nestedTemplate(data["node"]))
+			fields, secrets = templateFields(nestedTemplate(data["node"]))
 		case "flowise":
 			_ = json.Unmarshal(data["name"], &typ)
-			fields = subtract(orderedKeys(data["inputs"]), anchorNames(data["inputAnchors"]))
+			secrets = credentialParams(data["inputParams"])
+			fields = subtract(subtract(orderedKeys(data["inputs"]), anchorNames(data["inputAnchors"])), secrets)
 		}
-		nodes = append(nodes, sourceNode{id: id, typ: typ, fields: fields, secrets: secretFields(fields)})
+		nodes = append(nodes, sourceNode{id: id, typ: typ, fields: fields, secrets: secrets})
 	}
 	return nodes
 }
@@ -109,22 +114,61 @@ func nestedTemplate(nodeRaw json.RawMessage) json.RawMessage {
 }
 
 // templateFields returns the names of a langflow template's parameter fields, in
-// the order the tree presents them. A template also carries entries that are not
-// parameters — a string naming the template's own kind, a boolean refresh flag,
-// an object holding only a value the editor keeps for itself — and only an entry
-// whose value is an object carrying a type is a parameter field.
-func templateFields(raw json.RawMessage) []string {
-	var fields []string
+// the order the tree presents them, split into value fields and credential
+// fields. A template also carries entries that are not parameters — a string
+// naming the template's own kind, a boolean refresh flag, an object holding only
+// a value the editor keeps for itself — and only an entry whose value is an
+// object carrying a type is a parameter field.
+//
+// A parameter field is a credential when langflow marks it as one: its object
+// carries password set to true, which is how langflow declares a field whose
+// value is secret. The name plays no part, so a field named like a credential
+// that langflow does not mark is a value field, and a marked field is a
+// credential whatever it is called. Only the type and password members are read;
+// the field's value is never decoded.
+func templateFields(raw json.RawMessage) (fields, secrets []string) {
 	for _, e := range jsonObjectEntries(raw) {
-		var field map[string]json.RawMessage
-		if err := json.Unmarshal(e.value, &field); err != nil {
+		var field struct {
+			Type     json.RawMessage `json:"type"`
+			Password json.RawMessage `json:"password"`
+		}
+		if err := json.Unmarshal(e.value, &field); err != nil || field.Type == nil {
 			continue
 		}
-		if _, ok := field["type"]; ok {
+		if string(field.Password) == "true" {
+			secrets = append(secrets, e.key)
+		} else {
 			fields = append(fields, e.key)
 		}
 	}
-	return fields
+	return fields, secrets
+}
+
+// credentialParams returns the names of a flowise node's credential parameters,
+// in the order its inputParams list them. Flowise declares a node's credential as
+// an input parameter of type credential, and keeps the credential itself out of
+// the node's inputs, so the parameter is the only place the node says it needs
+// one. Only each parameter's name and type are read; an entry that does not
+// decode is skipped without affecting the others.
+func credentialParams(raw json.RawMessage) []string {
+	var entries []json.RawMessage
+	if err := json.Unmarshal(raw, &entries); err != nil {
+		return nil
+	}
+	var names []string
+	for _, entry := range entries {
+		var param struct {
+			Name string `json:"name"`
+			Type string `json:"type"`
+		}
+		if err := json.Unmarshal(entry, &param); err != nil {
+			continue
+		}
+		if param.Type == "credential" && param.Name != "" {
+			names = append(names, param.Name)
+		}
+	}
+	return names
 }
 
 // anchorNames returns the names a flowise node's inputAnchors declare. An anchor
@@ -172,27 +216,4 @@ func orderedKeys(raw json.RawMessage) []string {
 		return nil
 	}
 	return jsonObjectKeys(raw)
-}
-
-// secretFields returns the subset of field names that read as credentials, by a
-// small name heuristic. The importer never inspects field values — the AOT
-// boundary means it holds no resolved secrets — so it classifies on the name
-// alone.
-func secretFields(fields []string) []string {
-	var out []string
-	for _, f := range fields {
-		if isSecretName(f) {
-			out = append(out, f)
-		}
-	}
-	return out
-}
-
-func isSecretName(name string) bool {
-	for _, needle := range []string{"api_key", "apikey", "api-key", "token", "password", "secret", "credential"} {
-		if containsFold(name, needle) {
-			return true
-		}
-	}
-	return false
 }
