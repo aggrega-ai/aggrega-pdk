@@ -61,9 +61,28 @@ What you write:
   types the format names to the components they map to), and a walker lifting the
   `importer.Node` and `importer.Edge` values out of the canonical tree the host
   returns;
-- the `import` export: decode the `aggrega.ImportInput`, hand it to
-  `importer.Import` with your `Format` and a parse callback that calls
-  `aggrega.ParseSource`, and encode the `aggrega.ImportOutput` it returns.
+- the `import` export: decode the `aggrega.ImportInput` from its input with
+  `DecodeCBOR`, hand it to `importer.Import` with your `Format` and a parse
+  callback that calls `aggrega.ParseSource`, and return the `aggrega.ImportOutput`
+  it produces encoded with `EncodeCBOR`.
+
+The importer socket carries canonical CBOR in both directions: the input arrives
+in it and the output goes back in it. An importer that cannot produce a result
+says why in the output's `Error` field, and the host reports a non-empty `Error`
+as that importer's failure. `settings` arrives as the bytes the attachment
+authored, which `pkg/importer` reads as JSON.
+
+Besides the source and the attachment's `settings`, the `aggrega.ImportInput` an
+importer decodes carries `Catalog`, a view of the Components the workspace's own
+catalog holds: an `aggrega.CatalogProjection` whose `Components` are sorted by
+name, one entry per Component name at the version a reference naming it without
+a version resolves to. Each is an `aggrega.CatalogComponent` carrying the
+Component's name and version, its labels, the key names its values and provides
+declare (each list sorted), and its sockets as `aggrega.CatalogSocket` entries
+(name and label selector) in the order the Component declares them, the sockets a
+Component inherits through `extends` first. It carries names and labels only —
+never a value, a default or a secret — and it is nil when the catalog holds no
+Component.
 
 What the package gives you: the confidence scorer and the candidate
 standard-library components it weighs a node against, the decision to reference a

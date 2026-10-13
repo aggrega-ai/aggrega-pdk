@@ -54,7 +54,8 @@ pub use aggrega_abi::{
     SourceEntry, SourceFile, SourceFileRequest, SourceIgnore,
     SourceFileResponse, SourceListing, SourcePackRequest, SourcePackResponse, SourceProjection,
     SourceSpan, Span, SubChart, WorkloadProjection,
-    CandidateSignals, DecisionChoice, DecisionSourceNode, Diagnostic, EmittedEntity,
+    CandidateSignals, CatalogComponent, CatalogProjection, CatalogSocket, DecisionChoice,
+    DecisionSourceNode, Diagnostic, EmittedEntity,
     ImportCandidate, ImportDecision, ImportInput, ImportOutput, ImportSource, ScaffoldFile,
     FetchExternalInputResponse, ParseSourceResponse,
 };

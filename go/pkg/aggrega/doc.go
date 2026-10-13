@@ -4,7 +4,8 @@
 // Package aggrega is the Go PDK for authoring Aggrega Wasm plugins.
 //
 // The package exports the per-socket payload types plugin authors
-// marshal to and from JSON, the [APIVersion] contract floor constant,
+// encode and decode in the wire encoding each socket carries, the
+// [APIVersion] contract floor constant,
 // and ergonomic wrappers over the Aggrega host functions (Log,
 // EmitWarning, FetchExternalInput). The host-function bindings compile
 // under the standard Go GOOS=wasip1 target; off Wasm the diagnostic

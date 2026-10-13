@@ -30,10 +30,11 @@
 // function on its import export, and the load-time cross-check of the descriptor's
 // declared host functions against the binary's imports covers it.
 //
-// The import payload is decoded and re-encoded through the generated ABI codec
-// (github.com/aggrega-ai/aggrega-abi-go/pkg/abi, re-exported by this PDK) rather
-// than hand-declared wire types, so the wire shape stays single-sourced from the
-// schema.
+// The import payload is decoded and the result encoded through the generated ABI
+// codec (github.com/aggrega-ai/aggrega-abi-go/pkg/abi, re-exported by this PDK)
+// rather than hand-declared wire types, so the wire shape stays single-sourced
+// from the schema. The importer socket carries canonical CBOR in both directions:
+// the input is read with DecodeCBOR and the output is written with EncodeCBOR.
 //
 // Build: ./build.sh, which stamps the version the guest reports through
 // describe() (AGGREGA_PLUGIN_VERSION, default 1.0.0) into
@@ -42,6 +43,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 
 	pdk "github.com/extism/go-pdk"
 
@@ -86,8 +88,8 @@ func describe() int32 {
 //go:wasmexport import
 func importArtifact() int32 {
 	var in aggrega.ImportInput
-	if err := in.UnmarshalJSON(pdk.Input()); err != nil {
-		pdk.SetError(err)
+	if err := in.DecodeCBOR(pdk.Input()); err != nil {
+		pdk.SetError(fmt.Errorf("import-langflow: decode ImportInput: %w", err))
 		return 1
 	}
 
@@ -98,9 +100,9 @@ func importArtifact() int32 {
 		return aggrega.ParseSource(syntax, source, nil)
 	})
 
-	raw, err := out.MarshalJSON()
+	raw, err := out.EncodeCBOR()
 	if err != nil {
-		pdk.SetError(err)
+		pdk.SetError(fmt.Errorf("import-langflow: encode ImportOutput: %w", err))
 		return 1
 	}
 	pdk.Output(raw)

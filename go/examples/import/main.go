@@ -24,16 +24,18 @@
 // describe() once at load, validates the descriptor, then dispatches import
 // with an ImportInput as input.
 //
-// The import payload is decoded and re-encoded through the generated ABI codec
-// (github.com/aggrega-ai/aggrega-abi-go/pkg/abi, re-exported by this PDK) rather
-// than hand-declared wire types, so the wire shape stays single-sourced from
-// the schema.
+// The import payload is decoded and the result encoded through the generated ABI
+// codec (github.com/aggrega-ai/aggrega-abi-go/pkg/abi, re-exported by this PDK)
+// rather than hand-declared wire types, so the wire shape stays single-sourced
+// from the schema. The importer socket carries canonical CBOR in both directions:
+// the input arrives as canonical CBOR and the output is returned the same way.
 //
 // Build: GOOS=wasip1 GOARCH=wasm go build -buildmode=c-shared -o import-go.wasm ./
 package main
 
 import (
 	"encoding/json"
+	"fmt"
 
 	pdk "github.com/extism/go-pdk"
 
@@ -73,11 +75,12 @@ func describe() int32 {
 //
 //go:wasmexport import
 func importArtifact() int32 {
-	// Decode the ImportInput through the generated codec's UnmarshalJSON — a
-	// streaming token walk into the typed value, no reflective struct-walk.
+	// Decode the ImportInput from the canonical CBOR the socket carries, through
+	// the generated codec's DecodeCBOR — no CBOR library, no reflective
+	// struct-walk.
 	var in aggrega.ImportInput
-	if err := in.UnmarshalJSON(pdk.Input()); err != nil {
-		pdk.SetError(err)
+	if err := in.DecodeCBOR(pdk.Input()); err != nil {
+		pdk.SetError(fmt.Errorf("import-go: decode ImportInput: %w", err))
 		return 1
 	}
 
@@ -133,11 +136,11 @@ func importArtifact() int32 {
 		})
 	}
 
-	// Encode the output through the generated codec's MarshalJSON — a manual
-	// field-ordered build, no reflective struct-walk.
-	raw, err := out.MarshalJSON()
+	// Encode the output in the canonical CBOR the socket carries, through the
+	// generated codec's EncodeCBOR — no CBOR library, no reflective struct-walk.
+	raw, err := out.EncodeCBOR()
 	if err != nil {
-		pdk.SetError(err)
+		pdk.SetError(fmt.Errorf("import-go: encode ImportOutput: %w", err))
 		return 1
 	}
 	pdk.Output(raw)

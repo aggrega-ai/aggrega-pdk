@@ -183,15 +183,22 @@ type (
 
 // Importer socket. An importer guest turns a foreign infrastructure
 // description into Aggrega entities on the import export (ImportInput to
-// ImportOutput): it receives the source format, the base64 primary bytes, any
-// named sources, and an optional opaque settings document, and returns the
+// ImportOutput): it receives the source format, the primary source bytes, any
+// named sources, an optional opaque settings document, and a view of the
+// Components the workspace's catalog holds (CatalogProjection, one
+// CatalogComponent per Component with its CatalogSocket entries), and returns the
 // emitted entities, the mapping decisions behind them, any diagnostics, and any
-// scaffold files. An importer advertises the formats it handles as
+// scaffold files. The socket carries canonical CBOR in both directions: the input
+// is read with ImportInput.DecodeCBOR and the output is written with
+// ImportOutput.EncodeCBOR. An importer advertises the formats it handles as
 // import:<format> capabilities in its descriptor.
 type (
 	ImportInput        = abi.ImportInput
 	ImportOutput       = abi.ImportOutput
 	ImportSource       = abi.ImportSource
+	CatalogProjection  = abi.CatalogProjection
+	CatalogComponent   = abi.CatalogComponent
+	CatalogSocket      = abi.CatalogSocket
 	EmittedEntity      = abi.EmittedEntity
 	ImportDecision     = abi.ImportDecision
 	DecisionSourceNode = abi.DecisionSourceNode
