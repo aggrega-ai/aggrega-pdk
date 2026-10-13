@@ -56,9 +56,8 @@ func scoreNode(table mappingTable, candidates []candidate, node Node) []aggrega.
 		if category != "" && category == c.category {
 			sig.Category = weightCategory
 		}
-		sig.DomainLabels = round4(weightDomainLabels * traitMatchFraction(traits, c.domainLabels))
-		candidateShape := append(append([]string{}, c.values...), c.secrets...)
-		sig.Shape = round4(weightShape * jaccard(nodeShape, candidateShape))
+		sig.DomainLabels = round4(weightDomainLabels * traitMatchFraction(traits, c.labels))
+		sig.Shape = round4(weightShape * jaccard(nodeShape, c.values))
 		sig.Name = round4(weightName * bestNameRatio(vendor, c.name))
 
 		// The score is the sum of the rounded per-signal contributions, so the
@@ -89,9 +88,10 @@ func scoreNode(table mappingTable, candidates []candidate, node Node) []aggrega.
 }
 
 // traitMatchFraction returns the fraction of a node's implied traits that the
-// candidate's domain labels agree with. A trait agrees when the candidate carries
-// the same label key with the same value. No traits yields 0, so a node with no
-// discernible traits draws no domain-label contribution.
+// candidate's labels agree with. A trait agrees when the candidate carries the
+// same label key with the same value; a label at a key the node implies no trait
+// for plays no part. No traits yields 0, so a node with no discernible traits
+// draws no domain-label contribution.
 func traitMatchFraction(traits, labels map[string]string) float64 {
 	if len(traits) == 0 {
 		return 0

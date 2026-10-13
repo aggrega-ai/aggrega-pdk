@@ -84,10 +84,18 @@ Component inherits through `extends` first. It carries names and labels only —
 never a value, a default or a secret — and it is nil when the catalog holds no
 Component.
 
-What the package gives you: the confidence scorer and the candidate
-standard-library components it weighs a node against, the decision to reference a
-component or draft a new one, the drafted Component and Aggregate bodies, the
-`human` and `llm` renderers, and the importer's settings — `target_namespace`,
+`pkg/importer` scores against that view and against nothing else: its candidates
+are the workspace's own catalog, an enterprise catalog's Components exactly as
+the standard library's, and the package carries no candidate of its own. Of each
+Component the scorer reads the name, the category its
+`component.aggrega.ai/category` label carries, its labels, and the key names its
+values declare; provides keys and sockets are not weighed. A nil `Catalog` means
+no candidate, so every node is drafted and none is referenced.
+
+What the package gives you: the confidence scorer that weighs a node against the
+catalog view, the decision to reference a component or draft a new one, the
+drafted Component and Aggregate bodies, the `human` and `llm` renderers, and the
+importer's settings — `target_namespace`,
 `reuse_mode`, `reuse_threshold`, `emit_hints`, `render_mode` and
 `mapping_overrides` — with their defaults. `NodeList`, `EdgeList` and
 `ObjectEntries` read the shapes a walker commonly meets in a canonical tree. The

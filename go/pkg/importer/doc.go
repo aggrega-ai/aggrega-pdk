@@ -19,23 +19,33 @@
 //     parse a source, and encodes what [Import] returns.
 //
 // The package gives them the rest. [Import] parses each source through the
-// callback, walks it, scores every node against the candidate standard-library
-// components the package carries, decides whether to reference a component or
-// draft a new one, renders each drafted Component and the Aggregate composing
-// them, and renders the whole result into files. [NodeList], [EdgeList] and
-// [ObjectEntries] read the shapes a walker commonly meets in a canonical tree.
+// callback, walks it, scores every node against the Components of the
+// workspace's catalog the request carries, decides whether to reference a
+// component or draft a new one, renders each drafted Component and the Aggregate
+// composing them, and renders the whole result into files. [NodeList], [EdgeList]
+// and [ObjectEntries] read the shapes a walker commonly meets in a canonical tree.
 //
 // # Scoring and decisions
 //
+// The candidates are the Components of the view of the workspace's own catalog
+// the request carries in its Catalog field — the catalog the importer was
+// selected from, enterprise catalogs included — and the package carries no
+// candidate of its own. A request whose view is absent, or holds no Component,
+// has no candidate: every node is drafted and none is referenced.
+//
 // The scorer is deterministic and holds no model. It weighs a node against each
 // candidate through five signals combined as a fixed weighted sum: the mapping
-// arm naming the candidate (0.50), the node's category matching the candidate's
-// (0.20), the node's implied traits agreeing with the candidate's domain labels
-// (0.15), the overlap of the node's field names with the candidate's (0.10), and
-// the similarity of the node's vendor token to the candidate's name (0.05). A
-// score of at least 0.85 is a HIGH match, at least 0.50 MEDIUM, at least 0.20
-// LOW, and anything less NONE. The candidates scoring above zero are ranked by
-// score and then by name, and at most four are reported per node.
+// arm naming the candidate (0.50), the node's category matching the category
+// the candidate's component.aggrega.ai/category label carries (0.20), the node's
+// implied traits agreeing with the candidate's labels (0.15), the overlap of the
+// node's field and credential names with the key names the candidate's values
+// declare (0.10), and the similarity of the node's vendor token to the
+// candidate's name (0.05). A candidate's provides keys and sockets are not
+// weighed. A score of at least 0.85 is a HIGH match, at least 0.50 MEDIUM, at
+// least 0.20 LOW, and anything less NONE. The candidates scoring above zero are
+// ranked by score and then by name, and at most four are reported per node. The
+// host's view holds one entry per Component name, so the order it lists them in
+// decides nothing a decision records.
 //
 // Every node is drafted as a new Component unless the reuse mode is
 // auto-apply-above-threshold and its best candidate is a HIGH match scoring at

@@ -12,12 +12,13 @@ import (
 	"github.com/aggrega-ai/aggrega-pdk-go/pkg/aggrega"
 )
 
-// decideNode scores a node, picks its disposition from the top candidate and the
-// reuse mode, and returns the decision record plus the entity emitted for it. A
-// high-confidence match under auto-apply mode is referenced; every other outcome
-// drafts a new component, carrying a hint whose strength tracks the match tier.
-func decideNode(settings importSettings, table mappingTable, node Node, ref string) (aggrega.ImportDecision, aggrega.EmittedEntity) {
-	candidates := scoreNode(table, standardCandidates, node)
+// decideNode scores a node against the catalog's candidates, picks its
+// disposition from the top candidate and the reuse mode, and returns the decision
+// record plus the entity emitted for it. A high-confidence match under auto-apply
+// mode is referenced; every other outcome drafts a new component, carrying a hint
+// whose strength tracks the match tier.
+func decideNode(settings importSettings, table mappingTable, catalog []candidate, node Node, ref string) (aggrega.ImportDecision, aggrega.EmittedEntity) {
+	candidates := scoreNode(table, catalog, node)
 	decisionRef := "decision:" + ref
 
 	tier := tierNone
@@ -143,7 +144,7 @@ func draftComponentBody(name string, node Node) string {
 	b.WriteString("  labels:\n")
 	b.WriteString("    component.aggrega.ai/type: " + categoryOntology(category) + "\n")
 	if category != "component" {
-		b.WriteString("    component.aggrega.ai/category: " + category + "\n")
+		b.WriteString("    " + categoryLabel + ": " + category + "\n")
 	}
 
 	if len(node.Fields) == 0 && len(node.Secrets) == 0 {

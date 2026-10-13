@@ -74,11 +74,69 @@ func (p *parseRecorder) parse(syntax string, source []byte) (json.RawMessage, er
 	return json.RawMessage(source), nil
 }
 
-// importTest runs Import over one source of the test's format with the settings
-// document given ("" for none).
+// standardCatalog is the catalog view most cases import against: seven
+// Components modelled on standard-library ai-model, ai-tool and ai-agent
+// Components, written as the host writes a view — one entry per name, sorted by
+// name, each entry's value key names sorted — with the labels a Component of
+// each category carries.
+var standardCatalog = &aggrega.CatalogProjection{Components: []aggrega.CatalogComponent{
+	{
+		Name: "core/ai-agent/flowise", Version: "1.0.0",
+		Labels: map[string]string{"component.aggrega.ai/type": "server", "component.aggrega.ai/category": "ai-agent",
+			"agent.aggrega.ai/autonomy": "copilot"},
+		Values: []string{"chatflow_id", "override_config"},
+	},
+	{
+		Name: "core/ai-agent/langflow", Version: "1.0.0",
+		Labels: map[string]string{"component.aggrega.ai/type": "server", "component.aggrega.ai/category": "ai-agent",
+			"agent.aggrega.ai/autonomy": "copilot"},
+		Values: []string{"flow_id", "tweaks"},
+	},
+	{
+		Name: "core/ai-model/anthropic", Version: "1.0.0",
+		Labels: map[string]string{"component.aggrega.ai/type": "resource", "component.aggrega.ai/category": "ai-model",
+			"model.aggrega.ai/capability": "generative", "component.aggrega.ai/hosting": "managed"},
+		Values: []string{"model", "temperature"},
+	},
+	{
+		Name: "core/ai-model/openai", Version: "1.0.0",
+		Labels: map[string]string{"component.aggrega.ai/type": "resource", "component.aggrega.ai/category": "ai-model",
+			"model.aggrega.ai/capability": "generative", "component.aggrega.ai/hosting": "managed"},
+		Values: []string{"model", "strict_response_format", "temperature"},
+	},
+	{
+		Name: "core/ai-model/openai-embedding", Version: "1.0.0",
+		Labels: map[string]string{"component.aggrega.ai/type": "resource", "component.aggrega.ai/category": "ai-model",
+			"model.aggrega.ai/capability": "embedding", "component.aggrega.ai/hosting": "managed"},
+		Values: []string{"model"},
+	},
+	{
+		Name: "core/ai-tool/http-request", Version: "1.0.0",
+		Labels: map[string]string{"component.aggrega.ai/type": "function", "component.aggrega.ai/category": "ai-tool",
+			"tool.aggrega.ai/impact": "mutating"},
+		Values: []string{"method", "payload_schema_ref"},
+	},
+	{
+		Name: "core/ai-tool/retrieval", Version: "1.0.0",
+		Labels: map[string]string{"component.aggrega.ai/type": "function", "component.aggrega.ai/category": "ai-tool",
+			"tool.aggrega.ai/impact": "read-only"},
+		Values: []string{"side_effects", "top_k"},
+	},
+}}
+
+// importTest runs Import over one source of the test's format against
+// standardCatalog, with the settings document given ("" for none).
 func importTest(t *testing.T, settings, source string) aggrega.ImportOutput {
 	t.Helper()
-	in := aggrega.ImportInput{Format: testFormatName, Bytes: []byte(source)}
+	return importAgainst(t, standardCatalog, settings, source)
+}
+
+// importAgainst runs Import over one source of the test's format against the
+// catalog view given (nil for none), with the settings document given ("" for
+// none).
+func importAgainst(t *testing.T, catalog *aggrega.CatalogProjection, settings, source string) aggrega.ImportOutput {
+	t.Helper()
+	in := aggrega.ImportInput{Format: testFormatName, Bytes: []byte(source), Catalog: catalog}
 	if settings != "" {
 		in.Settings = json.RawMessage(settings)
 	}
@@ -169,6 +227,91 @@ func TestTiedCandidatesRankByName(t *testing.T) {
 	want := []string{"core/ai-model/anthropic", "core/ai-model/openai", "core/ai-model/openai-embedding"}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("the tied candidates are ranked %v, want %v", got, want)
+	}
+}
+
+// TestTheCandidatesAreTheCatalogsComponents imports one node against a catalog
+// view holding two Components no importer carries, and nothing else: the node is
+// scored against exactly those two. A candidate's category is read from its
+// category label, so the Component carrying none draws no category signal however
+// its name reads, and its shape is weighed over the key names its values declare
+// alone — the provides keys the first one declares play no part.
+func TestTheCandidatesAreTheCatalogsComponents(t *testing.T) {
+	catalog := &aggrega.CatalogProjection{Components: []aggrega.CatalogComponent{
+		{
+			Name: "acme/ai-model/internal-llm", Version: "1.2.0",
+			Labels: map[string]string{"component.aggrega.ai/type": "server", "component.aggrega.ai/category": "ai-model",
+				"model.aggrega.ai/capability": "generative", "component.aggrega.ai/hosting": "self-hosted"},
+			Values:   []string{"max_tokens", "model", "temperature"},
+			Provides: []string{"endpoint", "model"},
+		},
+		{
+			Name: "acme/ai-model/uncategorised", Version: "0.1.0",
+			Labels: map[string]string{"component.aggrega.ai/type": "resource"},
+			Values: []string{"model"},
+		},
+	}}
+	d := decisionFor(t, importAgainst(t, catalog, "", oneNode("ChatModel", []string{"model", "temperature"}, nil)))
+
+	want := []aggrega.ImportCandidate{
+		{ComponentName: "acme/ai-model/internal-llm", Score: 0.2667, Tier: tierLow,
+			Signals: aggrega.CandidateSignals{Category: 0.2, Shape: 0.0667}},
+		{ComponentName: "acme/ai-model/uncategorised", Score: 0.05, Tier: tierNone,
+			Signals: aggrega.CandidateSignals{Shape: 0.05}},
+	}
+	if !reflect.DeepEqual(d.Candidates, want) {
+		t.Errorf("the candidates are\n%+v\nwant\n%+v", d.Candidates, want)
+	}
+	if want := (&aggrega.DecisionChoice{Target: "imported/ai-model/chatmodel", Mode: "draft", Tier: tierLow}); !reflect.DeepEqual(d.Chosen, want) {
+		t.Errorf("the choice is %+v, want %+v", d.Chosen, want)
+	}
+	if want := "drafted a new component; the closest candidate acme/ai-model/internal-llm scored only 0.2667"; d.Rationale != want {
+		t.Errorf("the rationale reads %q, want %q", d.Rationale, want)
+	}
+}
+
+// TestACatalogHoldingNoComponentScoresNoCandidate imports, under auto-apply, a
+// node that matches a standard Component on every signal: against a request
+// carrying no catalog view, and against one whose view holds no Component, no
+// candidate is scored, the node is drafted at the NONE tier with no hint, and
+// nothing is referenced. Against standardCatalog the same node is referenced, so
+// the two empty rows fail on the catalog alone.
+func TestACatalogHoldingNoComponentScoresNoCandidate(t *testing.T) {
+	const autoApply = `{"reuse_mode":"auto-apply-above-threshold"}`
+	model := oneNode("OpenAIModel", []string{"model_name", "temperature"}, []string{"api_key"})
+
+	if d := decisionFor(t, importAgainst(t, standardCatalog, autoApply, model)); d.Chosen == nil || d.Chosen.Mode != "reference" {
+		t.Fatalf("against standardCatalog the node is decided %+v; the control wants it referenced", d.Chosen)
+	}
+
+	for _, tc := range []struct {
+		name    string
+		catalog *aggrega.CatalogProjection
+	}{
+		{name: "no catalog view", catalog: nil},
+		{name: "a view holding no Component", catalog: &aggrega.CatalogProjection{}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			out := importAgainst(t, tc.catalog, autoApply, model)
+			d := decisionFor(t, out)
+			if len(d.Candidates) != 0 {
+				t.Errorf("the node was scored against %+v; the request carries no Component", d.Candidates)
+			}
+			if want := (&aggrega.DecisionChoice{Target: "imported/ai-model/openaimodel", Mode: "draft", Tier: tierNone}); !reflect.DeepEqual(d.Chosen, want) {
+				t.Errorf("the choice is %+v, want %+v", d.Chosen, want)
+			}
+			if want := "drafted a new component; no candidate scored above the draft-new floor"; d.Rationale != want {
+				t.Errorf("the rationale reads %q, want %q", d.Rationale, want)
+			}
+			if d.SwapHint != "" {
+				t.Errorf("the hint reads %q; a node with no candidate carries none", d.SwapHint)
+			}
+			for _, e := range out.Entities {
+				if e.Mode == "reference" {
+					t.Errorf("%s was referenced; the request carries no Component to reference", e.Name)
+				}
+			}
+		})
 	}
 }
 

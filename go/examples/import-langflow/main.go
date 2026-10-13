@@ -7,21 +7,21 @@
 // An importer turns a foreign infrastructure description into Aggrega entities so
 // a consumer can adopt existing infrastructure without hand-authoring the entities
 // from scratch. This importer reads Langflow flow JSON and drafts an Aggregate
-// composing the flow's nodes as components, referencing standard-library
-// components where a node matches one with high confidence and drafting new
-// components where none does.
+// composing the flow's nodes as components, referencing Components of the
+// workspace's catalog where a node matches one with high confidence and drafting
+// new components where none does.
 //
 // The importer holds only what is particular to Langflow: this descriptor and the
 // export wiring, the walker lifting a flow's nodes and edges (walk.go), and the
 // format's mapping arm and syntactic format (format.go). The rest — the
-// confidence scorer and the candidate component knowledge it weighs, the
-// decisions, the drafts, the renderers and the settings — is the kit's importer
-// package, github.com/aggrega-ai/aggrega-pdk-go/pkg/importer, which every
-// importer built on this kit shares. All of it runs in this guest: the host
-// mediates the pipeline and stays blind to what a node means. The guest has no
-// live catalog access; the knowledge the scorer needs is carried in the guest,
-// and operators extend or override the mapping arm through the import
-// attachment's settings.
+// confidence scorer, the decisions, the drafts, the renderers and the settings —
+// is the kit's importer package, github.com/aggrega-ai/aggrega-pdk-go/pkg/importer,
+// which every importer built on this kit shares. All of it runs in this guest:
+// the host mediates the pipeline and stays blind to what a node means. The
+// scorer weighs each node against the Components of the workspace's own catalog,
+// which the host hands the guest on its input as a view of their names, versions,
+// labels, key names and sockets; the mapping arm is carried in the guest, and
+// operators extend or override it through the import attachment's settings.
 //
 // It obtains each source's structured tree through the host rather than parsing
 // the source itself: the import export hands the source bytes to the
@@ -60,7 +60,7 @@ func descriptor() aggrega.PluginDescriptor {
 	return aggrega.PluginDescriptor{
 		AbiVersion:   aggrega.APIVersion,
 		PluginType:   "importer",
-		Description:  "Import Langflow agent-flow JSON into a draft Aggregate, referencing standard-library components where a node matches and drafting new components where none does.",
+		Description:  "Import Langflow agent-flow JSON into a draft Aggregate, referencing Components of the workspace's catalog where a node matches and drafting new components where none does.",
 		Capabilities: []string{"import:" + langflow.Name},
 		Exports: []aggrega.PluginExport{{
 			Name:          "import",

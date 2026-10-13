@@ -53,7 +53,9 @@ type Edge struct {
 // component, the strongest signal the scorer weighs.
 type Mapping struct {
 	// Component is the fully-qualified name of the component the node type maps
-	// to, such as core/ai-model/openai.
+	// to, such as core/ai-model/openai. The table signal goes to the catalog
+	// Component of that name, so a row naming a Component the request's catalog
+	// view does not hold draws no candidate's table signal.
 	Component string
 	// Category is the component.aggrega.ai/category bucket a node of the type
 	// belongs to.
@@ -75,9 +77,14 @@ type Mapping struct {
 // a test wires a local one.
 //
 // The flow is: decode the settings, parse each source as served.Syntax and walk
-// it into nodes and edges, score every node against the candidate components,
-// decide each node's disposition from its top candidate and the reuse mode, and
-// render the shared decision record into files through the selected renderer.
+// it into nodes and edges, score every node against the Components of the
+// catalog view the request carries (in.Catalog), decide each node's disposition
+// from its top candidate and the reuse mode, and render the shared decision
+// record into files through the selected renderer.
+//
+// The candidates are the catalog view's Components and nothing else, so a request
+// carrying no view, or one holding no Component, scores every node against
+// nothing: each is drafted at the NONE tier and none is referenced.
 //
 // A source that does not parse is reported as a halting diagnostic and one that
 // yields no nodes as a warning; the import carries on with the other sources. A
@@ -87,6 +94,7 @@ func Import(in aggrega.ImportInput, served Format, parse func(syntax string, sou
 	settings := parseSettings(in.Settings)
 	format := in.Format
 	table := newMappingTable(settings.MappingOverrides, format, served)
+	catalog := candidatesFrom(in.Catalog)
 
 	sources := in.Sources
 	if len(sources) == 0 {
@@ -129,7 +137,7 @@ func Import(in aggrega.ImportInput, served Format, parse func(syntax string, sou
 			key := uniqueKey(usedNames, kebab(node.ID))
 			idToKey[node.ID] = key
 
-			decision, entity := decideNode(settings, table, node, ref)
+			decision, entity := decideNode(settings, table, catalog, node, ref)
 			out.Decisions = append(out.Decisions, decision)
 			out.Entities = append(out.Entities, entity)
 			agg.addComponent(key, decision, entity)

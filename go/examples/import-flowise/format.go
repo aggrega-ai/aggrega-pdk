@@ -15,10 +15,10 @@ var flowise = importer.Format{
 }
 
 // mappings is the Flowise mapping arm: the standard-library component each
-// Flowise node type maps to. The whole-flow wrapper component
-// core/ai-agent/flowise is not a row here — it is one of the candidates the
-// scorer weighs every node against, the low-confidence fallback node-level
-// decomposition falls back to.
+// Flowise node type maps to. A row draws its signal only where the workspace's
+// catalog holds the component it names. The whole-flow wrapper component
+// core/ai-agent/flowise is not a row here: where the catalog holds it, the
+// scorer weighs every node against it as it does every other catalog Component.
 var mappings = map[string]importer.Mapping{
 	"chatOpenAI":       {Component: "core/ai-model/openai", Category: "ai-model", Traits: map[string]string{"model.aggrega.ai/capability": "generative", "component.aggrega.ai/hosting": "managed"}, Vendor: "openai"},
 	"chatAnthropic":    {Component: "core/ai-model/anthropic", Category: "ai-model", Traits: map[string]string{"model.aggrega.ai/capability": "generative", "component.aggrega.ai/hosting": "managed"}, Vendor: "anthropic"},
