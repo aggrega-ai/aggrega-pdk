@@ -147,10 +147,17 @@ type (
 // export, which the host reads once at load: the ABI-compatibility handshake,
 // the plugin type, the offered exports, and the optional per-type surfaces (a
 // provider's render-behavior contract and the files its ecosystem never ships
-// beside a source, a CLI plugin's commands and their flags, a settings schema,
-// authorship and build-provenance metadata). A guest constructs a typed
-// PluginDescriptor and marshals it to the wire bytes through [MarshalDescriptor]
-// rather than hand-assembling the JSON.
+// beside a source, an importer's recognition signatures, a CLI plugin's commands
+// and their flags, a settings schema, authorship and build-provenance metadata).
+// A guest constructs a typed PluginDescriptor and marshals it to the wire bytes
+// through [MarshalDescriptor] rather than hand-assembling the JSON.
+//
+// An importer declares how a source of its formats is recognised, when an import
+// names no format, as an ImporterContract on PluginDescriptor.Importer: a list
+// of DetectSignature values, each naming the syntax the source is parsed in, the
+// file names it applies to, and the PathMatch predicates the parsed tree must
+// satisfy. The host matches every importer's signatures against the source
+// without knowing what any format is.
 type (
 	PluginDescriptor       = abi.PluginDescriptor
 	PluginExport           = abi.PluginExport
@@ -162,6 +169,9 @@ type (
 	ArtifactDelimiters     = abi.ArtifactDelimiters
 	AssemblyNameAnnotation = abi.AssemblyNameAnnotation
 	SourceIgnore           = abi.SourceIgnore
+	ImporterContract       = abi.ImporterContract
+	DetectSignature        = abi.DetectSignature
+	PathMatch              = abi.PathMatch
 )
 
 // Parser socket. A parser guest turns a foreign source text into a canonical

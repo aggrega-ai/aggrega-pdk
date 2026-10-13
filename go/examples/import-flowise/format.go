@@ -3,7 +3,10 @@
 
 package main
 
-import "github.com/aggrega-ai/aggrega-pdk-go/pkg/importer"
+import (
+	"github.com/aggrega-ai/aggrega-pdk-go/pkg/aggrega"
+	"github.com/aggrega-ai/aggrega-pdk-go/pkg/importer"
+)
 
 // flowise is the one format this importer serves: Flowise flow JSON, parsed by
 // the host as JSON and walked by walkTree.
@@ -13,6 +16,23 @@ var flowise = importer.Format{
 	Mappings: mappings,
 	Walk:     walkTree,
 }
+
+// detect is how a Flowise flow is recognised when an import names no format,
+// declared in describe() and recorded on the importer's Plugin entity. A Flowise
+// export — a chatflow or an agentflow — keeps its graph flat at the top level,
+// so a source that parses as JSON with arrays at nodes and edges is one. The
+// third predicate asks for nothing at data.nodes, where a flow that nests its
+// graph carries it, so a source carrying both shapes is not claimed by this
+// signature as well. The host evaluates the signature without knowing what
+// Flowise is.
+var detect = []aggrega.DetectSignature{{
+	Syntax: flowise.Syntax,
+	Match: []aggrega.PathMatch{
+		{Path: "nodes", Is: "array"},
+		{Path: "edges", Is: "array"},
+		{Path: "data.nodes", Is: "absent"},
+	},
+}}
 
 // mappings is the Flowise mapping arm: the standard-library component each
 // Flowise node type maps to. A row draws its signal only where the workspace's

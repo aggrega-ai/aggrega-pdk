@@ -30,7 +30,9 @@
 // from the schema. The importer socket carries canonical CBOR in both directions:
 // the input arrives as canonical CBOR and the output is returned the same way.
 //
-// Build: GOOS=wasip1 GOARCH=wasm go build -buildmode=c-shared -o import-go.wasm ./
+// Build: ./build.sh, which stamps the version the guest reports through
+// describe() (AGGREGA_PLUGIN_VERSION, default 1.0.0) into
+// GOOS=wasip1 GOARCH=wasm go build -buildmode=c-shared -ldflags "-X github.com/aggrega-ai/aggrega-pdk-go/pkg/aggrega.Version=<version>" -o import-go.wasm ./
 package main
 
 import (
@@ -45,6 +47,12 @@ import (
 // descriptor is the static describe() self-report: a v1alpha1 importer plugin
 // whose import export handles the import:demo format. The host reads this once
 // at load and validates it before invoking import.
+//
+// It also declares how a demo source is recognised when an import names no
+// format: a YAML document whose top-level kind is the string DemoSource. The
+// signature shows the shape every importer declares — the syntax the source is
+// parsed in, and the paths its parsed tree must carry — and the host matches it
+// without knowing what the demo format is.
 func descriptor() aggrega.PluginDescriptor {
 	return aggrega.PluginDescriptor{
 		AbiVersion:   aggrega.APIVersion,
@@ -54,6 +62,10 @@ func descriptor() aggrega.PluginDescriptor {
 		Exports: []aggrega.PluginExport{{
 			Name: "import",
 		}},
+		Importer: &aggrega.ImporterContract{Detect: []aggrega.DetectSignature{{
+			Syntax: "yaml",
+			Match:  []aggrega.PathMatch{{Path: "kind", Is: "string", Equals: "DemoSource"}},
+		}}},
 		Metadata: &aggrega.PluginDescriptorMeta{Author: "aggrega", License: "Apache-2.0"},
 	}
 }

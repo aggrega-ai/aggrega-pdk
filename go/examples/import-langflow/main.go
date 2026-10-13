@@ -53,9 +53,11 @@ import (
 
 // descriptor is the static describe() self-report: a v1alpha1 importer plugin
 // serving the langflow agent-flow format, whose import export imports the
-// aggrega_parse_source host function it uses to obtain each source's tree. The
-// host reads this once at load, validates it, and cross-checks the declared host
-// functions against the binary's imports.
+// aggrega_parse_source host function it uses to obtain each source's tree, and
+// the signature a Langflow source is recognised by (format.go). The host reads
+// this once at load, validates it, and cross-checks the declared host functions
+// against the binary's imports and the signatures against the ones the
+// importer's Plugin entity records.
 func descriptor() aggrega.PluginDescriptor {
 	return aggrega.PluginDescriptor{
 		AbiVersion:   aggrega.APIVersion,
@@ -66,6 +68,7 @@ func descriptor() aggrega.PluginDescriptor {
 			Name:          "import",
 			HostFunctions: []string{"aggrega_parse_source"},
 		}},
+		Importer: &aggrega.ImporterContract{Detect: detect},
 		Metadata: &aggrega.PluginDescriptorMeta{Author: "aggrega", License: "Apache-2.0"},
 	}
 }
