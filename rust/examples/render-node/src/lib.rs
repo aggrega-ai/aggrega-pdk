@@ -9,9 +9,9 @@
 //! attachments as `alias=sensitive|plain` in the order this guest observes them.
 //! The first transform is identical across the per-language render fixtures, so
 //! the same [`RenderNodeInput`] yields the same node-id echo whichever language
-//! rendered it. The second is deliberately allowed to differ: it reports what
-//! this language's generated codec does with an author-ordered map, which is a
-//! property of the language's own map container rather than of the socket.
+//! rendered it. The second reports the order the guest reads: the generated
+//! codec decodes the attachment map into an `OrderedMap`, which holds the
+//! attachments in the order the host wrote them, which is the author's.
 //! Beside the files it reports two [`RenderFact`]s about what it emitted, in a
 //! fixed order that is deliberately not name order: the paths it wrote, and the
 //! node it echoed. The host verifies end-to-end that:
@@ -38,9 +38,9 @@ use serde_json::value::RawValue;
 const OUTPUT_PATH: &str = "parity.txt";
 
 /// The fixed on-disk path the fixture emits its attachment echo at. Constant
-/// across the per-language render fixtures; the CONTENT is deliberately allowed
-/// to differ per language, because it reports what this language's generated
-/// codec actually did with an author-ordered attachment map.
+/// across the per-language render fixtures; the CONTENT reports the order this
+/// guest read the attachments in, which the generated codec's `OrderedMap` keeps
+/// as the order the host wrote.
 const ATTACHMENTS_PATH: &str = "attachments.txt";
 
 /// The fixed prefix prepended to the node id to form the emitted file's

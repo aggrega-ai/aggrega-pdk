@@ -109,7 +109,7 @@ func step() int32 {
 		pdk.SetError(err)
 		return 1
 	}
-	out.Outputs = map[string]json.RawMessage{"secretName": name}
+	out.Outputs.Set("secretName", name)
 
 	raw, err := out.MarshalJSON()
 	if err != nil {

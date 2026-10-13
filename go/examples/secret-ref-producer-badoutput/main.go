@@ -67,7 +67,7 @@ func step() int32 {
 	var out abi.FRPStepOutput
 	// The declared output contract requires secretName to be a string; return a
 	// number instead so the host's post-step output validation halts the build.
-	out.Outputs = map[string]json.RawMessage{"secretName": json.RawMessage("12345")}
+	out.Outputs.Set("secretName", json.RawMessage("12345"))
 
 	raw, err := out.MarshalJSON()
 	if err != nil {

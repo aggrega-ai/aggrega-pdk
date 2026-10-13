@@ -83,12 +83,10 @@ func mutate() int32 {
 		return 1
 	}
 
-	// Go map iteration is non-deterministic; sorted iteration keeps the
-	// emitted patches byte-identical across runs of identical input.
-	nodeIDs := make([]string, 0, len(in.Graph.Nodes))
-	for nodeID := range in.Graph.Nodes {
-		nodeIDs = append(nodeIDs, nodeID)
-	}
+	// The nodes arrive in an aggrega.OrderedMap, in the order the host sent
+	// them; sorted iteration makes the emitted patches independent of that
+	// order, so identical input yields byte-identical output.
+	nodeIDs := in.Graph.Nodes.Keys()
 	sort.Strings(nodeIDs)
 
 	patches := make([]json.RawMessage, 0, len(nodeIDs))

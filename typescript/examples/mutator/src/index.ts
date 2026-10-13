@@ -90,11 +90,12 @@ function mutate(): void {
     void src;
   }
 
-  // Sort node IDs for deterministic patch ordering — Object.keys()
-  // returns insertion order, which is stable for a single input but
-  // varies across map operations; sorting matches the Aggrega
-  // determinism discipline and the Go/Rust fixture behaviour.
-  const nodeIds = Object.keys(input.graph.nodes).sort();
+  // The nodes arrive in a Map, in the order the host sent them. Sort the
+  // node IDs so the patch list does not depend on that order; sorting
+  // matches the Aggrega determinism discipline and the Go/Rust fixture
+  // behaviour. Object.keys() of a Map is empty, so the IDs are read
+  // through the Map's own keys().
+  const nodeIds = Array.from(input.graph.nodes.keys()).sort();
 
   const patches: JsonPatchOp[][] = nodeIds.map((nodeId) => [
     {

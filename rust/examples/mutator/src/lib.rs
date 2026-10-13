@@ -96,10 +96,10 @@ pub fn mutate(input: Vec<u8>) -> FnResult<Vec<u8>> {
         let _ = source;
     }
 
-    // Iterate node IDs in sorted order. `HashMap` iteration is
-    // non-deterministic; sorting keeps the emitted patches
-    // byte-identical across runs of identical input and matches the
-    // Aggrega project's determinism discipline.
+    // Iterate node IDs in sorted order. The nodes arrive in an `OrderedMap`,
+    // in the order the host sent them; sorting makes the emitted patches
+    // independent of that order, so identical input yields byte-identical
+    // output, matching the Aggrega project's determinism discipline.
     let mut node_ids: Vec<&String> = parsed.graph.nodes.keys().collect();
     node_ids.sort();
 

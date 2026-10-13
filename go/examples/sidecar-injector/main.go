@@ -88,19 +88,17 @@ func step() int32 {
 
 	var out abi.FRPStepOutput
 
-	// The host set arrives as a Go map, whose iteration order is unspecified;
-	// sort the keys so selection is deterministic across runs. The added
-	// container is a fixed map keyed by its own name under the containers map;
-	// encoding/json emits its keys in sorted order, so the patch value is
-	// byte-identical across runs.
+	// The host set arrives as an abi.OrderedMap, in the order the host holds
+	// the documents; sort the keys so the patches come out in one fixed order
+	// whatever that order is. The added container is a fixed map keyed by its
+	// own name under the containers map; encoding/json emits its keys in sorted
+	// order, so the patch value is byte-identical across runs.
 	sidecar := map[string]string{"image": "guardrail-agent:latest"}
-	hostKeys := make([]string, 0, len(in.Documents.Host))
-	for key := range in.Documents.Host {
-		hostKeys = append(hostKeys, key)
-	}
+	hostKeys := in.Documents.Host.Keys()
 	sort.Strings(hostKeys)
 	for _, key := range hostKeys {
-		if !isChartValues(in.Documents.Host[key]) {
+		unit, _ := in.Documents.Host.Get(key)
+		if !isChartValues(unit) {
 			continue
 		}
 		out.Patches = append(out.Patches, abi.JSONPatchOp{

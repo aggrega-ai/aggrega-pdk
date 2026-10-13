@@ -10,14 +10,15 @@
  * attachments as `alias=sensitive|plain` in the order this guest observes
  * them. The first transform is identical across the per-language render
  * fixtures, so the same RenderNodeInput yields the same node-id echo
- * whichever language rendered it. The second is deliberately allowed to
- * differ: it reports what this language's own map container does with an
- * author-ordered map, which is a property of the language rather than of
- * the socket. The host verifies end-to-end that input JSON deserialised,
- * the render transform ran against the node projection, an attachment's
- * sensitivity marking is readable from the payload alone, and output JSON
- * serialised to a shape whose file content round-trips through the render
- * socket's base64 wire encoding. Beside the files it reports two render facts
+ * whichever language rendered it. The second reports the order the guest
+ * reads: the payload is decoded through the generated codec, whose
+ * attachment map is a Map holding the attachments in the order the host
+ * wrote them, which is the author's. The host verifies end-to-end that
+ * input JSON deserialised, the render transform ran against the node
+ * projection, an attachment's sensitivity marking is readable from the
+ * payload alone, and output JSON serialised to a shape whose file content
+ * round-trips through the render socket's base64 wire encoding. Beside the
+ * files it reports two render facts
  * about what it emitted — the paths it wrote and the node it echoed — in a fixed
  * order that is deliberately not name order, and the host verifies they arrive
  * in that order, each value byte for byte as written here.
@@ -29,16 +30,18 @@
 
 import {
   API_VERSION,
+  decodeRenderNodeInput,
   encodeDescriptor,
   type PluginDescriptor,
   type RenderFact,
+  type RenderNodeInput,
 } from "@aggrega-ai/aggrega-pdk-typescript";
 
-// A deliberately narrow view of the node projection: the fixture reads only
-// what it echoes. The attachment entry is typed to the one field this fixture
+// A deliberately narrow view of one attachment entry: the render socket carries
+// each entry opaquely, so the fixture reads it through the one field it
 // reports — the `sensitive` field the IR feature-entry shape carries — rather
-// than to the whole entry, so the fixture stays legible while still reading the
-// marking from the payload instead of guessing it from the alias.
+// than through the whole entry, so the fixture stays legible while still reading
+// the marking from the payload instead of guessing it from the alias.
 //
 // What that field means is worth stating precisely, because a guest that reads
 // it as more than this marks values that are not secret:
@@ -65,15 +68,6 @@ interface IRFeatureEntryView {
   sensitive?: boolean;
 }
 
-interface IRNodeProjection {
-  id: string;
-  features?: Record<string, IRFeatureEntryView>;
-}
-
-interface RenderNodeInput {
-  node: IRNodeProjection;
-}
-
 interface RenderedFile {
   path: string;
   content: string;
@@ -90,9 +84,9 @@ interface RenderNodeOutput {
 const OUTPUT_PATH = "parity.txt";
 
 // The fixed on-disk path the fixture emits its attachment echo at. Constant
-// across the per-language render fixtures; the CONTENT is deliberately allowed
-// to differ per language, because it reports what this language's own map
-// container did with an author-ordered attachment map.
+// across the per-language render fixtures; the CONTENT reports the order this
+// guest read the attachments in, which the generated codec's Map keeps as the
+// order the host wrote.
 const ATTACHMENTS_PATH = "attachments.txt";
 
 // The fixed prefix prepended to the node id to form the emitted file's
@@ -169,12 +163,13 @@ function describe(): void {
 }
 
 // attachmentEcho reports the node's attachments as `alias=sensitive|plain`,
-// comma-joined, in the order this guest observes them.
+// comma-joined, in the order this guest observes them: the Map's own order.
 function attachmentEcho(input: RenderNodeInput): string {
-  const features = input.node.features ?? {};
-  return Object.keys(features)
-    .map((alias) => `${alias}=${features[alias].sensitive ? "sensitive" : "plain"}`)
-    .join(",");
+  const features = input.node.features ?? new Map<string, unknown>();
+  return Array.from(features, ([alias, entry]) => {
+    const sensitive = (entry as IRFeatureEntryView | null)?.sensitive === true;
+    return `${alias}=${sensitive ? "sensitive" : "plain"}`;
+  }).join(",");
 }
 
 // renderFacts returns the facts this fixture reports about what it emitted,
@@ -193,7 +188,7 @@ function renderFacts(nodeId: string): RenderFact[] {
 }
 
 function render_node(): void {
-  const input: RenderNodeInput = JSON.parse(Host.inputString());
+  const input = decodeRenderNodeInput(Host.inputString());
   const content = CONTENT_PREFIX + input.node.id;
   const out: RenderNodeOutput = {
     files: [

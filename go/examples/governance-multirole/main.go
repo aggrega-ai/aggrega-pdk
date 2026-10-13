@@ -173,10 +173,8 @@ func mutate() int32 {
 		pdk.SetError(fmt.Errorf("governance-multirole: decode MutatorInput: %w", err))
 		return 1
 	}
-	nodeIDs := make([]string, 0, len(in.Graph.Nodes))
-	for nodeID := range in.Graph.Nodes {
-		nodeIDs = append(nodeIDs, nodeID)
-	}
+	// Sorted, so the patch list does not depend on the order the nodes arrive in.
+	nodeIDs := in.Graph.Nodes.Keys()
 	sort.Strings(nodeIDs)
 
 	patches := make([]json.RawMessage, 0, len(nodeIDs))

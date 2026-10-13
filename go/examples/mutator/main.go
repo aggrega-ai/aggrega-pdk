@@ -110,15 +110,13 @@ func mutate() int32 {
 		_ = src
 	}
 
-	// Iterate node IDs in sorted order. Go map iteration is
-	// non-deterministic; sorted iteration keeps the emitted patches
-	// byte-identical across runs of identical input — both to match
-	// Aggrega's determinism discipline and to keep this fixture safe
-	// to copy as a starting template for real mutator plugins.
-	nodeIDs := make([]string, 0, len(in.Graph.Nodes))
-	for nodeID := range in.Graph.Nodes {
-		nodeIDs = append(nodeIDs, nodeID)
-	}
+	// Iterate node IDs in sorted order. The graph's nodes arrive in an
+	// aggrega.OrderedMap, in the order the host sent them; sorting the IDs
+	// makes the emitted patch list independent of that order, so identical
+	// input yields byte-identical output however the nodes were ordered —
+	// both to match Aggrega's determinism discipline and to keep this
+	// fixture safe to copy as a starting template for real mutator plugins.
+	nodeIDs := in.Graph.Nodes.Keys()
 	sort.Strings(nodeIDs)
 
 	patches := make([]json.RawMessage, 0, len(nodeIDs))

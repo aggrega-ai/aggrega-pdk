@@ -32,6 +32,7 @@
 import {
   decodeCBORMutatorInput,
   encodeCBORMutatorOutput,
+  encodeMutatorInput,
   type MutatorOutput,
 } from "@aggrega-ai/aggrega-pdk-typescript";
 
@@ -80,7 +81,10 @@ export function changes(raw: Uint8Array): Uint8Array {
     text: s.content,
   }));
 
-  const decisions = evaluate(programs, input.settings, JSON.stringify(input), DECISION);
+  // The nodes and their labels arrive as Maps, which JSON.stringify writes as
+  // empty objects, so the payload is written out through the generated encoder:
+  // it writes each Map as an object in the order the Map holds.
+  const decisions = evaluate(programs, input.settings, encodeMutatorInput(input), DECISION);
   const patches = decisions.map((decision) => instruction(decision as Partial<Decision>));
 
   const out: MutatorOutput = { patches };

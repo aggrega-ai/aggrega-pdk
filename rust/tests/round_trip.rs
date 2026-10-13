@@ -31,12 +31,11 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 
 use aggrega_pdk_rust::{
-    CLIRunInput, CompilationContext, Diagnostic, IREdge, IRGraph, IRMetadata, IRNode, IRProvenance,
-    IRSpec, LinterInput, LinterOutput, MutatorGraph, MutatorInput, MutatorNode, MutatorOutput,
-    DerivedNameVerdict, NameBoundInput, NameBoundOutput, Policies, PolicyInput, PolicyOutput,
-    PrecalculatedPath, API_VERSION,
+    CLIRunInput, CompilationContext, DerivedNameVerdict, Diagnostic, IREdge, IRGraph, IRMetadata,
+    IRNode, IRProvenance, IRSpec, LinterInput, LinterOutput, MutatorGraph, MutatorInput,
+    MutatorNode, MutatorOutput, NameBoundInput, NameBoundOutput, OrderedMap, Policies, PolicyInput,
+    PolicyOutput, PrecalculatedPath, API_VERSION,
 };
-use std::collections::BTreeMap;
 
 /// Names the environment switch that opts out of the tests which validate
 /// against the JSON Schemas published alongside this kit. Set it to any
@@ -268,7 +267,7 @@ fn cli_run_input_round_trip_json_schema() {
 fn mutator_input_round_trip_json_schema() {
     let schema = require_schema!("wasm-mutator-v1alpha1.schema.json");
 
-    let mut labels = std::collections::BTreeMap::new();
+    let mut labels = OrderedMap::new();
     labels.insert("team".to_string(), "payments".to_string());
 
     let fixture = MutatorInput {
@@ -277,7 +276,7 @@ fn mutator_input_round_trip_json_schema() {
             environment: "prod".to_string(),
         },
         graph: MutatorGraph {
-            nodes: std::collections::BTreeMap::from([(
+            nodes: OrderedMap::from_iter([(
                 "payments-api".to_string(),
                 MutatorNode {
                     component: "core/web-service".to_string(),
@@ -318,7 +317,7 @@ fn policy_input_round_trip_json_schema() {
     // references ir-v1alpha1 for the graph field, so both schemas are registered.
     let schema = require_schema!("wasm-policy-v1alpha1.schema.json");
 
-    let mut labels = BTreeMap::new();
+    let mut labels = OrderedMap::new();
     labels.insert("team".to_string(), "payments".to_string());
 
     let fixture = PolicyInput {
@@ -329,7 +328,7 @@ fn policy_input_round_trip_json_schema() {
                 aggregate_name: "payments".to_string(),
             },
             spec: IRSpec {
-                nodes: BTreeMap::from([(
+                nodes: OrderedMap::from_iter([(
                     "payments-api".to_string(),
                     IRNode {
                         component: "core/web-service".to_string(),
@@ -345,10 +344,10 @@ fn policy_input_round_trip_json_schema() {
                     socket_declaration: "declared".to_string(),
                     ..Default::default()
                 }],
-                values_mapping: BTreeMap::new(),
-                infra_mapping: BTreeMap::new(),
-                feature_values_mapping: BTreeMap::new(),
-                boundary_features: BTreeMap::new(),
+                values_mapping: OrderedMap::new(),
+                infra_mapping: OrderedMap::new(),
+                feature_values_mapping: OrderedMap::new(),
+                boundary_features: OrderedMap::new(),
                 provenance: IRProvenance {
                     schema_version: "v1alpha1".to_string(),
                     compiler_version: "test".to_string(),
@@ -445,7 +444,7 @@ fn linter_input_round_trip_json_schema() {
             )
             .unwrap(),
         ),
-        components: BTreeMap::from([(
+        components: OrderedMap::from_iter([(
             "router".to_string(),
             serde_json::value::RawValue::from_string(
                 r#"{"kind":"Component","spec":{"featuresSchema":{"api_key":{"sensitive":true}}}}"#.into(),

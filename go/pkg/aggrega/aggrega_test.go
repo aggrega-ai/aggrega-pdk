@@ -205,20 +205,20 @@ func TestMutatorInput_RoundTripJSONSchema(t *testing.T) {
 	t.Parallel()
 	schema := loadSchema(t, "wasm-mutator-v1alpha1.schema.json")
 
+	var labels aggrega.OrderedMap[string]
+	labels.Set("team", "payments")
+	var nodes aggrega.OrderedMap[aggrega.MutatorNode]
+	nodes.Set("payments-api", aggrega.MutatorNode{
+		Component:       "core/web-service",
+		ResolvedVersion: "1.4.2",
+		Labels:          labels,
+	})
 	fixture := aggrega.MutatorInput{
 		CompilationContext: aggrega.CompilationContext{
 			ReleaseName: "payments",
 			Environment: "prod",
 		},
-		Graph: aggrega.MutatorGraph{
-			Nodes: map[string]aggrega.MutatorNode{
-				"payments-api": {
-					Component:       "core/web-service",
-					ResolvedVersion: "1.4.2",
-					Labels:          map[string]string{"team": "payments"},
-				},
-			},
-		},
+		Graph: aggrega.MutatorGraph{Nodes: nodes},
 	}
 
 	if err := schema.Validate(jsonInstance(t, fixture)); err != nil {
@@ -260,28 +260,27 @@ func TestPolicyInput_RoundTripJSONSchema(t *testing.T) {
 	schema := loadSchema(t, "wasm-policy-v1alpha1.schema.json")
 
 	// Under b-full the policy input carries the full IR graph (single-sourced
-	// from ir-v1alpha1). The guest IR types use plain maps (the guest reads a
-	// map; key order on the wire is the host's concern).
+	// from ir-v1alpha1). Every map the IR schema marks order-preserving is an
+	// aggrega.OrderedMap, which keeps the order its entries were set in.
+	var labels aggrega.OrderedMap[string]
+	labels.Set("team", "payments")
+	var nodes aggrega.OrderedMap[aggrega.IRNode]
+	nodes.Set("payments-api", aggrega.IRNode{
+		Component:       "core/web-service",
+		ResolvedVersion: "1.4.2",
+		Labels:          labels,
+	})
 	fixture := aggrega.PolicyInput{
 		Graph: aggrega.IRGraph{
 			APIVersion: "aggrega.ai/v1alpha1",
 			Kind:       "IR",
 			Metadata:   aggrega.IRMetadata{AggregateName: "payments"},
 			Spec: aggrega.IRSpec{
-				Nodes: map[string]aggrega.IRNode{
-					"payments-api": {
-						Component:       "core/web-service",
-						ResolvedVersion: "1.4.2",
-						Labels:          map[string]string{"team": "payments"},
-					},
-				},
+				Nodes: nodes,
 				Edges: []aggrega.IREdge{{
 					Source: "payments-api", Target: "payments-db", Socket: "databases",
 					SocketDeclaration: "declared",
 				}},
-				ValuesMapping:        map[string]json.RawMessage{},
-				InfraMapping:         map[string]json.RawMessage{},
-				FeatureValuesMapping: map[string]map[string]aggrega.IRFeatureEntry{},
 				Provenance: aggrega.IRProvenance{
 					SchemaVersion: "v1alpha1", CompilerVersion: "test", AggregateVersion: "1.0.0",
 					ManifestVersion: "1.0.0", ReleaseVersion: "1.0.0", SourceIdentifiers: []string{"x"},

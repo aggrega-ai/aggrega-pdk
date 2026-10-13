@@ -6,10 +6,13 @@
  *
  * Each test:
  *  1. Constructs a fixture value of the PDK type.
- *  2. Serialises via JSON.stringify.
+ *  2. Serialises it to JSON — through the generated encoder where the type
+ *     has one, which every type holding a Map needs, since JSON.stringify
+ *     writes a Map as an empty object.
  *  3. Validates against the corresponding JSON Schema in the sibling
  *     `aggrega-schemas` repository using Ajv 2020-12.
- *  4. Deserialises back via JSON.parse and asserts deep equality.
+ *  4. Deserialises it back and asserts it equals the fixture, or that it
+ *     re-encodes to the same text.
  *
  * Schemas live alongside the umbrella checkout at
  * `../../aggrega-schemas/json/` relative to this crate root. A run that could
@@ -38,8 +41,12 @@ import {
   encodeNameBoundOutput,
   decodeNameBoundOutput,
   type MutatorInput,
+  encodeMutatorInput,
+  decodeMutatorInput,
   type MutatorOutput,
   type PolicyInput,
+  encodePolicyInput,
+  decodePolicyInput,
   type PolicyOutput,
 } from "../src/index.ts";
 
@@ -205,22 +212,26 @@ test("MutatorInput round-trips through wasm-mutator schema", (t) => {
       environment: "prod",
     },
     graph: {
-      nodes: {
-        "payments-api": {
-          component: "core/web-service",
-          resolved_version: "1.4.2",
-          labels: { team: "payments" },
-        },
-      },
+      nodes: new Map([
+        [
+          "payments-api",
+          {
+            component: "core/web-service",
+            resolved_version: "1.4.2",
+            labels: new Map([["team", "payments"]]),
+          },
+        ],
+      ]),
     },
   };
 
-  const serialised = JSON.parse(JSON.stringify(fixture));
-  const ok = validate(serialised);
+  const wire = encodeMutatorInput(fixture);
+  const ok = validate(JSON.parse(wire));
   assert.equal(ok, true, `schema validation failed: ${JSON.stringify(validate.errors)}`);
 
-  const round = JSON.parse(JSON.stringify(fixture)) as MutatorInput;
+  const round = decodeMutatorInput(wire);
   assert.deepStrictEqual(round, fixture);
+  assert.equal(encodeMutatorInput(round), wire);
 });
 
 test("MutatorOutput round-trips through wasm-mutator schema", (t) => {
@@ -259,13 +270,16 @@ test("PolicyInput round-trips through wasm-policy schema", (t) => {
       kind: "IR",
       metadata: { aggregate_name: "payments" },
       spec: {
-        nodes: {
-          "payments-api": {
-            component: "core/web-service",
-            resolved_version: "1.4.2",
-            labels: { team: "payments" },
-          },
-        },
+        nodes: new Map([
+          [
+            "payments-api",
+            {
+              component: "core/web-service",
+              resolved_version: "1.4.2",
+              labels: new Map([["team", "payments"]]),
+            },
+          ],
+        ]),
         edges: [
           {
             source: "payments-api",
@@ -274,9 +288,9 @@ test("PolicyInput round-trips through wasm-policy schema", (t) => {
             socket_declaration: "declared",
           },
         ],
-        values_mapping: {},
-        infra_mapping: {},
-        feature_values_mapping: {},
+        values_mapping: new Map(),
+        infra_mapping: new Map(),
+        feature_values_mapping: new Map(),
         provenance: {
           schema_version: "v1alpha1",
           compiler_version: "test",
@@ -296,12 +310,14 @@ test("PolicyInput round-trips through wasm-policy schema", (t) => {
     ],
   };
 
-  const serialised = JSON.parse(JSON.stringify(fixture));
-  const ok = validate(serialised);
+  const wire = encodePolicyInput(fixture);
+  const ok = validate(JSON.parse(wire));
   assert.equal(ok, true, `schema validation failed: ${JSON.stringify(validate.errors)}`);
 
-  const round = JSON.parse(JSON.stringify(fixture)) as PolicyInput;
-  assert.deepStrictEqual(round, fixture);
+  // The decoded value carries what the wire carries, so it is compared by
+  // re-encoding it rather than field by field.
+  const round = decodePolicyInput(wire);
+  assert.equal(encodePolicyInput(round), wire);
 });
 
 test("PolicyOutput round-trips through wasm-policy schema", (t) => {

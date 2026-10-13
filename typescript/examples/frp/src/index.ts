@@ -90,11 +90,13 @@ function step(): void {
   // learns the unit's key at runtime — it never knows emitted filenames
   // ahead of time — and roots its patch at that key. It reads the unit's
   // tree (skipping opaque units that carry none) and inspects content.
-  // Iterate the keys in sorted order so selection is deterministic across
-  // runs of identical input.
-  const ownKeys = Object.keys(input.documents.own).sort();
+  // The own set arrives as a Map, in the order the host holds the
+  // documents; iterate its keys in sorted order so the patches come out in
+  // one fixed order whatever that order is.
+  const own = input.documents.own;
+  const ownKeys = Array.from(own.keys()).sort();
   for (const key of ownKeys) {
-    if (treeKind(input.documents.own[key].tree) === "Deployment") {
+    if (treeKind(own.get(key)?.tree) === "Deployment") {
       patches.push({
         scope: "own",
         key,
@@ -122,7 +124,7 @@ function step(): void {
   // scope FeatureRecipe attached to a host). A Recipe step has no host
   // scope, so the guest does not emit one. Additive emits run per-node for
   // every provider.
-  if (input.documents.host && Object.keys(input.documents.host).length > 0) {
+  if (input.documents.host !== undefined && input.documents.host.size > 0) {
     sideEffects.push({
       kind: "emit_file",
       scope: "host",

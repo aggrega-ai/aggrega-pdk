@@ -107,15 +107,14 @@ func step() int32 {
 	// guest learns the unit's key at runtime — it never knows emitted
 	// filenames ahead of time — and roots its patch at that key. It reads
 	// the unit's tree (skipping opaque units that carry none) and inspects
-	// content. The own set arrives as a Go map, whose iteration order is
-	// unspecified; sort the keys so selection is deterministic across runs.
-	ownKeys := make([]string, 0, len(in.Documents.Own))
-	for key := range in.Documents.Own {
-		ownKeys = append(ownKeys, key)
-	}
+	// content. The own set arrives as an abi.OrderedMap, in the order the
+	// host holds the documents; sort the keys so the patches come out in one
+	// fixed order whatever that order is.
+	ownKeys := in.Documents.Own.Keys()
 	sort.Strings(ownKeys)
 	for _, key := range ownKeys {
-		if treeKind(in.Documents.Own[key]) == "Deployment" {
+		unit, _ := in.Documents.Own.Get(key)
+		if treeKind(unit) == "Deployment" {
 			out.Patches = append(out.Patches, abi.JSONPatchOp{
 				Scope: "own",
 				Key:   key,
@@ -142,7 +141,7 @@ func step() int32 {
 	// scope FeatureRecipe attached to a host). A Recipe step has no host
 	// scope, so the guest does not emit one. Additive emits run per-node
 	// for every provider.
-	if len(in.Documents.Host) > 0 {
+	if in.Documents.Host.Len() > 0 {
 		out.SideEffects = append(out.SideEffects, abi.SideEffect{
 			Kind:  "emit_file",
 			Scope: "host",

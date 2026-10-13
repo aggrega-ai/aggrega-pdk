@@ -101,7 +101,7 @@ func step() int32 {
 	// Read the secret name the earlier producer step supplied through the
 	// rendered `with` block. The host validated it against the declared input
 	// contract before this guest ran.
-	rawName, ok := in.StepInput["secretName"]
+	rawName, ok := in.StepInput.Get("secretName")
 	if !ok {
 		pdk.SetError(errors.New("step input missing secretName"))
 		return 1
@@ -114,15 +114,14 @@ func step() int32 {
 
 	var out abi.FRPStepOutput
 
-	// The host set arrives as a Go map, whose iteration order is unspecified;
-	// sort the keys so selection is deterministic across runs.
-	hostKeys := make([]string, 0, len(in.Documents.Host))
-	for key := range in.Documents.Host {
-		hostKeys = append(hostKeys, key)
-	}
+	// The host set arrives as an abi.OrderedMap, in the order the host holds
+	// the documents; sort the keys so the patches come out in one fixed order
+	// whatever that order is.
+	hostKeys := in.Documents.Host.Keys()
 	sort.Strings(hostKeys)
 	for _, key := range hostKeys {
-		if !isChartValues(in.Documents.Host[key]) {
+		unit, _ := in.Documents.Host.Get(key)
+		if !isChartValues(unit) {
 			continue
 		}
 		out.Patches = append(out.Patches, abi.JSONPatchOp{
