@@ -165,10 +165,13 @@ type (
 
 // Parser socket. A parser guest turns a foreign source text into a canonical
 // structured tree on the parse export (ParseInput to ParseOutput): it receives
-// the format name, the base64 source bytes, and an optional opaque options
-// document, and returns the tree plus optional diagnostics and source spans. A
-// parser advertises the formats it handles as parse:<format> capabilities in
-// its descriptor.
+// the format name, the source bytes, and an optional opaque options document,
+// and returns the tree plus optional diagnostics and source spans. The socket
+// carries canonical CBOR in both directions: the input is read with
+// ParseInput.DecodeCBOR and the output is written with ParseOutput.EncodeCBOR,
+// so the source bytes arrive raw and the tree goes back as a byte string holding
+// its JSON document. A parser advertises the formats it handles as
+// parse:<format> capabilities in its descriptor.
 type (
 	ParseInput          = abi.ParseInput
 	ParseOutput         = abi.ParseOutput

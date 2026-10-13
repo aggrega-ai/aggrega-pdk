@@ -14,6 +14,12 @@
 //!
 //! The host reads `describe()` once at load, validates the descriptor, then
 //! dispatches `parse` with a `ParseInput` as input.
+//!
+//! The parser socket carries canonical CBOR in both directions, so the export
+//! takes and returns bytes, reading the input with `ParseInput::decode_cbor` and
+//! writing the output with `ParseOutput::encode_cbor`. The tree the output
+//! carries is a JSON document, and stays one: it crosses as a byte string holding
+//! that document verbatim.
 
 use aggrega_pdk_rust::{
     encode_descriptor, ParseInput, ParseOutput, PluginDescriptor, PluginDescriptorMeta,
@@ -58,12 +64,14 @@ pub fn describe() -> FnResult<String> {
 /// scaffold echoes the input as a small object tree so the example exercises
 /// both codec directions without a grammar.
 #[plugin_fn]
-pub fn parse(input: String) -> FnResult<String> {
-    let parsed: ParseInput = serde_json::from_str(&input)?;
+pub fn parse(input: Vec<u8>) -> FnResult<Vec<u8>> {
+    let parsed = ParseInput::decode_cbor(&input)?;
 
-    // The source bytes ride the wire base64-encoded; decode them so the echoed
-    // tree carries the original text. A decode failure falls back to the empty
-    // string rather than failing the parse — this is a scaffold, not a grammar.
+    // The source bytes cross the wire as a raw byte string, and this kit's
+    // `bytes` field holds them base64-encoded — the generated decoder does that
+    // conversion — so decode them to recover the original text for the echoed
+    // tree. A decode failure falls back to the empty string rather than failing
+    // the parse — this is a scaffold, not a grammar.
     let source = base64::engine::general_purpose::STANDARD
         .decode(parsed.bytes.as_bytes())
         .ok()
@@ -82,5 +90,5 @@ pub fn parse(input: String) -> FnResult<String> {
         error: String::new(),
     };
 
-    Ok(serde_json::to_string(&out)?)
+    Ok(out.encode_cbor()?)
 }

@@ -59,14 +59,14 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 mkdir -p "${OUT_DIR}" "${SCRIPT_DIR}/dist"
 
 # Install fixture-local dependencies (esbuild + types + the PDK the
-# guest imports its FRP-step codec from). --no-save keeps
+# guest imports its parse codec from). --no-save keeps
 # package-lock.json out of the fixture directory; the PDK's package.json
 # has the canonical pin set.
 (cd "${SCRIPT_DIR}" && npm install --no-save --silent --no-audit --no-fund)
 
 # Bundle TypeScript to a single CommonJS JS file. --main-fields is set
 # explicitly because the neutral platform resolves no package "main"
-# field by default, and the guest imports its FRP-step codec from the PDK
+# field by default, and the guest imports its parse codec from the PDK
 # package (whose entry is declared under "main").
 (cd "${SCRIPT_DIR}" && npx esbuild src/index.ts --bundle --format=cjs --target=es2022 --platform=neutral --main-fields=module,main --outfile=dist/plugin.js)
 

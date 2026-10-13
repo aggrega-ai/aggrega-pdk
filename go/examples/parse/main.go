@@ -21,7 +21,10 @@
 // The parse payload is decoded and re-encoded through the generated ABI codec
 // (github.com/aggrega-ai/aggrega-abi-go/pkg/abi, re-exported by this PDK) rather
 // than hand-declared wire types, so the wire shape stays single-sourced from
-// the schema.
+// the schema. The parser socket carries canonical CBOR in both directions: the
+// input is read with ParseInput.DecodeCBOR and the output written with
+// ParseOutput.EncodeCBOR, so the source bytes arrive as a raw byte string in
+// in.Bytes and the tree goes back as a byte string holding its JSON document.
 //
 // Build: GOOS=wasip1 GOARCH=wasm go build -buildmode=c-shared -o parse-go.wasm ./
 package main
@@ -63,10 +66,10 @@ func describe() int32 {
 
 //go:wasmexport parse
 func parse() int32 {
-	// Decode the ParseInput through the generated codec's UnmarshalJSON — a
-	// streaming token walk into the typed value, no reflective struct-walk.
+	// Decode the ParseInput from canonical CBOR through the generated codec's
+	// DecodeCBOR — a direct walk into the typed value, no reflective struct-walk.
 	var in aggrega.ParseInput
-	if err := in.UnmarshalJSON(pdk.Input()); err != nil {
+	if err := in.DecodeCBOR(pdk.Input()); err != nil {
 		pdk.SetError(err)
 		return 1
 	}
@@ -88,9 +91,9 @@ func parse() int32 {
 
 	out := aggrega.ParseOutput{Tree: tree}
 
-	// Encode the output through the generated codec's MarshalJSON — a manual
-	// field-ordered build, no reflective struct-walk.
-	raw, err := out.MarshalJSON()
+	// Encode the output to canonical CBOR through the generated codec's
+	// EncodeCBOR — a manual field-ordered build, no reflective struct-walk.
+	raw, err := out.EncodeCBOR()
 	if err != nil {
 		pdk.SetError(err)
 		return 1

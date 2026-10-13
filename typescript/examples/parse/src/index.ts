@@ -13,17 +13,23 @@
  * export decodes a ParseInput and encodes a ParseOutput — not to implement a
  * grammar.
  *
+ * The parser socket carries canonical CBOR in both directions, read and
+ * written through the generated codec on the payload type: the input with
+ * decodeCBORParseInput and the output with encodeCBORParseOutput. The tree the
+ * output carries is a JSON document, and stays one: it crosses as a byte string
+ * holding that document verbatim.
+ *
  * Entry convention follows the Extism JS PDK: parameterless function, read
- * input via Host.inputString(), write output via Host.outputString(), expose
- * via module.exports. The parse codec is consumed from the TypeScript Plugin
- * Development Kit, which re-exports it from the portable ABI package.
+ * input from and write output to the host buffers, expose via module.exports.
+ * The parse codec is consumed from the TypeScript Plugin Development Kit, which
+ * re-exports it from the portable ABI package.
  */
 
 import {
   API_VERSION,
-  decodeParseInput,
+  decodeCBORParseInput,
+  encodeCBORParseOutput,
   encodeDescriptor,
-  encodeParseOutput,
   type PluginDescriptor,
 } from "@aggrega-ai/aggrega-pdk-typescript";
 
@@ -57,9 +63,9 @@ function describe(): void {
 // scaffold echoes the input as a small object tree so the example exercises
 // both codec directions without a grammar.
 function parse(): void {
-  const input = decodeParseInput(Host.inputString());
+  const input = decodeCBORParseInput(new Uint8Array(Host.inputBytes()));
   const tree = { format: input.format, bytes: input.bytes };
-  Host.outputString(encodeParseOutput({ tree }));
+  Host.outputBytes(encodeCBORParseOutput({ tree }).buffer as ArrayBuffer);
 }
 
 module.exports = { parse, describe };
