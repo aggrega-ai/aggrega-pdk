@@ -21,6 +21,12 @@ type (
 	CompilationContext = abi.CompilationContext
 )
 
+// OrderedMap is the order-keeping container: a string-keyed map that keeps its
+// entries in insertion order, for a map whose order is part of what it carries,
+// and whose JSON form is an object written in that order. It is the abi type
+// itself, so a value built here is the value the abi codec reads and writes.
+type OrderedMap[V any] = abi.OrderedMap[V]
+
 // Diagnostic severities. A guest sets one of these three on every diagnostic it
 // raises, so a plugin author writes aggrega.Severity* and reports from the same
 // closed, single-sourced vocabulary the host routes on.

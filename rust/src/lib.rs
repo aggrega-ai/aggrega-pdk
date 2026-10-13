@@ -60,6 +60,12 @@ pub use aggrega_abi::{
     FetchExternalInputResponse, ParseSourceResponse,
 };
 
+// The order-keeping container, re-exported from aggrega-abi so a plugin author
+// writes aggrega_pdk_rust::OrderedMap for a map whose order is part of what it
+// carries: it keeps its entries in insertion order, and its serde form is a map
+// written in that order.
+pub use aggrega_abi::OrderedMap;
+
 // Diagnostic severities, re-exported from aggrega-abi so a plugin author writes
 // aggrega_pdk_rust::SEVERITY_* and reports from the same closed, single-sourced
 // vocabulary the host routes on.
