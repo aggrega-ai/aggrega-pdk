@@ -14,27 +14,31 @@
  * reads: the payload is decoded through the generated codec, whose
  * attachment map is a Map holding the attachments in the order the host
  * wrote them, which is the author's. The host verifies end-to-end that
- * input JSON deserialised, the render transform ran against the node
- * projection, an attachment's sensitivity marking is readable from the
- * payload alone, and output JSON serialised to a shape whose file content
- * round-trips through the render socket's base64 wire encoding. Beside the
+ * the input decoded from the render socket's canonical CBOR wire, the render
+ * transform ran against the node projection, an attachment's sensitivity
+ * marking is readable from the payload alone, and the output encoded to a
+ * shape whose file content reaches the host verbatim. Beside the
  * files it reports two render facts
  * about what it emitted — the paths it wrote and the node it echoed — in a fixed
  * order that is deliberately not name order, and the host verifies they arrive
  * in that order, each value byte for byte as written here.
  *
  * Entry convention follows the Extism JS PDK: parameterless function,
- * read input via Host.inputString(), write output via
- * Host.outputString(), expose via module.exports.
+ * read input via Host.inputBytes(), write output via Host.outputBytes(),
+ * expose via module.exports. The render socket's wire is binary in both
+ * directions, so the input is read with decodeCBORRenderNodeInput and the
+ * output written with encodeCBORRenderNodeOutput.
  */
 
 import {
   API_VERSION,
-  decodeRenderNodeInput,
+  decodeCBORRenderNodeInput,
+  encodeCBORRenderNodeOutput,
   encodeDescriptor,
   type PluginDescriptor,
   type RenderFact,
   type RenderNodeInput,
+  type RenderNodeOutput,
 } from "@aggrega-ai/aggrega-pdk-typescript";
 
 // A deliberately narrow view of one attachment entry: the render socket carries
@@ -66,17 +70,6 @@ import {
 // derivation produced false; an absent field is read as unmarked below.
 interface IRFeatureEntryView {
   sensitive?: boolean;
-}
-
-interface RenderedFile {
-  path: string;
-  content: string;
-  format?: string;
-}
-
-interface RenderNodeOutput {
-  files: RenderedFile[];
-  render_facts?: RenderFact[];
 }
 
 // The fixed on-disk path the fixture emits its node-id echo at. Constant
@@ -116,9 +109,9 @@ function descriptor(): PluginDescriptor {
 }
 
 // Standard base64 alphabet (RFC 4648) with padding, matching Go's
-// base64.StdEncoding — the render socket carries file content as base64
-// on the JSON wire, so the guest encodes the raw bytes and the host
-// decodes them verbatim.
+// base64.StdEncoding — the TypeScript binding holds a file's content as
+// base64 text, so the guest encodes the raw bytes; the codec writes them to
+// the wire as a byte string, and the host reads them verbatim.
 const BASE64_ALPHABET =
   "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
@@ -188,7 +181,7 @@ function renderFacts(nodeId: string): RenderFact[] {
 }
 
 function render_node(): void {
-  const input = decodeRenderNodeInput(Host.inputString());
+  const input = decodeCBORRenderNodeInput(new Uint8Array(Host.inputBytes()));
   const content = CONTENT_PREFIX + input.node.id;
   const out: RenderNodeOutput = {
     files: [
@@ -205,7 +198,7 @@ function render_node(): void {
     ],
     render_facts: renderFacts(input.node.id),
   };
-  Host.outputString(JSON.stringify(out));
+  Host.outputBytes(encodeCBORRenderNodeOutput(out).buffer as ArrayBuffer);
 }
 
 module.exports = { render_node, describe };

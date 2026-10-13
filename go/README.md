@@ -134,6 +134,16 @@ and `Sensitive`; on the governance socket's `ir-verdict` input
 documentation lists where each socket marks a key or a payload, and what an
 absent marking does and does not say.
 
+### The provider render socket
+
+A provider guest's exports — `render_node`, and whichever optional exports its
+`describe()` declares — read their input and write their output in canonical
+CBOR. Decode the input with the input type's `DecodeCBOR` (`aggrega.RenderNodeInput`
+for `render_node`) and return the output encoded with `EncodeCBOR`; a rendered
+file's `Content` is the byte slice to write, which the encoder carries as raw
+bytes. [`examples/render/`](examples/render) and [`examples/link/`](examples/link)
+are providers built this way.
+
 ### Reporting facts about what a provider emitted
 
 A provider's `render_node` may return `RenderFacts` beside its files: an ordered

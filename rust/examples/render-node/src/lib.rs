@@ -17,13 +17,18 @@
 //! node it echoed. The host verifies end-to-end that:
 //!
 //!  - The plugin loaded successfully via the Aggrega Wasm loader.
-//!  - Input JSON deserialised to [`RenderNodeInput`].
+//!  - The input decoded to a [`RenderNodeInput`] from the render socket's
+//!    canonical CBOR wire, read with `RenderNodeInput::decode_cbor`.
 //!  - The render transform ran against the node projection.
 //!  - An attachment's sensitivity marking is readable from the payload alone.
-//!  - Output JSON serialises to a [`RenderNodeOutput`] whose file content
-//!    round-trips through the render socket's base64 wire encoding.
+//!  - The output, written with `RenderNodeOutput::encode_cbor`, carries file
+//!    content the host reads back verbatim: the codec turns each file's base64
+//!    content into the raw bytes the wire carries.
 //!  - The reported facts reach the host in the order listed here, each value
 //!    byte for byte as written here.
+//!
+//! The export takes and returns bytes, because the render socket's wire is
+//! binary in both directions.
 
 use aggrega_pdk_rust::{
     encode_descriptor, IRFeatureEntry, PluginDescriptor, PluginDescriptorMeta, PluginExport,
@@ -163,12 +168,13 @@ fn render_facts(node_id: &str) -> Result<Vec<RenderFact>, serde_json::Error> {
 }
 
 #[plugin_fn]
-pub fn render_node(input: String) -> FnResult<String> {
-    let parsed: RenderNodeInput = serde_json::from_str(&input)?;
+pub fn render_node(input: Vec<u8>) -> FnResult<Vec<u8>> {
+    let parsed = RenderNodeInput::decode_cbor(&input)?;
 
-    // The file content is a fixed function of the node id. The render
-    // socket carries file content as base64 on the JSON wire, so the
-    // guest base64-encodes the raw bytes; the host decodes them verbatim.
+    // The file content is a fixed function of the node id. The Rust binding
+    // holds a file's content as base64 text, so the guest base64-encodes the
+    // raw bytes; the codec writes them to the wire as a byte string, and the
+    // host reads them verbatim.
     let content_bytes = format!("{}{}", CONTENT_PREFIX, parsed.node.id).into_bytes();
     let attachment_bytes = attachment_echo(&parsed).into_bytes();
 
@@ -189,5 +195,5 @@ pub fn render_node(input: String) -> FnResult<String> {
         diagnostics: Vec::new(),
         ..Default::default()
     };
-    Ok(serde_json::to_string(&out)?)
+    Ok(out.encode_cbor()?)
 }

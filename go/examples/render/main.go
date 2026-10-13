@@ -13,19 +13,19 @@
 // rendered it. The host verifies end-to-end that:
 //
 //   - The plugin loaded successfully via the Aggrega Wasm loader.
-//   - Input JSON deserialised to RenderNodeInput.
+//   - The input decoded to a RenderNodeInput from the render socket's
+//     canonical CBOR wire.
 //   - The render transform ran against the node projection.
-//   - Output JSON serialises to a RenderNodeOutput whose file content
-//     round-trips through the render socket's base64 wire encoding. The
-//     render socket carries file content as base64 on the JSON wire; the
-//     guest sets the raw bytes and the codec base64-encodes them, and the
-//     host decodes them verbatim.
+//   - The output encodes to a RenderNodeOutput whose file content reaches the
+//     host verbatim: the render socket carries file content as a CBOR byte
+//     string, so the guest sets the raw bytes and the host reads them back
+//     unchanged.
 //   - The facts the fixture reports about what it emitted reach the host in
 //     the order listed here, each value byte for byte as written here.
 //
 // The wire types are re-exported from the PDK's aggrega package as aliases
 // of the generated ABI codec types, so a value built here is the same
-// value the codec marshals and the wire shape stays single-sourced from
+// value the codec encodes and the wire shape stays single-sourced from
 // the schema.
 //
 // Build: GOOS=wasip1 GOARCH=wasm go build -buildmode=c-shared -o render-node-go.wasm ./
@@ -116,14 +116,14 @@ func renderFacts(nodeID string) ([]aggrega.RenderFact, error) {
 //go:wasmexport render_node
 func render_node() int32 {
 	var in aggrega.RenderNodeInput
-	if err := json.Unmarshal(pdk.Input(), &in); err != nil {
-		pdk.SetError(fmt.Errorf("render-node-go: unmarshal RenderNodeInput: %w", err))
+	if err := in.DecodeCBOR(pdk.Input()); err != nil {
+		pdk.SetError(fmt.Errorf("render-node-go: decode RenderNodeInput: %w", err))
 		return 1
 	}
 
 	// The file content is a fixed function of the node id. Content is a
-	// byte slice; the codec base64-encodes it on the JSON wire, and the
-	// host decodes it verbatim.
+	// byte slice; the codec writes it as a CBOR byte string, and the host
+	// reads it verbatim.
 	content := []byte(contentPrefix + in.Node.ID)
 
 	facts, err := renderFacts(in.Node.ID)
@@ -140,9 +140,9 @@ func render_node() int32 {
 		}},
 		RenderFacts: facts,
 	}
-	outputBytes, err := json.Marshal(out)
+	outputBytes, err := out.EncodeCBOR()
 	if err != nil {
-		pdk.SetError(fmt.Errorf("render-node-go: marshal RenderNodeOutput: %w", err))
+		pdk.SetError(fmt.Errorf("render-node-go: encode RenderNodeOutput: %w", err))
 		return 1
 	}
 

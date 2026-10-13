@@ -22,6 +22,10 @@
 //!
 //! The mandatory `render_node` export is present and minimal — the link pass
 //! never invokes it, but a provider plugin must declare it.
+//!
+//! Every export takes and returns bytes, because the render socket's wire is
+//! canonical CBOR in both directions: each reads its input with the input type's
+//! `decode_cbor` and writes its output with the output type's `encode_cbor`.
 
 use aggrega_pdk_rust::{
     encode_descriptor, InputKinds, LinkPatch, LinkPublishInput, LinkPublishOutput, LinkResolveInput,
@@ -107,7 +111,7 @@ pub fn describe() -> FnResult<String> {
 }
 
 #[plugin_fn]
-pub fn render_node(_input: String) -> FnResult<String> {
+pub fn render_node(_input: Vec<u8>) -> FnResult<Vec<u8>> {
     // The link pass never routes render_node; a provider plugin must still
     // declare it. Emit nothing.
     let out = RenderNodeOutput {
@@ -115,12 +119,12 @@ pub fn render_node(_input: String) -> FnResult<String> {
         diagnostics: Vec::new(),
         ..Default::default()
     };
-    Ok(serde_json::to_string(&out)?)
+    Ok(out.encode_cbor()?)
 }
 
 #[plugin_fn]
-pub fn link_publish(input: String) -> FnResult<String> {
-    let parsed: LinkPublishInput = serde_json::from_str(&input)?;
+pub fn link_publish(input: Vec<u8>) -> FnResult<Vec<u8>> {
+    let parsed = LinkPublishInput::decode_cbor(&input)?;
     let pointer = derived_pointer(&parsed.edge.target.node, &parsed.edge.socket);
 
     let mut handle = std::collections::BTreeMap::new();
@@ -134,12 +138,12 @@ pub fn link_publish(input: String) -> FnResult<String> {
         }],
         ..Default::default()
     };
-    Ok(serde_json::to_string(&out)?)
+    Ok(out.encode_cbor()?)
 }
 
 #[plugin_fn]
-pub fn link_resolve(input: String) -> FnResult<String> {
-    let parsed: LinkResolveInput = serde_json::from_str(&input)?;
+pub fn link_resolve(input: Vec<u8>) -> FnResult<Vec<u8>> {
+    let parsed = LinkResolveInput::decode_cbor(&input)?;
     // Inject the peer's published pointer verbatim into the consuming endpoint's
     // assembled file.
     let pointer = parsed.handle.get("ref").cloned().unwrap_or_default();
@@ -151,5 +155,5 @@ pub fn link_resolve(input: String) -> FnResult<String> {
         }],
         ..Default::default()
     };
-    Ok(serde_json::to_string(&out)?)
+    Ok(out.encode_cbor()?)
 }

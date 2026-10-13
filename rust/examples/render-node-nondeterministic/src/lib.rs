@@ -66,9 +66,12 @@ pub fn describe() -> FnResult<String> {
     Ok(encode_descriptor(&descriptor()))
 }
 
+/// Takes and returns bytes, because the render socket's wire is canonical CBOR in
+/// both directions: the input is read with `RenderNodeInput::decode_cbor` and the
+/// output written with `RenderNodeOutput::encode_cbor`.
 #[plugin_fn]
-pub fn render_node(input: String) -> FnResult<String> {
-    let parsed: RenderNodeInput = serde_json::from_str(&input)?;
+pub fn render_node(input: Vec<u8>) -> FnResult<Vec<u8>> {
+    let parsed = RenderNodeInput::decode_cbor(&input)?;
 
     // The invocation count makes the output differ between two renders of the
     // same input — the deliberate non-determinism this fixture exists to test.
@@ -86,5 +89,5 @@ pub fn render_node(input: String) -> FnResult<String> {
         diagnostics: Vec::new(),
         ..Default::default()
     };
-    Ok(serde_json::to_string(&out)?)
+    Ok(out.encode_cbor()?)
 }

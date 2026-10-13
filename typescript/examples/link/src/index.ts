@@ -27,20 +27,22 @@
  * never invokes it, but a provider plugin must declare it.
  *
  * Entry convention follows the Extism JS PDK: parameterless function,
- * read input via Host.inputString(), write output via Host.outputString(),
- * expose via module.exports. The link codec is consumed from the
- * TypeScript Plugin Development Kit, which re-exports it from the portable
+ * read input via Host.inputBytes(), write output via Host.outputBytes(),
+ * expose via module.exports. The render socket's wire is canonical CBOR in
+ * both directions, so each export reads its input and writes its output
+ * through the link codec's binary entry points, consumed from the
+ * TypeScript Plugin Development Kit, which re-exports them from the portable
  * ABI package.
  */
 
 import {
   API_VERSION,
-  decodeLinkPublishInput,
+  decodeCBORLinkPublishInput,
   encodeDescriptor,
-  encodeLinkPublishOutput,
-  decodeLinkResolveInput,
-  encodeLinkResolveOutput,
-  encodeRenderNodeOutput,
+  encodeCBORLinkPublishOutput,
+  decodeCBORLinkResolveInput,
+  encodeCBORLinkResolveOutput,
+  encodeCBORRenderNodeOutput,
   type LinkPatch,
   type PluginDescriptor,
 } from "@aggrega-ai/aggrega-pdk-typescript";
@@ -110,24 +112,24 @@ function describe(): void {
 function render_node(): void {
   // The link pass never routes render_node; a provider plugin must still
   // declare it. Emit nothing.
-  Host.outputString(encodeRenderNodeOutput({ files: [] }));
+  Host.outputBytes(encodeCBORRenderNodeOutput({ files: [] }).buffer as ArrayBuffer);
 }
 
 function link_publish(): void {
-  const input = decodeLinkPublishInput(Host.inputString());
+  const input = decodeCBORLinkPublishInput(new Uint8Array(Host.inputBytes()));
   const pointer = derivedPointer(input.edge.target.node, input.edge.socket);
 
   const patches: LinkPatch[] = [
     { file: LINK_FILE, ops: [oneOp(LINK_FILE, "/published", pointer)] },
   ];
 
-  Host.outputString(
-    encodeLinkPublishOutput({ handle: { ref: pointer }, patches }),
+  Host.outputBytes(
+    encodeCBORLinkPublishOutput({ handle: { ref: pointer }, patches }).buffer as ArrayBuffer,
   );
 }
 
 function link_resolve(): void {
-  const input = decodeLinkResolveInput(Host.inputString());
+  const input = decodeCBORLinkResolveInput(new Uint8Array(Host.inputBytes()));
   // Inject the peer's published pointer verbatim into the consuming
   // endpoint's assembled file.
   const pointer = input.handle.ref ?? "";
@@ -136,7 +138,7 @@ function link_resolve(): void {
     { file: LINK_FILE, ops: [oneOp(LINK_FILE, "/resolved", pointer)] },
   ];
 
-  Host.outputString(encodeLinkResolveOutput({ patches }));
+  Host.outputBytes(encodeCBORLinkResolveOutput({ patches }).buffer as ArrayBuffer);
 }
 
 module.exports = { render_node, link_publish, link_resolve, describe };

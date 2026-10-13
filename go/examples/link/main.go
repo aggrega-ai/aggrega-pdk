@@ -28,7 +28,9 @@
 //
 // The wire types are re-exported from the PDK's aggrega package as aliases
 // of the generated ABI codec types, so the wire shape stays single-sourced
-// from the schema.
+// from the schema. The render socket carries canonical CBOR in both
+// directions, so each export decodes its input and encodes its output through
+// those types' binary codec.
 //
 // Build: GOOS=wasip1 GOARCH=wasm go build -buildmode=c-shared -o link-cross-boundary-go.wasm ./
 package main
@@ -119,9 +121,9 @@ func render_node() int32 {
 	// The link pass never routes render_node; a provider plugin must
 	// still declare it. Emit nothing.
 	out := aggrega.RenderNodeOutput{}
-	outputBytes, err := json.Marshal(out)
+	outputBytes, err := out.EncodeCBOR()
 	if err != nil {
-		pdk.SetError(fmt.Errorf("link-cross-boundary-go: marshal RenderNodeOutput: %w", err))
+		pdk.SetError(fmt.Errorf("link-cross-boundary-go: encode RenderNodeOutput: %w", err))
 		return 1
 	}
 	pdk.Output(outputBytes)
@@ -131,8 +133,8 @@ func render_node() int32 {
 //go:wasmexport link_publish
 func link_publish() int32 {
 	var in aggrega.LinkPublishInput
-	if err := json.Unmarshal(pdk.Input(), &in); err != nil {
-		pdk.SetError(fmt.Errorf("link-cross-boundary-go: unmarshal LinkPublishInput: %w", err))
+	if err := in.DecodeCBOR(pdk.Input()); err != nil {
+		pdk.SetError(fmt.Errorf("link-cross-boundary-go: decode LinkPublishInput: %w", err))
 		return 1
 	}
 	pointer := derivedPointer(in.Edge.Target.Node, in.Edge.Socket)
@@ -150,9 +152,9 @@ func link_publish() int32 {
 			Ops:  []json.RawMessage{op},
 		}},
 	}
-	outputBytes, err := json.Marshal(out)
+	outputBytes, err := out.EncodeCBOR()
 	if err != nil {
-		pdk.SetError(fmt.Errorf("link-cross-boundary-go: marshal LinkPublishOutput: %w", err))
+		pdk.SetError(fmt.Errorf("link-cross-boundary-go: encode LinkPublishOutput: %w", err))
 		return 1
 	}
 	pdk.Output(outputBytes)
@@ -162,8 +164,8 @@ func link_publish() int32 {
 //go:wasmexport link_resolve
 func link_resolve() int32 {
 	var in aggrega.LinkResolveInput
-	if err := json.Unmarshal(pdk.Input(), &in); err != nil {
-		pdk.SetError(fmt.Errorf("link-cross-boundary-go: unmarshal LinkResolveInput: %w", err))
+	if err := in.DecodeCBOR(pdk.Input()); err != nil {
+		pdk.SetError(fmt.Errorf("link-cross-boundary-go: decode LinkResolveInput: %w", err))
 		return 1
 	}
 	// Inject the peer's published pointer verbatim into the consuming
@@ -182,9 +184,9 @@ func link_resolve() int32 {
 			Ops:  []json.RawMessage{op},
 		}},
 	}
-	outputBytes, err := json.Marshal(out)
+	outputBytes, err := out.EncodeCBOR()
 	if err != nil {
-		pdk.SetError(fmt.Errorf("link-cross-boundary-go: marshal LinkResolveOutput: %w", err))
+		pdk.SetError(fmt.Errorf("link-cross-boundary-go: encode LinkResolveOutput: %w", err))
 		return 1
 	}
 	pdk.Output(outputBytes)

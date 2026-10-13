@@ -85,7 +85,8 @@ type (
 // Sensitive marks an entry any of whose fields was produced from a value declared
 // sensitive. A guest that honours them says so with ProviderContract.Omits, leaves
 // every matched unit out of what it returns, and reports in Omitted how many units
-// each entry matched.
+// each entry matched. Every export of the socket reads its input and writes its
+// output in canonical CBOR, through each payload type's DecodeCBOR and EncodeCBOR.
 type (
 	RenderNodeInput            = abi.RenderNodeInput
 	RenderNodeOutput           = abi.RenderNodeOutput

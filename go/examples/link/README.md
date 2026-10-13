@@ -7,6 +7,8 @@ cross-boundary `uses` edge through: `link_publish` derives a deterministic
 pointer from the edge and records it on the consumed endpoint's assembled
 file; `link_resolve` injects that pointer into the consuming endpoint's
 assembled file. The mandatory `render_node` export is present and minimal.
+Every export reads its input and writes its output in the socket's canonical
+CBOR, through the payload types' `DecodeCBOR` and `EncodeCBOR`.
 
 ## Build
 

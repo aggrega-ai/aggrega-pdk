@@ -1,11 +1,12 @@
 # render (Go fixture)
 
 A small Go plugin demonstrating the Aggrega provider render socket. The
-plugin reads a `RenderNodeInput` JSON payload and emits a single output
-file whose bytes are `rendered-node:` followed by the node id, returned
-as the sole `RenderedFile` of a `RenderNodeOutput`. The transform matches
-the per-language render fixtures, so identical input yields equivalent
-output whichever language rendered it.
+plugin decodes a `RenderNodeInput` from the socket's canonical CBOR payload
+with `DecodeCBOR` and emits a single output file whose bytes are
+`rendered-node:` followed by the node id, returned as the sole
+`RenderedFile` of a `RenderNodeOutput` encoded with `EncodeCBOR`. The
+transform matches the per-language render fixtures, so identical input
+yields equivalent output whichever language rendered it.
 
 Beside the file it reports two `RenderFact`s about what it emitted — the
 paths it wrote (`emitted_paths`) and the node it echoed (`echoed_node`) —

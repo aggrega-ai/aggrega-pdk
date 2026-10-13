@@ -77,6 +77,17 @@ fields and each node's `sensitive_payload_leaves` in the graph. The plugin
 contract in the Aggrega documentation lists where each socket marks a key or a
 payload, and what an absent marking does and does not say.
 
+### The provider render socket
+
+A provider guest's exports — `render_node`, and whichever optional exports its
+`describe()` declares — read their input and write their output in canonical
+CBOR: read `Host.inputBytes()` into the input type's `decodeCBOR…` function
+(`decodeCBORRenderNodeInput` for `render_node`) and write the output with
+`Host.outputBytes(encodeCBOR…(output).buffer as ArrayBuffer)`. A rendered file's
+`content` holds the base64 of the bytes to write, and the encoder carries them as
+raw bytes. [`examples/render-node/`](examples/render-node) and
+[`examples/link/`](examples/link) are providers built this way.
+
 ### Reporting facts about what a provider emitted
 
 A provider's `render_node` may return `render_facts` beside its files: an
