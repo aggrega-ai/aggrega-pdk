@@ -14,7 +14,13 @@ language:
 Each PDK is a thin wrapper over the corresponding upstream
 [Extism](https://extism.org) PDK (`extism-pdk-<language>`), adding
 Aggrega-typed builders for the Wasm socket payloads and bindings for
-the Aggrega host functions (`aggrega_log`, `aggrega_emit_warning`).
+the Aggrega host functions (`aggrega_log`, `aggrega_emit_warning`,
+`aggrega_fetch_external_input`, the source and parse callbacks, and the
+CLI output streams).
+Each binding does its callback's allocation and encoding — a payload
+document crosses as canonical CBOR, a bare string such as the fetch URL
+as UTF-8 text — so a plugin calls a typed function and handles no wire
+bytes.
 The socket payload types themselves are generated from the canonical
 schemas into the shared `aggrega-abi` package and re-exported by each
 PDK, so the host, the guest codec and all three PDKs carry one wire
@@ -60,10 +66,11 @@ declaration that can drift.
 
 Source-level textual equivalence between the host's in-memory
 representation and a generated codec type is **not** required and
-**not** verified; the JSON wire format is the shared contract. Each
+**not** verified; the wire format is the shared contract. Each
 language's codec follows that language's idioms — Rust's `serde`
 attributes, TypeScript's discriminated unions, Go's `json` tags —
-while serializing to the same JSON shape.
+while encoding to the same bytes, in the textual JSON encoding and the
+canonical binary encoding alike.
 
 Two gates hold the arrangement together:
 

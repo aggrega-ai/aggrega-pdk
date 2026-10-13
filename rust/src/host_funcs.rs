@@ -25,7 +25,10 @@ use serde_json::value::RawValue;
 extern "ExtismHost" {
     fn aggrega_log(level: u64, message: String);
     fn aggrega_emit_warning(code: String, message: String, path: String);
-    fn aggrega_fetch_external_input(url: String) -> String;
+    // The URL is a bare string rather than a payload document, so it stays
+    // UTF-8 text; the reply is a payload document and carries canonical CBOR,
+    // so it is declared as an opaque byte run for the reason given below.
+    fn aggrega_fetch_external_input(url: String) -> Vec<u8>;
     // Both slots on each of the three payload-carrying callbacks below carry
     // canonical CBOR, so each is declared as an opaque byte run rather than as
     // UTF-8 text. The declared type is the contract here, not a formatting
@@ -122,28 +125,63 @@ pub fn emit_warning(code: &str, message: &str, path: &str) {
 /// when acquisition is enabled, and refused with a clear message when
 /// the closure is frozen.
 ///
+/// The URL travels as UTF-8 text, because it is a bare string rather than a
+/// payload document. The reply carries canonical CBOR, success and failure
+/// alike, with the fetched bytes as a raw byte string: a payload that is not
+/// valid UTF-8 arrives intact, and a zero-length payload returns an empty
+/// vector rather than an error. Plugin code calling this wrapper needs no CBOR
+/// library and hand-parses nothing.
+///
 /// Failure is in-band: the host returns an error envelope rather than
-/// trapping, and this wrapper surfaces it as the returned error — its
-/// message names the URL and the remedy. Plugin code should treat a
-/// fetch error as a render failure to report, not a condition to mask.
+/// trapping, and this wrapper surfaces it as the returned error — a
+/// [`HostError`] whose message names the URL and the remedy and whose code is
+/// one of the `CODE_FETCH_*` constants. Plugin code should treat a fetch error
+/// as a render failure to report, not a condition to mask.
 pub fn fetch_external_input(url: &str) -> Result<Vec<u8>, Error> {
     let raw = unsafe { aggrega_fetch_external_input(url.to_string())? };
-    let envelope: FetchExternalInputResponse = serde_json::from_str(&raw)
-        .map_err(|e| Error::msg(format!("aggrega_fetch_external_input: decode envelope: {e}")))?;
-    if !envelope.error.is_empty() {
+    decode_fetch_external_input_reply(&raw)
+}
+
+/// Reads one `aggrega_fetch_external_input` reply and returns the fetched
+/// bytes, or the failure it reports.
+///
+/// The reply slot carries canonical CBOR in both the success and the failure
+/// case, so one decoder reads both. A reply carrying an error message or an
+/// error code is a failure and surfaces as a [`HostError`]. Any other reply is
+/// a success, and its content is the payload: the field is omitted when empty,
+/// so a zero-length payload arrives as a reply with no field at all and yields
+/// an empty vector. Reading the failure from the failure fields, rather than
+/// from the content key's absence, is what keeps that empty payload
+/// distinguishable from a failure.
+///
+/// The payload type's `content` field holds base64 in this crate, matching
+/// the textual encoding's own field type, and the generated decoder re-encodes
+/// the raw byte run to base64 on the way in — so the base64 step here is the
+/// one that yields the fetched bytes.
+///
+/// Split out from [`fetch_external_input`] so the wire is exercisable where
+/// the call is not: the host import only a running host resolves, so a test
+/// off Wasm can reach this and cannot reach the call.
+fn decode_fetch_external_input_reply(reply: &[u8]) -> Result<Vec<u8>, Error> {
+    let response = FetchExternalInputResponse::decode_cbor(reply)
+        .map_err(|e| Error::msg(format!("aggrega_fetch_external_input: decode response: {e}")))?;
+    if !response.error.is_empty() || !response.hostfunc_error_code.is_empty() {
+        let message = if response.error.is_empty() {
+            format!(
+                "aggrega_fetch_external_input: the host reported failure {}",
+                response.hostfunc_error_code
+            )
+        } else {
+            response.error
+        };
         return Err(Error::new(HostError {
-            code: envelope.hostfunc_error_code,
-            message: envelope.error,
+            code: response.hostfunc_error_code,
+            message,
         }));
     }
-    match envelope.content {
-        Some(content) => base64::engine::general_purpose::STANDARD
-            .decode(content.as_bytes())
-            .map_err(|e| Error::msg(format!("aggrega_fetch_external_input: decode content: {e}"))),
-        None => Err(Error::msg(
-            "aggrega_fetch_external_input: envelope carries neither content nor error",
-        )),
-    }
+    base64::engine::general_purpose::STANDARD
+        .decode(response.content.as_bytes())
+        .map_err(|e| Error::msg(format!("aggrega_fetch_external_input: decode content: {e}")))
 }
 
 /// Ask the Aggrega host to pack a selection from the acquired source and
@@ -403,24 +441,25 @@ pub fn cli_args() -> Result<Vec<String>, Error> {
 
 #[cfg(test)]
 mod tests {
-    //! Wire tests for the three payload-carrying callbacks —
-    //! `aggrega_pack_source`, `aggrega_read_source_file` and
-    //! `aggrega_parse_source` — driven against the shared payload vectors the ABI
-    //! crate publishes rather than against bytes produced here. That is what makes them discriminating: a kit that built its request
-    //! with the wrong encoder, or read its reply with the wrong decoder, produces
-    //! bytes that do not match a vector an independent instrument has already
-    //! anchored — whereas a kit checked only against its own output round-trips
-    //! cleanly however wrong both halves are, because the same mistake is on both
-    //! sides.
+    //! Wire tests for the callbacks whose replies carry the binary encoding —
+    //! `aggrega_pack_source`, `aggrega_read_source_file`,
+    //! `aggrega_parse_source` and `aggrega_fetch_external_input` — driven against
+    //! the shared payload vectors the ABI crate publishes rather than against
+    //! bytes produced here. That is what makes them discriminating: a kit that
+    //! built its request with the wrong encoder, or read its reply with the wrong
+    //! decoder, produces bytes that do not match a vector an independent
+    //! instrument has already anchored — whereas a kit checked only against its
+    //! own output round-trips cleanly however wrong both halves are, because the
+    //! same mistake is on both sides.
     //!
     //! The tests exercise the wire functions and never the host calls themselves:
     //! each call's import is resolved only by a running host, so a test off Wasm
     //! that reached one would not link.
 
     use super::{
-        decode_pack_source_reply, decode_parse_source_reply, decode_read_source_file_reply,
-        encode_pack_source_request, encode_parse_source_request, encode_read_source_file_request,
-        HostError,
+        decode_fetch_external_input_reply, decode_pack_source_reply, decode_parse_source_reply,
+        decode_read_source_file_reply, encode_pack_source_request, encode_parse_source_request,
+        encode_read_source_file_request, HostError,
     };
     use base64::Engine as _;
     use std::path::PathBuf;
@@ -802,6 +841,126 @@ mod tests {
             assert!(!b.is_empty(), "{vector} is empty");
             assert_eq!(b[0], want, "{vector} head byte ({why})");
         }
+    }
+
+    /// The kit reads the fetched bytes out of the shared success vector, whose
+    /// companion document carries them base64.
+    #[test]
+    fn decode_fetch_external_input_reply_content_from_shared_vector() {
+        let golden: serde_json::Value = serde_json::from_str(&read_vector(
+            "FetchExternalInputResponseContent.golden.json",
+        ))
+        .expect("FetchExternalInputResponseContent.golden.json is readable as JSON");
+        let want = base64::engine::general_purpose::STANDARD
+            .decode(golden["content"].as_str().expect("golden carries content"))
+            .expect("golden content is base64");
+
+        let got = decode_fetch_external_input_reply(&read_hex_vector(
+            "FetchExternalInputResponseContent.cbor.hex",
+        ))
+        .expect("decode_fetch_external_input_reply on the success shape");
+        assert_eq!(hex(&got), hex(&want), "content does not match the vector");
+    }
+
+    /// A zero-length payload is a success yielding empty bytes. Its reply
+    /// carries no field at all, because the content field is omitted when
+    /// empty, so a reader that took an absent content key for a failure fails
+    /// here.
+    #[test]
+    fn decode_fetch_external_input_reply_empty_content_from_shared_vector() {
+        let got = decode_fetch_external_input_reply(&read_hex_vector(
+            "FetchExternalInputResponseEmptyContent.cbor.hex",
+        ))
+        .expect("a zero-length payload reads as empty bytes, not as an error");
+        assert!(got.is_empty(), "content = {got:?}; want empty bytes");
+    }
+
+    /// The fetch failure shape surfaces as a `HostError` carrying both the
+    /// machine-matchable code and the message.
+    #[test]
+    fn decode_fetch_external_input_reply_failure_from_shared_vector() {
+        let golden: serde_json::Value =
+            serde_json::from_str(&read_vector("FetchExternalInputResponse.golden.json"))
+                .expect("FetchExternalInputResponse.golden.json is readable as JSON");
+        let want_message = golden["error"].as_str().expect("golden carries an error");
+        let want_code = golden["hostfunc_error_code"]
+            .as_str()
+            .expect("golden carries a hostfunc_error_code");
+
+        let err = decode_fetch_external_input_reply(&read_hex_vector(
+            "FetchExternalInputResponse.cbor.hex",
+        ))
+        .expect_err("a failure reply must not decode as a success");
+        let host_err = err
+            .downcast_ref::<HostError>()
+            .expect("the failure surfaces as a HostError");
+        assert_eq!(host_err.code, want_code);
+        assert_eq!(host_err.message, want_message);
+    }
+
+    /// A reply carrying a failure code and no message is still a failure.
+    /// Without this, such a reply would carry no content and no message, which
+    /// is exactly the shape of the zero-length payload, and would read as a
+    /// successful empty fetch.
+    #[test]
+    fn decode_fetch_external_input_reply_code_alone_is_a_failure() {
+        let reply = aggrega_abi::FetchExternalInputResponse {
+            hostfunc_error_code: aggrega_abi::CODE_FETCH_FAILED.to_string(),
+            ..Default::default()
+        }
+        .encode_cbor()
+        .expect("encode the code-only reply");
+        let err = decode_fetch_external_input_reply(&reply)
+            .expect_err("a code-only reply must not decode as a success");
+        let host_err = err
+            .downcast_ref::<HostError>()
+            .expect("the failure surfaces as a HostError");
+        assert_eq!(host_err.code, aggrega_abi::CODE_FETCH_FAILED);
+        assert!(!host_err.message.is_empty(), "the failure carries a message");
+    }
+
+    /// The fetch reply decoder is not silently tolerant of a textual reply.
+    #[test]
+    fn decode_fetch_external_input_reply_refuses_the_other_encoding() {
+        assert!(
+            decode_fetch_external_input_reply(br#"{"content":"aGVsbG8="}"#).is_err(),
+            "a textual fetch reply decoded without error; the reply slot carries the binary encoding only"
+        );
+    }
+
+    /// The map head byte of each shared fetch vector, read from the canonical
+    /// encoding's own rules, and the content vector's value head: a byte string
+    /// (major type 2), which a text-string or base64 carry would not produce.
+    #[test]
+    fn fetch_vector_heads() {
+        for (vector, want, why) in [
+            (
+                "FetchExternalInputResponseContent.cbor.hex",
+                0xa1u8,
+                "the content alone; both failure fields omitted",
+            ),
+            (
+                "FetchExternalInputResponseEmptyContent.cbor.hex",
+                0xa0u8,
+                "no field at all: an empty content is omitted",
+            ),
+            (
+                "FetchExternalInputResponse.cbor.hex",
+                0xa2u8,
+                "message and code; the content omitted",
+            ),
+        ] {
+            let b = read_hex_vector(vector);
+            assert!(!b.is_empty(), "{vector} is empty");
+            assert_eq!(b[0], want, "{vector} head byte ({why})");
+        }
+        // a1, 67 "content", then the value head: 0x40 | length marks a byte string.
+        let b = read_hex_vector("FetchExternalInputResponseContent.cbor.hex");
+        assert!(
+            b.len() >= 10 && b[9] & 0xe0 == 0x40,
+            "content value head in {}; want a byte string (major type 2)",
+            hex(&b)
+        );
     }
 
     /// Renders bytes as hex so a mismatch assertion prints something readable

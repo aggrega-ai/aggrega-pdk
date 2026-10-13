@@ -6,7 +6,6 @@
 package aggrega
 
 import (
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -52,10 +51,18 @@ func EmitWarning(code, message, path string) {
 // clear message when the closure is frozen. The returned bytes are the
 // input's payload.
 //
+// The URL travels as UTF-8 text, because it is a bare string rather than a
+// payload document. The reply carries canonical CBOR, success and failure
+// alike, with the fetched bytes as a raw byte string: a payload that is not
+// valid UTF-8 arrives intact, and a zero-length payload returns an empty
+// slice rather than an error. A guest calling this wrapper needs no CBOR
+// library and hand-parses nothing.
+//
 // Failure is in-band: the host returns an error envelope rather than
-// trapping, and this wrapper surfaces it as the returned error — its
-// message names the URL and the remedy. Guests should treat a fetch
-// error as a render failure to report, not a condition to mask.
+// trapping, and this wrapper surfaces it as the returned error — a
+// HostError whose message names the URL and the remedy and whose code is
+// one of the CodeFetch* constants. Guests should treat a fetch error as a
+// render failure to report, not a condition to mask.
 //
 // This is the wasip1 build of the binding; the off-Wasm build at
 // host_funcs_stub.go returns a not-available error.
@@ -66,25 +73,11 @@ func FetchExternalInput(url string) ([]byte, error) {
 	if offset == 0 {
 		return nil, errors.New("aggrega_fetch_external_input: host returned no envelope")
 	}
-	envMem := pdk.FindMemory(offset)
-	envBytes := envMem.ReadBytes()
-	envMem.Free()
+	respMem := pdk.FindMemory(offset)
+	respBytes := respMem.ReadBytes()
+	respMem.Free()
 
-	var envelope FetchExternalInputResponse
-	if err := envelope.UnmarshalJSON(envBytes); err != nil {
-		return nil, fmt.Errorf("aggrega_fetch_external_input: decode envelope: %w", err)
-	}
-	if envelope.Error != "" {
-		return nil, &HostError{Code: envelope.HostfuncErrorCode, Message: envelope.Error}
-	}
-	if envelope.Content == nil {
-		return nil, errors.New("aggrega_fetch_external_input: envelope carries neither content nor error")
-	}
-	payload, err := base64.StdEncoding.DecodeString(*envelope.Content)
-	if err != nil {
-		return nil, fmt.Errorf("aggrega_fetch_external_input: decode content: %w", err)
-	}
-	return payload, nil
+	return decodeFetchExternalInputReply(respBytes)
 }
 
 // PackSource asks the Aggrega host to pack a selection from the acquired
@@ -319,10 +312,16 @@ func aggregaEmitWarning(codePtr uint64, messagePtr uint64, pathPtr uint64)
 
 // aggregaFetchExternalInput is the host-imported binding for the
 // Aggrega external-input fetch host function. Signature:
-// (url_ptr i64) -> envelope_ptr i64; the returned offset addresses one
-// JSON envelope in plugin memory carrying either a base64 content
-// field or an error field, and offset 0 means no envelope was
+// (url_ptr i64) -> envelope_ptr i64; the argument addresses the URL as
+// UTF-8 text, and the returned offset addresses one
+// FetchExternalInputResponse envelope in canonical CBOR carrying either
+// the fetched bytes or an error. Offset 0 means no envelope was
 // delivered.
+//
+// The two slots differ in shape, and the allocation and the read carry
+// it rather than this declaration: the URL is allocated with
+// pdk.AllocateString, and the reply is read with MemoryHandle.ReadBytes,
+// because a text conversion corrupts binary bytes.
 //
 //go:wasmimport extism:host/user aggrega_fetch_external_input
 func aggregaFetchExternalInput(urlPtr uint64) uint64

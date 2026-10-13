@@ -201,7 +201,7 @@ go/
 │   ├── version.go    (APIVersion constant)
 │   ├── abi_reexport.go (socket payload types, aliased from aggrega-abi)
 │   ├── describe.go   (descriptor helpers for the describe export)
-│   ├── source_wire.go, parse_source_wire.go (source-wire helpers)
+│   ├── source_wire.go, parse_source_wire.go, fetch_wire.go (host-callback wire helpers)
 │   ├── host_funcs.go (wasip1-build-tagged host function bindings)
 │   ├── host_funcs_stub.go (host-build stubs for non-wasm targets)
 │   ├── host_error.go (host-call error handling)

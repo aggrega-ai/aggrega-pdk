@@ -18,11 +18,11 @@
  */
 
 import {
+  decodeCBORFetchExternalInputResponse,
   decodeCBORParseSourceResponse,
   decodeCBORSourceFileResponse,
   decodeCBORSourcePackResponse,
   decodeCLIRunInput,
-  decodeFetchExternalInputResponse,
   encodeCBORParseInput,
   encodeCBORSourceFileRequest,
   encodeCBORSourcePackRequest,
@@ -38,6 +38,9 @@ declare module "extism:host" {
   interface user {
     aggrega_log(level: I64, message_ptr: I64): void;
     aggrega_emit_warning(code_ptr: I64, message_ptr: I64, path_ptr: I64): void;
+    // The URL is a bare string rather than a payload document, so it is
+    // allocated with `Memory.fromString`; the reply is a payload document in
+    // canonical CBOR and is read with `readBytes`, for the reason given below.
     aggrega_fetch_external_input(url_ptr: I64): I64;
     // Both slots on each of the three payload-carrying callbacks below carry
     // canonical CBOR. The declaration is a pointer either way, so the shape is
@@ -95,11 +98,18 @@ export function emitWarning(code: string, message: string, path: string): void {
  * when acquisition is enabled, and refused with a clear message when
  * the closure is frozen.
  *
- * Failure is in-band: the host returns a JSON envelope carrying either
- * a base64 `content` field or an `error` field naming the URL and the
- * remedy; this wrapper throws an Error carrying that message. Plugin
- * code should treat a fetch error as a render failure to report, not a
- * condition to mask.
+ * The URL travels as UTF-8 text, because it is a bare string rather than a
+ * payload document. The reply carries canonical CBOR, success and failure
+ * alike, with the fetched bytes as a raw byte string: a payload that is not
+ * valid UTF-8 arrives intact, and a zero-length payload returns an empty
+ * buffer rather than an error. Plugin code calling this wrapper needs no CBOR
+ * library and hand-parses nothing.
+ *
+ * Failure is in-band: the host returns an error envelope rather than trapping,
+ * and this wrapper throws it as a `HostError` whose message names the URL and
+ * the remedy and whose code is one of the `CodeFetch*` constants. Plugin code
+ * should treat a fetch error as a render failure to report, not a condition to
+ * mask.
  */
 export function fetchExternalInput(url: string): ArrayBuffer {
   const { aggrega_fetch_external_input } = Host.getFunctions();
@@ -108,18 +118,41 @@ export function fetchExternalInput(url: string): ArrayBuffer {
   if (offset === BigInt(0)) {
     throw new Error("aggrega_fetch_external_input: host returned no envelope");
   }
-  const envelope = decodeFetchExternalInputResponse(
-    Memory.find(offset).readString(),
+  return Host.base64ToArrayBuffer(
+    decodeFetchExternalInputReply(Memory.find(offset).readBytes()),
   );
-  if (envelope.error) {
-    throw new HostError(envelope.hostfunc_error_code ?? "", envelope.error);
-  }
-  if (envelope.content === undefined) {
-    throw new Error(
-      "aggrega_fetch_external_input: envelope carries neither content nor error",
+}
+
+/**
+ * Reads one `aggrega_fetch_external_input` reply and returns the fetched
+ * content as the payload field holds it — base64, matching the textual
+ * encoding's own field type — throwing the failure it reports.
+ *
+ * The reply slot carries canonical CBOR in both the success and the failure
+ * case, so one decode entry point reads both. A reply carrying an error message
+ * or an error code is a failure and is thrown as a `HostError`. Any other reply
+ * is a success, and its content is the payload: the field is omitted when
+ * empty, so a zero-length payload arrives as a reply with no field at all and
+ * yields the empty string. Reading the failure from the failure fields, rather
+ * than from the content key's absence, is what keeps that empty payload
+ * distinguishable from a failure.
+ *
+ * It returns the field rather than the decoded buffer for the reason
+ * `decodeReadSourceFileReply` gives: base64-decoding is a guest-runtime
+ * capability, and keeping that call in `fetchExternalInput` leaves this
+ * function reachable off Wasm.
+ */
+export function decodeFetchExternalInputReply(reply: ArrayBuffer): string {
+  const response = decodeCBORFetchExternalInputResponse(new Uint8Array(reply));
+  if (response.error || response.hostfunc_error_code) {
+    const code = response.hostfunc_error_code ?? "";
+    throw new HostError(
+      code,
+      response.error ||
+        `aggrega_fetch_external_input: the host reported failure ${code}`,
     );
   }
-  return Host.base64ToArrayBuffer(envelope.content);
+  return response.content ?? "";
 }
 
 /**
