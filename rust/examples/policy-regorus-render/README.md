@@ -50,9 +50,11 @@ The plugin exports the two functions a verdict-role governance plugin declares:
 - `verdict_render(input)` — evaluates the attached policies against the rendered
   artifacts the host hands it and returns the fired verdicts.
 
-At the render stage the governance socket hands `verdict_render` a JSON payload with the rendered
-artifacts (each an output path and its content), the policy source files the
-attachment named, and the attachment's free-form settings object.
+At the render stage the governance socket hands `verdict_render` a payload in
+canonical CBOR with the rendered artifacts (each an output path and its content),
+the policy source files the attachment named, and the attachment's free-form
+settings object. The plugin reads it with `RenderPolicyInput::decode_cbor` and
+writes its verdicts with `PolicyOutput::encode_cbor`.
 
 ## Attaching a policy
 

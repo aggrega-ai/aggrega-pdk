@@ -22,9 +22,12 @@ The plugin exports the two functions a verdict-role governance plugin declares:
 - `verdict_ir(input)` — evaluates the attached policies against the payload the
   host hands it and returns the fired verdicts.
 
-On every build the governance socket hands `verdict_ir` a JSON payload with the IR graph,
-the precalculated routing paths, the policy source files the attachment named,
-and the attachment's free-form settings object.
+On every build the governance socket hands `verdict_ir` a payload in canonical
+CBOR with the IR graph, the precalculated routing paths, the policy source files
+the attachment named, and the attachment's free-form settings object. The plugin
+reads it with `PolicyInput::decode_cbor`, writes its verdicts with
+`PolicyOutput::encode_cbor`, and hands Rego the decoded payload as a JSON
+document, so a policy reads the names the payload declares.
 
 ## Attaching a policy
 
