@@ -9,7 +9,8 @@
 // policy fixture, whose halt verdict proves the build-halt path.
 //
 // It self-describes via describe() as a policy plugin whose
-// verdict_ir export the host validates before dispatch.
+// verdict_ir export the host validates before dispatch. Its result travels as
+// canonical CBOR, written with PolicyOutput.EncodeCBOR.
 //
 // Build: GOOS=wasip1 GOARCH=wasm go build -buildmode=c-shared -o policy-allow-go.wasm ./
 package main
@@ -21,10 +22,10 @@ import (
 )
 
 // fixtureOutput is the constant no-verdict-fired output. The plugin does not
-// inspect the input graph; the output is a fixed literal — an empty results
-// array, the wire form of "no verdict fired" — so the end-to-end test asserts
-// the build-succeeds path deterministically.
-const fixtureOutput = `{"results":[]}`
+// inspect the input graph; the output is fixed — an empty results list, the form
+// of "no verdict fired" — so the end-to-end test asserts the build-succeeds path
+// deterministically.
+var fixtureOutput = aggrega.PolicyOutput{Results: []aggrega.Diagnostic{}}
 
 // descriptor is the static describe() self-report: a v1alpha1 policy plugin
 // evaluating the ir stage, whose verdict_ir export the host validates before
@@ -51,7 +52,12 @@ func describe() int32 {
 
 //go:wasmexport verdict_ir
 func verdict_ir() int32 {
-	pdk.OutputString(fixtureOutput)
+	out, err := fixtureOutput.EncodeCBOR()
+	if err != nil {
+		pdk.SetError(err)
+		return 1
+	}
+	pdk.Output(out)
 	return 0
 }
 

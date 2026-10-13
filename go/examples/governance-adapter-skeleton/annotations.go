@@ -36,10 +36,17 @@ const annotationDecision = "annotations"
 // A decision is read straight into the wire's own injection shape, so the field
 // names a policy writes are the field names the build reads.
 //
+// How it travels: as for every role, the payload is read and the result written
+// through the generated codec, and the decoded payload is handed to the seam as a
+// JSON document.
+//
 //go:wasmexport transform_annotations
 func transform_annotations() int32 {
-	raw := pdk.Input()
-	in, err := decode[abi.AnnotationTransformInput](raw, "annotation-transform")
+	var in abi.AnnotationTransformInput
+	if err := decode(&in, pdk.Input(), "annotation-transform"); err != nil {
+		return fail(err)
+	}
+	payload, err := document(in, "annotation-transform")
 	if err != nil {
 		return fail(err)
 	}
@@ -47,7 +54,7 @@ func transform_annotations() int32 {
 	decisions, err := Evaluate(
 		programs(in.Sources, func(s abi.AnnotationSource) (string, string) { return s.Path, s.Content }),
 		in.Settings,
-		raw,
+		payload,
 		annotationDecision,
 	)
 	if err != nil {

@@ -61,15 +61,17 @@ pub const COLLECTIONS: [(&str, &str); 3] = [
 ];
 
 /// What the two verdict payloads have in common once decoded: the programs the
-/// attachment supplied and its settings.
+/// attachment supplied, its settings, and the whole payload as the JSON document
+/// the seam evaluates against.
 struct Payload {
     sources: Vec<PolicySource>,
     settings: Option<Box<serde_json::value::RawValue>>,
+    document: String,
 }
 
 /// Reads the payload of one verdict role, asks the engine for its verdict
 /// decisions, and returns the verdicts the build reports.
-pub fn verdicts(raw: &str, role: &str) -> anyhow::Result<PolicyOutput> {
+pub fn verdicts(raw: &[u8], role: &str) -> anyhow::Result<PolicyOutput> {
     let payload = read_payload(raw, role)?;
     let programs: Vec<Program<'_>> = payload
         .sources
@@ -83,7 +85,7 @@ pub fn verdicts(raw: &str, role: &str) -> anyhow::Result<PolicyOutput> {
 
     let mut results = Vec::new();
     for (decision, severity) in COLLECTIONS {
-        let reached = evaluator::evaluate(&programs, settings, raw, decision)
+        let reached = evaluator::evaluate(&programs, settings, &payload.document, decision)
             .map_err(|err| anyhow::anyhow!("evaluating the {role} policy: {err}"))?;
         for value in &reached {
             let message: String = serde_json::from_str(value.get()).map_err(|err| {
@@ -113,20 +115,27 @@ pub fn verdicts(raw: &str, role: &str) -> anyhow::Result<PolicyOutput> {
 /// say, so this reads the shape it was told to and nothing else: a payload that
 /// does not read that way is refused rather than tried again as the other role's
 /// shape and quietly found to contain nothing.
-fn read_payload(raw: &str, role: &str) -> anyhow::Result<Payload> {
+///
+/// The payload is read through the generated codec on its type, and written back
+/// out as the JSON document the seam reads, under the names the payload declares.
+fn read_payload(raw: &[u8], role: &str) -> anyhow::Result<Payload> {
     if role == "render-verdict" {
-        let input: RenderPolicyInput = serde_json::from_str(raw)
+        let input = RenderPolicyInput::decode_cbor(raw)
             .map_err(|err| anyhow::anyhow!("reading the render-verdict payload: {err}"))?;
+        let document = serde_json::to_string(&input)?;
         return Ok(Payload {
             sources: input.sources,
             settings: input.settings,
+            document,
         });
     }
 
-    let input: PolicyInput = serde_json::from_str(raw)
+    let input = PolicyInput::decode_cbor(raw)
         .map_err(|err| anyhow::anyhow!("reading the ir-verdict payload: {err}"))?;
+    let document = serde_json::to_string(&input)?;
     Ok(Payload {
         sources: input.sources,
         settings: input.settings,
+        document,
     })
 }

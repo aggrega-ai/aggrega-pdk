@@ -4,10 +4,10 @@
 /**
  * Refusing a payload this guest cannot read.
  *
- * The generated decode functions are a typed VIEW over the parsed JSON rather
- * than a validator: TypeScript's types are erased before the guest runs, so a
- * decode cannot check anything at run time. A role therefore checks the member it
- * depends on itself.
+ * The generated decode functions build a typed VIEW of the decoded payload rather
+ * than validating it: TypeScript's types are erased before the guest runs, and a
+ * decode does not check that a member the shape requires arrived. A role
+ * therefore checks the member it depends on itself.
  *
  * The alternative is a role that reads `undefined` where it expected a list,
  * iterates nothing, and emits an empty result — which reports "the policy found

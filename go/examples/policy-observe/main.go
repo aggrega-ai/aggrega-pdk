@@ -11,6 +11,10 @@
 // settings exercises the deny / warn / audit host paths, and the echoed source
 // detail proves the sources reached the guest as base names.
 //
+// The role's payload and result travel as canonical CBOR: the input is read with
+// PolicyInput.DecodeCBOR and the output written with PolicyOutput.EncodeCBOR. The
+// attachment's settings arrive as the JSON document the attachment wrote.
+//
 // Build: GOOS=wasip1 GOARCH=wasm go build -buildmode=c-shared -o policy-observe-go.wasm ./
 package main
 
@@ -24,29 +28,9 @@ import (
 	"github.com/aggrega-ai/aggrega-pdk-go/pkg/aggrega"
 )
 
-// input is the narrow projection of the socket payload this fixture reads. The
-// full payload also carries the IR graph and precalculated paths; this fixture
-// ignores them (unknown/unused fields are dropped by the decoder) and reads only
-// the attachment-supplied sources and settings.
-type input struct {
-	Sources  []source `json:"sources"`
-	Settings struct {
-		Severity string `json:"severity"`
-	} `json:"settings"`
-}
-
-type source struct {
-	Path    string `json:"path"`
-	Content string `json:"content"`
-}
-
-type result struct {
+// settings is the part of the attachment's settings this fixture reads.
+type settings struct {
 	Severity string `json:"severity"`
-	Message  string `json:"message"`
-}
-
-type output struct {
-	Results []result `json:"results"`
 }
 
 // descriptor is the static describe() self-report: a v1alpha1 policy plugin
@@ -74,26 +58,34 @@ func describe() int32 {
 
 //go:wasmexport verdict_ir
 func verdict_ir() int32 {
-	var in input
-	_ = json.Unmarshal(pdk.Input(), &in)
-
-	severity := in.Settings.Severity
-	if severity == "" {
-		severity = "info"
+	// The fixture reports what it was handed rather than refusing a payload it
+	// reads only in part, so a read that stops early leaves the fields unread and
+	// the verdict reports them as absent.
+	var in aggrega.PolicyInput
+	_ = in.DecodeCBOR(pdk.Input())
+	var cfg settings
+	if len(in.Settings) != 0 {
+		_ = json.Unmarshal(in.Settings, &cfg)
 	}
 
-	sort.Slice(in.Sources, func(i, j int) bool { return in.Sources[i].Path < in.Sources[j].Path })
+	severity := cfg.Severity
+	if severity == "" {
+		severity = aggrega.SeverityInfo
+	}
 
-	msg := fmt.Sprintf("observed %d source(s)", len(in.Sources))
-	if len(in.Sources) > 0 {
-		msg += fmt.Sprintf("; first source path=%q content-length=%d", in.Sources[0].Path, len(in.Sources[0].Content))
+	sources := in.Sources
+	sort.Slice(sources, func(i, j int) bool { return sources[i].Path < sources[j].Path })
+
+	msg := fmt.Sprintf("observed %d source(s)", len(sources))
+	if len(sources) > 0 {
+		msg += fmt.Sprintf("; first source path=%q content-length=%d", sources[0].Path, len(sources[0].Content))
 	}
 	msg += fmt.Sprintf("; settings.severity=%q", severity)
 
-	out, err := json.Marshal(output{Results: []result{{Severity: severity, Message: msg}}})
+	out, err := aggrega.PolicyOutput{Results: []aggrega.Diagnostic{{Severity: severity, Message: msg}}}.EncodeCBOR()
 	if err != nil {
-		pdk.OutputString(`{"results":[{"severity":"halt","message":"fixture failed to encode output"}]}`)
-		return 0
+		pdk.SetError(fmt.Errorf("policy-observe: encode PolicyOutput: %w", err))
+		return 1
 	}
 	pdk.Output(out)
 	return 0

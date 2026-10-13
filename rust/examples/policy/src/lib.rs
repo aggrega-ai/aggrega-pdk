@@ -7,6 +7,9 @@
 //! halt verdict and one info verdict. The fixture does not inspect the
 //! input graph; the outputs are constants so end-to-end tests can
 //! assert exact equality of the emitted shape.
+//!
+//! The role's payload and result travel as canonical CBOR, so the export takes
+//! and returns bytes and writes its result with `PolicyOutput::encode_cbor`.
 
 use aggrega_pdk_rust::{
     encode_descriptor, Diagnostic, PluginDescriptor, PluginDescriptorMeta, PluginExport,
@@ -44,7 +47,7 @@ pub fn describe() -> FnResult<String> {
 }
 
 #[plugin_fn]
-pub fn verdict_ir(_input: String) -> FnResult<String> {
+pub fn verdict_ir(_input: Vec<u8>) -> FnResult<Vec<u8>> {
     let out = PolicyOutput {
         results: vec![
             Diagnostic {
@@ -60,5 +63,5 @@ pub fn verdict_ir(_input: String) -> FnResult<String> {
         ],
         ..Default::default()
     };
-    Ok(serde_json::to_string(&out)?)
+    Ok(out.encode_cbor()?)
 }

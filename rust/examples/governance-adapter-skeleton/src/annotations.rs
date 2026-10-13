@@ -36,9 +36,13 @@ pub const DECISION: &str = "annotations";
 
 /// Reads the payload, asks the engine for its annotation decisions, and returns
 /// the annotations the build adds.
-pub fn injections(raw: &str) -> anyhow::Result<AnnotationTransformOutput> {
-    let input: AnnotationTransformInput = serde_json::from_str(raw)
+///
+/// The payload is read through the generated codec on its type, and written back
+/// out as the JSON document the seam reads, under the names the payload declares.
+pub fn injections(raw: &[u8]) -> anyhow::Result<AnnotationTransformOutput> {
+    let input = AnnotationTransformInput::decode_cbor(raw)
         .map_err(|err| anyhow::anyhow!("reading the annotation-transform payload: {err}"))?;
+    let payload = serde_json::to_string(&input)?;
 
     let programs: Vec<Program<'_>> = input
         .sources
@@ -52,7 +56,7 @@ pub fn injections(raw: &str) -> anyhow::Result<AnnotationTransformOutput> {
     let decisions = evaluator::evaluate(
         &programs,
         input.settings.as_ref().map(|s| s.get()),
-        raw,
+        &payload,
         DECISION,
     )
     .map_err(|err| anyhow::anyhow!("evaluating the annotation-transform policy: {err}"))?;

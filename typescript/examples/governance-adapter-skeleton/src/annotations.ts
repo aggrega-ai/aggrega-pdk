@@ -21,8 +21,9 @@
  */
 
 import {
-  decodeAnnotationTransformInput,
-  encodeAnnotationTransformOutput,
+  decodeCBORAnnotationTransformInput,
+  encodeAnnotationTransformInput,
+  encodeCBORAnnotationTransformOutput,
   type AnnotationInjection,
   type AnnotationTransformOutput,
 } from "@aggrega-ai/aggrega-pdk-typescript";
@@ -43,8 +44,8 @@ export const DECISION = "annotations";
 const ROLE = "annotation-transform";
 
 /** Reads the payload and returns the annotations the build adds, encoded. */
-export function injections(raw: string): string {
-  const input = decodeAnnotationTransformInput(raw);
+export function injections(raw: Uint8Array): Uint8Array {
+  const input = decodeCBORAnnotationTransformInput(raw);
   expectList(input.targets, "targets", ROLE);
 
   const programs: Program[] = (input.sources ?? []).map((s) => ({
@@ -52,7 +53,10 @@ export function injections(raw: string): string {
     text: s.content,
   }));
 
-  const decisions = evaluate(programs, input.settings, raw, DECISION);
+  // Each target's annotations arrive as a Map, which JSON.stringify writes as an
+  // empty object, so the payload is written out through the generated encoder: it
+  // writes each Map as an object in the order the Map holds.
+  const decisions = evaluate(programs, input.settings, encodeAnnotationTransformInput(input), DECISION);
 
   const emitted: AnnotationInjection[] = decisions.map((decision) => {
     const injection = decision as Partial<AnnotationInjection>;
@@ -78,5 +82,5 @@ export function injections(raw: string): string {
   });
 
   const out: AnnotationTransformOutput = { injections: emitted };
-  return encodeAnnotationTransformOutput(out);
+  return encodeCBORAnnotationTransformOutput(out);
 }

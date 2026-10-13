@@ -59,21 +59,20 @@ type instruction struct {
 // is not a string. That confinement is the whole of what an operator invited by
 // attaching a plugin here.
 //
-// How it travels: this role's wire carries the binary encoding in both
-// directions, so the payload is read and the result written through the
+// How it travels: the payload is read and the result written through the
 // generated codec on the payload type. The seam reads a JSON document, so the
 // decoded payload is written back out as one before it is handed over — the names
-// a policy addresses are the payload's own names either way.
+// a policy addresses are the payload's own names.
 //
 //go:wasmexport mutate
 func mutate() int32 {
 	var in abi.MutatorInput
-	if err := decodeCBOR(&in, pdk.Input(), "label-transform"); err != nil {
+	if err := decode(&in, pdk.Input(), "label-transform"); err != nil {
 		return fail(err)
 	}
-	payload, err := json.Marshal(in)
+	payload, err := document(in, "label-transform")
 	if err != nil {
-		return fail(fmt.Errorf("reading the label-transform payload: %w", err))
+		return fail(err)
 	}
 
 	decisions, err := Evaluate(
@@ -103,7 +102,7 @@ func mutate() int32 {
 		patches = append(patches, patch)
 	}
 
-	return emitCBOR(abi.MutatorOutput{Patches: patches}, "label-transform")
+	return emit(abi.MutatorOutput{Patches: patches}, "label-transform")
 }
 
 // labelPatch turns one decision into the single-operation edit document the

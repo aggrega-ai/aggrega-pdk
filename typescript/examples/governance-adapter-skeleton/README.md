@@ -189,21 +189,22 @@ rather than silently doing nothing.
 
 ## Wire types come from the generated codec
 
-Every payload here is a generated type with a generated JSON codec, generated from
-the same schemas the host reads, so the guest and the host name one shape and
-neither can drift from the other. Read a payload with `decode…` and write a result
-with `encode…`; do not hand-write an interface for a payload, because a
+Every payload here is a generated type with a generated codec, generated from the
+same schemas the host reads, so the guest and the host name one shape and neither
+can drift from the other. Do not hand-write an interface for a payload, because a
 hand-written one is a second copy of the shape and the copy is what goes out of
 step.
 
-The codec ships two pairs, one per wire encoding, and **which pair a role uses is
-fixed by that role's wire rather than by preference**. The `label-transform` role's
-wire carries canonical CBOR, so `src/labels.ts` reads with
-`decodeCBORMutatorInput` and writes with `encodeCBORMutatorOutput`, and its export
-reads and writes bytes (`Host.inputBytes()` / `Host.outputBytes(...)`). The other
-three roles carry JSON and use the `decode…` / `encode…` pair with the string
-forms. A guest serving several roles is therefore mixed on purpose: each export
-reads its own payload, so the roles move independently.
+The codec ships two pairs, one per encoding, and **which pair is used where is
+fixed by the wire rather than by preference**. Every governance role's wire
+carries canonical CBOR, so each role reads its payload with `decodeCBOR…` (for
+example `decodeCBORPolicyInput`) and writes its result with `encodeCBOR…` (for
+example `encodeCBORPolicyOutput`), and every export reads and writes bytes
+(`Host.inputBytes()` / `Host.outputBytes(...)`). The JSON writer `encode…` (for
+example `encodePolicyInput`) is what turns the decoded payload into the document
+the seam reads: the payload's order-keeping members arrive as `Map`s, which
+`JSON.stringify` writes as empty objects, and the generated writer writes each as
+an object in the order it holds.
 
 ## Build
 
@@ -239,9 +240,10 @@ aggrega plugin run-local --plugin dist/governance-adapter-skeleton-typescript.wa
   --type governance --export verdict_render --with @render-verdict-payload.json
 ```
 
-The response reaches you exactly as the guest emitted it, so the per-role wires
-above are what you see here, and these calls legitimately differ: the `mutate`
-call prints bytes, and the rest print readable text.
+The response reaches you exactly as the guest emitted it. Every governance role's
+wire carries canonical CBOR, so each of these calls prints the role's reply as
+bytes; the payload you author stays JSON, and the command converts it into the
+encoding the export reads.
 
 An unmodified skeleton reaches no engine, so each role emits its own neutral
 result — no annotations, no label changes, and one `info` note per verdict role

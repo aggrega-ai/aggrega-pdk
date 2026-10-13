@@ -21,6 +21,11 @@
 // export the host validates before dispatch. That export names the role it
 // serves, so this guest runs at the ir-verdict role over the build graph.
 //
+// The role's payload and result travel as canonical CBOR: the input is read with
+// PolicyInput.DecodeCBOR and the output written with PolicyOutput.EncodeCBOR. The
+// attachment's settings arrive as the JSON document the attachment wrote, so the
+// rule's two settings are read out of it with encoding/json.
+//
 // Build: GOOS=wasip1 GOARCH=wasm go build -buildmode=c-shared -o policy-graph-rule-go.wasm ./
 package main
 
@@ -34,32 +39,10 @@ import (
 	"github.com/aggrega-ai/aggrega-pdk-go/pkg/aggrega"
 )
 
-// input is the narrow projection of the IR-stage verdict payload this guest
-// reads: the graph's nodes (each with its labels) and the attachment settings.
-// The full payload also carries edges, attachments, and precalculated paths; the
-// decoder drops the fields this rule does not read.
-type input struct {
-	Graph struct {
-		Spec struct {
-			Nodes map[string]struct {
-				Labels    map[string]string `json:"labels"`
-				Component string            `json:"component"`
-			} `json:"nodes"`
-		} `json:"spec"`
-	} `json:"graph"`
-	Settings struct {
-		RequiredLabel string `json:"required_label"`
-		Severity      string `json:"severity"`
-	} `json:"settings"`
-}
-
-type result struct {
-	Severity string `json:"severity"`
-	Message  string `json:"message"`
-}
-
-type output struct {
-	Results []result `json:"results"`
+// settings is the part of the attachment's settings this rule reads.
+type settings struct {
+	RequiredLabel string `json:"required_label"`
+	Severity      string `json:"severity"`
 }
 
 // descriptor is the static describe() self-report: a v1alpha1 governance plugin
@@ -87,54 +70,62 @@ func describe() int32 {
 
 //go:wasmexport verdict_ir
 func verdict_ir() int32 {
-	var in input
-	if err := json.Unmarshal(pdk.Input(), &in); err != nil {
-		pdk.SetError(fmt.Errorf("policy-graph-rule: unmarshal PolicyInput: %w", err))
+	var in aggrega.PolicyInput
+	if err := in.DecodeCBOR(pdk.Input()); err != nil {
+		pdk.SetError(fmt.Errorf("policy-graph-rule: decode PolicyInput: %w", err))
 		return 1
 	}
+	var cfg settings
+	if len(in.Settings) != 0 {
+		if err := json.Unmarshal(in.Settings, &cfg); err != nil {
+			pdk.SetError(fmt.Errorf("policy-graph-rule: read settings: %w", err))
+			return 1
+		}
+	}
 
-	required := in.Settings.RequiredLabel
-	severity := in.Settings.Severity
+	required := cfg.RequiredLabel
+	severity := cfg.Severity
 	if severity == "" {
-		severity = "halt"
+		severity = aggrega.SeverityHalt
 	}
 
 	// A rule with no required label to check is vacuously satisfied: emit no
 	// verdict so the build proceeds.
 	if required == "" {
-		pdk.OutputString(`{"results":[]}`)
-		return 0
+		return emit(nil)
 	}
 
 	// Walk nodes in sorted order so the first-offender the message names is
 	// deterministic across runs of identical input.
-	nodeIDs := make([]string, 0, len(in.Graph.Spec.Nodes))
-	for id := range in.Graph.Spec.Nodes {
-		nodeIDs = append(nodeIDs, id)
-	}
+	nodeIDs := in.Graph.Spec.Nodes.Keys()
 	sort.Strings(nodeIDs)
 
 	for _, id := range nodeIDs {
-		if _, ok := in.Graph.Spec.Nodes[id].Labels[required]; !ok {
+		node, _ := in.Graph.Spec.Nodes.Get(id)
+		if _, ok := node.Labels.Get(required); !ok {
 			msg := fmt.Sprintf("governance rule: node %q (component %q) lacks required label %q",
-				id, in.Graph.Spec.Nodes[id].Component, required)
-			emit(output{Results: []result{{Severity: severity, Message: msg}}})
-			return 0
+				id, node.Component, required)
+			return emit([]aggrega.Diagnostic{{Severity: severity, Message: msg}})
 		}
 	}
 
 	// Every node carries the required label: no verdict, build proceeds.
-	pdk.OutputString(`{"results":[]}`)
-	return 0
+	return emit(nil)
 }
 
-func emit(o output) {
-	b, err := json.Marshal(o)
+// emit encodes the verdicts reached as the PolicyOutput the host reads; an empty
+// list is the form of "no verdict fired".
+func emit(results []aggrega.Diagnostic) int32 {
+	if results == nil {
+		results = []aggrega.Diagnostic{}
+	}
+	b, err := aggrega.PolicyOutput{Results: results}.EncodeCBOR()
 	if err != nil {
-		pdk.OutputString(`{"results":[{"severity":"halt","message":"fixture failed to encode output"}]}`)
-		return
+		pdk.SetError(fmt.Errorf("policy-graph-rule: encode PolicyOutput: %w", err))
+		return 1
 	}
 	pdk.Output(b)
+	return 0
 }
 
 func main() {}

@@ -6,13 +6,16 @@
  *
  * Emits a deterministic two-verdict PolicyOutput: one halt
  * verdict and one info verdict. The fixture does not inspect input
- * (Host.inputString() is read for parity with the runtime's expected
+ * (Host.inputBytes() is read for parity with the runtime's expected
  * call shape but the value is unused); the outputs are constants so
  * end-to-end tests can assert exact shape across all three languages.
+ * The role's result travels as canonical CBOR, written with
+ * encodeCBORPolicyOutput.
  */
 
 import {
   API_VERSION,
+  encodeCBORPolicyOutput,
   encodeDescriptor,
   type Diagnostic,
   type PluginDescriptor,
@@ -43,7 +46,7 @@ function verdict_ir(): void {
   // Read input for runtime parity with the other fixtures' shape;
   // the policy fixture's contract is constant output, so
   // the input value is discarded.
-  Host.inputString();
+  Host.inputBytes();
 
   // Each verdict is one shared diagnostic. severity and message are the
   // required pair; code, rule_id, source_ref, location and suggest are
@@ -54,7 +57,7 @@ function verdict_ir(): void {
     { severity: "info", message: "fixture rule A: advisory note" },
   ];
   const out: PolicyOutput = { results };
-  Host.outputString(JSON.stringify(out));
+  Host.outputBytes(encodeCBORPolicyOutput(out).buffer as ArrayBuffer);
 }
 
 module.exports = { verdict_ir, describe };

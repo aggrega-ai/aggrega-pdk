@@ -16,14 +16,20 @@
 // It self-describes via describe() as a governance plugin whose
 // transform_annotations export the host validates before dispatch.
 //
+// The role's payload and result travel as canonical CBOR: the input is read with
+// AnnotationTransformInput.DecodeCBOR and the output written with
+// AnnotationTransformOutput.EncodeCBOR, the generated codec on the shared payload
+// types.
+//
 // Build: GOOS=wasip1 GOARCH=wasm go build -buildmode=c-shared -o annotation-injector-go.wasm ./
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 
 	pdk "github.com/extism/go-pdk"
+
+	abi "github.com/aggrega-ai/aggrega-abi-go/pkg/abi"
 
 	"github.com/aggrega-ai/aggrega-pdk-go/pkg/aggrega"
 )
@@ -54,26 +60,6 @@ func descriptor() aggrega.PluginDescriptor {
 	}
 }
 
-// annotationTransformInput is the minimal shape the plugin reads from the
-// AnnotationTransformInput payload: the target coordinates it may inject onto and
-// the registered binding keys. The full payload carries more (per-target current
-// annotations, sources, settings); this proof plugin ignores those.
-type annotationTransformInput struct {
-	Targets []struct {
-		BoundaryPath  string `json:"boundary_path"`
-		ComponentName string `json:"component_name"`
-	} `json:"targets"`
-	BindingKeys []string `json:"binding_keys"`
-}
-
-// annotationInjection mirrors the host's AnnotationInjection wire shape.
-type annotationInjection struct {
-	BoundaryPath    string `json:"boundary_path"`
-	ComponentName   string `json:"component_name"`
-	AnnotationKey   string `json:"annotation_key"`
-	AnnotationValue string `json:"annotation_value"`
-}
-
 //go:wasmexport describe
 func describe() int32 {
 	out, err := aggrega.MarshalDescriptor(descriptor())
@@ -87,27 +73,26 @@ func describe() int32 {
 
 //go:wasmexport transform_annotations
 func transform_annotations() int32 {
-	var in annotationTransformInput
-	if err := json.Unmarshal(pdk.Input(), &in); err != nil {
-		pdk.SetError(fmt.Errorf("annotation-injector: unmarshal AnnotationTransformInput: %w", err))
+	var in abi.AnnotationTransformInput
+	if err := in.DecodeCBOR(pdk.Input()); err != nil {
+		pdk.SetError(fmt.Errorf("annotation-injector: decode AnnotationTransformInput: %w", err))
 		return 1
 	}
 
 	// Nothing to inject onto: emit an empty injection list. The host applies
 	// nothing and the build is byte-identical to one without the plugin.
 	if len(in.Targets) == 0 {
-		emit(nil)
-		return 0
+		return emit(nil)
 	}
 
 	target := in.Targets[0]
-	var injections []annotationInjection
+	var injections []abi.AnnotationInjection
 
 	// Bound: inject the first registered binding key so it expands into a
 	// Feature attachment. The host has ordered the targets and keys
 	// deterministically, so the same input yields the same injection.
 	if len(in.BindingKeys) > 0 {
-		injections = append(injections, annotationInjection{
+		injections = append(injections, abi.AnnotationInjection{
 			BoundaryPath:    target.BoundaryPath,
 			ComponentName:   target.ComponentName,
 			AnnotationKey:   in.BindingKeys[0],
@@ -117,29 +102,26 @@ func transform_annotations() int32 {
 
 	// Unbound: inject a key with no binding. It rides through as a plain
 	// annotation and produces no Feature attachment.
-	injections = append(injections, annotationInjection{
+	injections = append(injections, abi.AnnotationInjection{
 		BoundaryPath:    target.BoundaryPath,
 		ComponentName:   target.ComponentName,
 		AnnotationKey:   unboundKey,
 		AnnotationValue: unboundValue,
 	})
 
-	emit(injections)
-	return 0
+	return emit(injections)
 }
 
-// emit marshals the injection list into the AnnotationTransformOutput wire shape
-// and hands it back to the host.
-func emit(injections []annotationInjection) {
-	out := struct {
-		Injections []annotationInjection `json:"injections"`
-	}{Injections: injections}
-	outputBytes, err := json.Marshal(out)
+// emit encodes the injection list as the AnnotationTransformOutput the host
+// reads and hands it back.
+func emit(injections []abi.AnnotationInjection) int32 {
+	out, err := abi.AnnotationTransformOutput{Injections: injections}.EncodeCBOR()
 	if err != nil {
-		pdk.SetError(fmt.Errorf("annotation-injector: marshal AnnotationTransformOutput: %w", err))
-		return
+		pdk.SetError(fmt.Errorf("annotation-injector: encode AnnotationTransformOutput: %w", err))
+		return 1
 	}
-	pdk.Output(outputBytes)
+	pdk.Output(out)
+	return 0
 }
 
 func main() {}

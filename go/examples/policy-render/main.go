@@ -10,6 +10,10 @@
 // object (settings.severity), defaulting to info when unset. Driving it with
 // different settings exercises the render-stage deny / warn / audit host paths.
 //
+// The role's payload and result travel as canonical CBOR: the input is read with
+// RenderPolicyInput.DecodeCBOR and the output written with PolicyOutput.EncodeCBOR.
+// The attachment's settings arrive as the JSON document the attachment wrote.
+//
 // Build: GOOS=wasip1 GOARCH=wasm go build -buildmode=c-shared -o policy-render-go.wasm ./
 package main
 
@@ -19,28 +23,14 @@ import (
 
 	pdk "github.com/extism/go-pdk"
 
+	abi "github.com/aggrega-ai/aggrega-abi-go/pkg/abi"
+
 	"github.com/aggrega-ai/aggrega-pdk-go/pkg/aggrega"
 )
 
-type artifact struct {
-	Path    string `json:"path"`
-	Content string `json:"content"`
-}
-
-type input struct {
-	Artifacts []artifact `json:"artifacts"`
-	Settings  struct {
-		Severity string `json:"severity"`
-	} `json:"settings"`
-}
-
-type result struct {
+// settings is the part of the attachment's settings this fixture reads.
+type settings struct {
 	Severity string `json:"severity"`
-	Message  string `json:"message"`
-}
-
-type output struct {
-	Results []result `json:"results"`
 }
 
 // descriptor is the static describe() self-report: a v1alpha1 policy plugin
@@ -68,12 +58,19 @@ func describe() int32 {
 
 //go:wasmexport verdict_render
 func verdict_render() int32 {
-	var in input
-	_ = json.Unmarshal(pdk.Input(), &in)
+	// The fixture reports what it was handed rather than refusing a payload it
+	// reads only in part, so a read that stops early leaves the fields unread and
+	// the verdict reports them as absent.
+	var in abi.RenderPolicyInput
+	_ = in.DecodeCBOR(pdk.Input())
+	var cfg settings
+	if len(in.Settings) != 0 {
+		_ = json.Unmarshal(in.Settings, &cfg)
+	}
 
-	severity := in.Settings.Severity
+	severity := cfg.Severity
 	if severity == "" {
-		severity = "info"
+		severity = aggrega.SeverityInfo
 	}
 
 	msg := fmt.Sprintf("render stage saw %d artifact(s)", len(in.Artifacts))
@@ -82,10 +79,10 @@ func verdict_render() int32 {
 	}
 	msg += fmt.Sprintf("; settings.severity=%q", severity)
 
-	out, err := json.Marshal(output{Results: []result{{Severity: severity, Message: msg}}})
+	out, err := aggrega.PolicyOutput{Results: []aggrega.Diagnostic{{Severity: severity, Message: msg}}}.EncodeCBOR()
 	if err != nil {
-		pdk.OutputString(`{"results":[{"severity":"halt","message":"fixture failed to encode output"}]}`)
-		return 0
+		pdk.SetError(fmt.Errorf("policy-render: encode PolicyOutput: %w", err))
+		return 1
 	}
 	pdk.Output(out)
 	return 0

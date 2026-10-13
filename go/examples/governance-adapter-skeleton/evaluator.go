@@ -37,10 +37,10 @@ type Program struct {
 //     engine evaluates against. Handing over the whole payload rather than a
 //     projection of it means a policy reads the graph, the artifacts, the nodes
 //     or the targets under the names the wire already gives them, so the input
-//     is learnable from one place. A role whose wire carries the binary encoding
-//     writes the decoded payload back out as JSON before handing it over, so the
-//     seam sees one document format at every role and a policy addresses the same
-//     names whichever encoding delivered them.
+//     is learnable from one place. Every role's wire carries the binary encoding,
+//     and each role writes the decoded payload back out as JSON before handing it
+//     over, so the seam sees one document format and a policy addresses the names
+//     the payload declares.
 //   - decision names which decision the caller wants back. Each role asks for
 //     its own; the names are the constants declared in the role files.
 //

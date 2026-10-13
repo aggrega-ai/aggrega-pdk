@@ -14,6 +14,11 @@
 // Driving it with a present versus an absent required type proves the guest reads
 // the parsed HCL structure, not the raw source text.
 //
+// The role's payload and result travel as canonical CBOR: the input is read with
+// RenderPolicyInput.DecodeCBOR and the output written with PolicyOutput.EncodeCBOR.
+// An artifact's tree and the attachment's settings arrive as JSON documents, read
+// with encoding/json.
+//
 // Build: GOOS=wasip1 GOARCH=wasm go build -buildmode=c-shared -o policy-render-hcl-go.wasm ./
 package main
 
@@ -24,29 +29,14 @@ import (
 
 	pdk "github.com/extism/go-pdk"
 
+	abi "github.com/aggrega-ai/aggrega-abi-go/pkg/abi"
+
 	"github.com/aggrega-ai/aggrega-pdk-go/pkg/aggrega"
 )
 
-type artifact struct {
-	Path    string          `json:"path"`
-	Content string          `json:"content"`
-	Tree    json.RawMessage `json:"tree"`
-}
-
-type input struct {
-	Artifacts []artifact `json:"artifacts"`
-	Settings  struct {
-		RequireResourceType string `json:"require_resource_type"`
-	} `json:"settings"`
-}
-
-type result struct {
-	Severity string `json:"severity"`
-	Message  string `json:"message"`
-}
-
-type output struct {
-	Results []result `json:"results"`
+// settings is the part of the attachment's settings this fixture reads.
+type settings struct {
+	RequireResourceType string `json:"require_resource_type"`
 }
 
 // descriptor is the static describe() self-report: a v1alpha1 policy plugin
@@ -99,8 +89,14 @@ func resourceTypes(tree json.RawMessage) []string {
 
 //go:wasmexport verdict_render
 func verdict_render() int32 {
-	var in input
-	_ = json.Unmarshal(pdk.Input(), &in)
+	// The fixture reports what it was handed rather than refusing a payload it
+	// reads only in part: an unread artifact list reports that no tree was seen.
+	var in abi.RenderPolicyInput
+	_ = in.DecodeCBOR(pdk.Input())
+	var cfg settings
+	if len(in.Settings) != 0 {
+		_ = json.Unmarshal(in.Settings, &cfg)
+	}
 
 	treeSeen := false
 	var types []string
@@ -113,7 +109,7 @@ func verdict_render() int32 {
 	}
 	sort.Strings(types)
 
-	require := in.Settings.RequireResourceType
+	require := cfg.RequireResourceType
 	present := false
 	for _, t := range types {
 		if t == require {
@@ -121,20 +117,20 @@ func verdict_render() int32 {
 		}
 	}
 
-	var out output
+	var out aggrega.PolicyOutput
 	switch {
 	case !treeSeen:
-		out.Results = []result{{Severity: "halt", Message: "render policy saw no parsed HCL tree on any artifact"}}
+		out.Results = []aggrega.Diagnostic{{Severity: aggrega.SeverityHalt, Message: "render policy saw no parsed HCL tree on any artifact"}}
 	case require != "" && !present:
-		out.Results = []result{{Severity: "halt", Message: fmt.Sprintf("required resource type %q absent from parsed HCL tree; tree declares resource types %v", require, types)}}
+		out.Results = []aggrega.Diagnostic{{Severity: aggrega.SeverityHalt, Message: fmt.Sprintf("required resource type %q absent from parsed HCL tree; tree declares resource types %v", require, types)}}
 	default:
-		out.Results = []result{{Severity: "info", Message: fmt.Sprintf("parsed HCL tree declares resource types %v; required resource type %q present", types, require)}}
+		out.Results = []aggrega.Diagnostic{{Severity: aggrega.SeverityInfo, Message: fmt.Sprintf("parsed HCL tree declares resource types %v; required resource type %q present", types, require)}}
 	}
 
-	b, err := json.Marshal(out)
+	b, err := out.EncodeCBOR()
 	if err != nil {
-		pdk.OutputString(`{"results":[{"severity":"halt","message":"fixture failed to encode output"}]}`)
-		return 0
+		pdk.SetError(fmt.Errorf("policy-render-hcl: encode PolicyOutput: %w", err))
+		return 1
 	}
 	pdk.Output(b)
 	return 0

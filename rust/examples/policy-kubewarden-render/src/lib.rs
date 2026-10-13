@@ -89,12 +89,13 @@ pub fn describe() -> FnResult<String> {
     Ok(encode_descriptor(&descriptor()))
 }
 
-/// The host calls `verdict_render(input)` with the render-stage payload as a JSON
-/// string and reads back the fired verdicts. A malformed payload propagates as
-/// an error, which the host surfaces as a build fault.
+/// The host calls `verdict_render(input)` with the render-stage payload as
+/// canonical CBOR and reads back the fired verdicts in the same encoding. A
+/// malformed payload propagates as an error, which the host surfaces as a build
+/// fault.
 #[plugin_fn]
-pub fn verdict_render(input: String) -> FnResult<String> {
-    let payload: RenderPolicyInput = serde_json::from_str(&input)?;
+pub fn verdict_render(input: Vec<u8>) -> FnResult<Vec<u8>> {
+    let payload = RenderPolicyInput::decode_cbor(&input)?;
     let settings: AdapterSettings = match &payload.settings {
         Some(raw) => serde_json::from_str(raw.get())?,
         None => AdapterSettings::default(),
@@ -129,10 +130,11 @@ pub fn verdict_render(input: String) -> FnResult<String> {
             }
         }
     }
-    Ok(serde_json::to_string(&PolicyOutput {
+    Ok(PolicyOutput {
         results,
         ..Default::default()
-    })?)
+    }
+    .encode_cbor()?)
 }
 
 /// AdapterSettings is the attachment's free-form settings object as this

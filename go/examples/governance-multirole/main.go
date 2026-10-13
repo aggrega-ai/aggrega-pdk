@@ -18,12 +18,15 @@
 //
 // Each verdict role has its own export, and both read only settings.severity,
 // which the IR and render payloads both carry — so the two exports share one
-// implementation, and the export the host dispatches is what says which stage
-// the guest is running at.
+// implementation once each has read its own payload, and the export the host
+// dispatches is what says which stage the guest is running at.
 //
 // It self-describes via describe() as a governance plugin declaring all four
 // governance exports; the host validates the export a role requires before it
 // dispatches that role.
+//
+// Every role's payload and result travel as canonical CBOR, decoded and encoded
+// by the generated codec on each role's shared payload types.
 //
 // Build: GOOS=wasip1 GOARCH=wasm go build -buildmode=c-shared -o governance-multirole-go.wasm ./
 package main
@@ -35,6 +38,8 @@ import (
 	"strings"
 
 	pdk "github.com/extism/go-pdk"
+
+	abi "github.com/aggrega-ai/aggrega-abi-go/pkg/abi"
 
 	"github.com/aggrega-ai/aggrega-pdk-go/pkg/aggrega"
 )
@@ -90,62 +95,43 @@ func describe() int32 {
 
 // --- annotation-transform role ---
 
-type annotationTransformInput struct {
-	Targets []struct {
-		BoundaryPath  string `json:"boundary_path"`
-		ComponentName string `json:"component_name"`
-	} `json:"targets"`
-	BindingKeys []string `json:"binding_keys"`
-}
-
-type annotationInjection struct {
-	BoundaryPath    string `json:"boundary_path"`
-	ComponentName   string `json:"component_name"`
-	AnnotationKey   string `json:"annotation_key"`
-	AnnotationValue string `json:"annotation_value"`
-}
-
 //go:wasmexport transform_annotations
 func transform_annotations() int32 {
-	var in annotationTransformInput
-	if err := json.Unmarshal(pdk.Input(), &in); err != nil {
-		pdk.SetError(fmt.Errorf("governance-multirole: unmarshal AnnotationTransformInput: %w", err))
+	var in abi.AnnotationTransformInput
+	if err := in.DecodeCBOR(pdk.Input()); err != nil {
+		pdk.SetError(fmt.Errorf("governance-multirole: decode AnnotationTransformInput: %w", err))
 		return 1
 	}
 	if len(in.Targets) == 0 {
-		emitInjections(nil)
-		return 0
+		return emitInjections(nil)
 	}
 	target := in.Targets[0]
-	var injections []annotationInjection
+	var injections []abi.AnnotationInjection
 	if len(in.BindingKeys) > 0 {
-		injections = append(injections, annotationInjection{
+		injections = append(injections, abi.AnnotationInjection{
 			BoundaryPath:    target.BoundaryPath,
 			ComponentName:   target.ComponentName,
 			AnnotationKey:   in.BindingKeys[0],
 			AnnotationValue: injectedValue,
 		})
 	}
-	injections = append(injections, annotationInjection{
+	injections = append(injections, abi.AnnotationInjection{
 		BoundaryPath:    target.BoundaryPath,
 		ComponentName:   target.ComponentName,
 		AnnotationKey:   unboundKey,
 		AnnotationValue: unboundValue,
 	})
-	emitInjections(injections)
-	return 0
+	return emitInjections(injections)
 }
 
-func emitInjections(injections []annotationInjection) {
-	out := struct {
-		Injections []annotationInjection `json:"injections"`
-	}{Injections: injections}
-	b, err := json.Marshal(out)
+func emitInjections(injections []abi.AnnotationInjection) int32 {
+	b, err := abi.AnnotationTransformOutput{Injections: injections}.EncodeCBOR()
 	if err != nil {
-		pdk.SetError(fmt.Errorf("governance-multirole: marshal AnnotationTransformOutput: %w", err))
-		return
+		pdk.SetError(fmt.Errorf("governance-multirole: encode AnnotationTransformOutput: %w", err))
+		return 1
 	}
 	pdk.Output(b)
+	return 0
 }
 
 // --- label-transform role ---
@@ -160,11 +146,6 @@ func escapePointerToken(tok string) string {
 }
 
 // mutate serves the label-transform role.
-//
-// This role's payload and result travel as canonical CBOR, decoded and encoded by
-// the generated codec on the shared payload type. The other two roles this guest
-// serves still carry the textual encoding: each export reads its own payload, so
-// they move independently, and the mixed state here is deliberate.
 //
 //go:wasmexport mutate
 func mutate() int32 {
@@ -195,55 +176,54 @@ func mutate() int32 {
 
 // --- ir-verdict / render-verdict roles ---
 
-// verdictInput is the narrow projection both verdict payloads share: the
-// attachment settings. The IR payload also carries the graph and precalculated
-// paths, and the render payload the rendered artifacts; this proof reads neither,
-// only the settings-driven severity, so the two verdict exports share one
-// implementation and the role fixes which stage it runs at.
-type verdictInput struct {
-	Settings struct {
-		Severity string `json:"severity"`
-	} `json:"settings"`
-}
-
-type verdictResult struct {
+// verdictSettings is the part of the attachment's settings both verdict roles
+// read. The IR payload also carries the graph and precalculated paths, and the
+// render payload the rendered artifacts; this proof reads neither, only the
+// settings-driven severity, so once each export has read its own payload the two
+// share one implementation and the role fixes which stage it runs at.
+type verdictSettings struct {
 	Severity string `json:"severity"`
-	Message  string `json:"message"`
 }
 
 // verdict_ir serves the ir-verdict role.
 //
 //go:wasmexport verdict_ir
 func verdict_ir() int32 {
-	return verdict()
+	var in aggrega.PolicyInput
+	_ = in.DecodeCBOR(pdk.Input())
+	return verdict(in.Settings)
 }
 
 // verdict_render serves the render-verdict role.
 //
 //go:wasmexport verdict_render
 func verdict_render() int32 {
-	return verdict()
+	var in abi.RenderPolicyInput
+	_ = in.DecodeCBOR(pdk.Input())
+	return verdict(in.Settings)
 }
 
 // verdict is the implementation both verdict exports share. It reads the one
-// field both payloads carry, so neither role needs a reading of its own.
-func verdict() int32 {
-	var in verdictInput
-	_ = json.Unmarshal(pdk.Input(), &in)
+// field both payloads carry, the attachment's settings, which arrive as the JSON
+// document the attachment wrote. A payload it cannot read leaves the settings
+// unread, and the verdict then reports the default severity — the proof reports
+// what it was handed rather than refusing.
+func verdict(rawSettings json.RawMessage) int32 {
+	var settings verdictSettings
+	if len(rawSettings) != 0 {
+		_ = json.Unmarshal(rawSettings, &settings)
+	}
 
-	severity := in.Settings.Severity
+	severity := settings.Severity
 	if severity == "" {
-		severity = "info"
+		severity = aggrega.SeverityInfo
 	}
 	msg := fmt.Sprintf("governance-multirole verdict; settings.severity=%q", severity)
 
-	out := struct {
-		Results []verdictResult `json:"results"`
-	}{Results: []verdictResult{{Severity: severity, Message: msg}}}
-	b, err := json.Marshal(out)
+	b, err := aggrega.PolicyOutput{Results: []aggrega.Diagnostic{{Severity: severity, Message: msg}}}.EncodeCBOR()
 	if err != nil {
-		pdk.OutputString(`{"results":[{"severity":"halt","message":"fixture failed to encode output"}]}`)
-		return 0
+		pdk.SetError(fmt.Errorf("governance-multirole: encode PolicyOutput: %w", err))
+		return 1
 	}
 	pdk.Output(b)
 	return 0

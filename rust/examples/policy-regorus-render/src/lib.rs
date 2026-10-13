@@ -142,25 +142,26 @@ pub fn describe() -> FnResult<String> {
     Ok(encode_descriptor(&descriptor()))
 }
 
-/// The host calls `verdict_render(input)` with the render-stage payload as a JSON
-/// string and reads back the fired verdicts. A malformed payload or an
-/// evaluation failure propagates as an error, which the host surfaces as a
-/// build fault.
+/// The host calls `verdict_render(input)` with the render-stage payload as
+/// canonical CBOR and reads back the fired verdicts in the same encoding. A
+/// malformed payload or an evaluation failure propagates as an error, which the
+/// host surfaces as a build fault.
 #[plugin_fn]
-pub fn verdict_render(input: String) -> FnResult<String> {
+pub fn verdict_render(input: Vec<u8>) -> FnResult<Vec<u8>> {
     let out = evaluate(&input)?;
-    Ok(serde_json::to_string(&out)?)
+    Ok(out.encode_cbor()?)
 }
 
-/// evaluate parses the render payload, wires the attached policies and the
+/// evaluate decodes the render payload, wires the attached policies and the
 /// parsed render output into the Rego engine, and collects the fired verdicts.
 /// It returns an error for any genuine load or evaluation failure so the caller
 /// surfaces a build fault; an undefined decision rule is not a failure and
 /// simply contributes no verdict. A per-artifact parse failure is not an
 /// evaluate-level error — it is surfaced to the policy as `parse_error` on the
 /// artifact rather than allowed away.
-fn evaluate(raw: &str) -> anyhow::Result<PolicyOutput> {
-    let payload: RenderPolicyInput = serde_json::from_str(raw)?;
+fn evaluate(raw: &[u8]) -> anyhow::Result<PolicyOutput> {
+    let payload = RenderPolicyInput::decode_cbor(raw)
+        .map_err(|err| anyhow::anyhow!("reading the render-verdict payload: {err}"))?;
 
     let mut engine = regorus::Engine::new();
     // Accept the older rule syntax as well as the current one. The engine builds
@@ -421,13 +422,14 @@ resource "aws_db_instance" "db" {
 "####;
 
     // Builds a one-artifact render payload plus a single Rego source, as the
-    // JSON string the export boundary hands to evaluate.
-    fn payload_json(artifact_path: &str, content: &str, rego: &str) -> String {
-        json!({
-            "artifacts": [{ "path": artifact_path, "content": content }],
-            "sources": [{ "path": "policy.rego", "content": rego }],
-        })
-        .to_string()
+    // canonical bytes the export boundary hands to evaluate.
+    fn payload_bytes(artifact_path: &str, content: &str, rego: &str) -> Vec<u8> {
+        let mut input = one_artifact_input(artifact_path, content);
+        input.sources = vec![aggrega_abi::PolicySource {
+            path: "policy.rego".to_string(),
+            content: rego.to_string(),
+        }];
+        input.encode_cbor().expect("the payload encodes")
     }
 
     fn one_artifact_input(path: &str, content: &str) -> RenderPolicyInput {
@@ -479,7 +481,7 @@ deny contains msg if {
     msg := sprintf("aws_db_instance %v allocated_storage %v exceeds the 50Gi ceiling", [name, storage])
 }
 "#;
-        let out = evaluate(&payload_json("infra/terraform/main.tf", RENDERED_MAIN_TF, rego))
+        let out = evaluate(&payload_bytes("infra/terraform/main.tf", RENDERED_MAIN_TF, rego))
             .expect("evaluate must succeed");
         assert_eq!(out.results.len(), 1, "exactly one deny should fire: {:?}", out.results);
         let v = &out.results[0];
@@ -505,7 +507,7 @@ deny contains msg if {
     msg := "database exposes the default MariaDB port 3306"
 }
 "#;
-        let out = evaluate(&payload_json("infra/terraform/main.tf", RENDERED_MAIN_TF, rego))
+        let out = evaluate(&payload_bytes("infra/terraform/main.tf", RENDERED_MAIN_TF, rego))
             .expect("evaluate must succeed");
         assert_eq!(out.results.len(), 1, "port deny should fire: {:?}", out.results);
         assert_eq!(out.results[0].message, "database exposes the default MariaDB port 3306");
@@ -541,7 +543,7 @@ deny contains msg if {
     msg := "render artifact failed to parse"
 }
 "#;
-        let out = evaluate(&payload_json("infra/terraform/main.tf", bad, rego))
+        let out = evaluate(&payload_bytes("infra/terraform/main.tf", bad, rego))
             .expect("evaluate must succeed");
         assert_eq!(out.results.len(), 1, "parse_error deny should fire: {:?}", out.results);
         assert_eq!(out.results[0].message, "render artifact failed to parse");

@@ -20,11 +20,11 @@
 //!
 //! # How it travels
 //!
-//! This role's wire carries the binary encoding in both directions, so the
-//! payload is read and the result written through the generated codec on the
-//! payload type. The seam reads a JSON document, so the decoded payload is
-//! written back out as one before it is handed over — the names a policy
-//! addresses are the payload's own names either way.
+//! This role's wire carries the binary encoding in both directions, as every
+//! role's does, so the payload is read and the result written through the
+//! generated codec on the payload type. The seam reads a JSON document, so the
+//! decoded payload is written back out as one before it is handed over — the
+//! names a policy addresses are the payload's own names.
 //!
 //! # A policy names the label; this module builds the path
 //!

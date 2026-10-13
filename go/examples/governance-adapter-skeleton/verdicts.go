@@ -81,16 +81,14 @@ func verdict_render() int32 {
 // outcome; the build reads it as an outcome and never applies it as a change. An
 // empty result means no verdict fired, which is a policy that allowed the build.
 func verdicts(role string) int32 {
-	raw := pdk.Input()
-
-	payload, err := readVerdictPayload(raw, role)
+	payload, err := readVerdictPayload(pdk.Input(), role)
 	if err != nil {
 		return fail(err)
 	}
 
 	var results []abi.Diagnostic
 	for _, collection := range verdictCollections {
-		decisions, err := Evaluate(payload.Programs, payload.Settings, raw, collection.Decision)
+		decisions, err := Evaluate(payload.Programs, payload.Settings, payload.Document, collection.Decision)
 		if err != nil {
 			return fail(fmt.Errorf("evaluating the %s policy: %w", role, err))
 		}
@@ -114,10 +112,12 @@ func verdicts(role string) int32 {
 }
 
 // verdictPayload is what the two verdict payloads have in common once decoded:
-// the programs the attachment supplied and its settings.
+// the programs the attachment supplied, its settings, and the whole payload as
+// the JSON document the seam evaluates against.
 type verdictPayload struct {
 	Programs []Program
 	Settings json.RawMessage
+	Document json.RawMessage
 }
 
 // readVerdictPayload reads one verdict role's payload.
@@ -129,22 +129,32 @@ func readVerdictPayload(raw []byte, role string) (verdictPayload, error) {
 	read := func(s abi.PolicySource) (string, string) { return s.Path, s.Content }
 
 	if role == "render-verdict" {
-		in, err := decode[abi.RenderPolicyInput](raw, role)
+		var in abi.RenderPolicyInput
+		if err := decode(&in, raw, role); err != nil {
+			return verdictPayload{}, err
+		}
+		doc, err := document(in, role)
 		if err != nil {
 			return verdictPayload{}, err
 		}
 		return verdictPayload{
 			Programs: programs(in.Sources, read),
 			Settings: in.Settings,
+			Document: doc,
 		}, nil
 	}
 
-	in, err := decode[abi.PolicyInput](raw, role)
+	var in abi.PolicyInput
+	if err := decode(&in, raw, role); err != nil {
+		return verdictPayload{}, err
+	}
+	doc, err := document(in, role)
 	if err != nil {
 		return verdictPayload{}, err
 	}
 	return verdictPayload{
 		Programs: programs(in.Sources, read),
 		Settings: in.Settings,
+		Document: doc,
 	}, nil
 }

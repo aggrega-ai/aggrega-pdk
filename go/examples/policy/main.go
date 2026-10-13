@@ -14,7 +14,9 @@
 //     invocation rather than as a verdict the plugin reached.
 //
 // The fixture does not inspect the input graph; both outputs are constants so
-// end-to-end tests can assert exact equality of the emitted shape.
+// end-to-end tests can assert exact equality of the emitted shape. Every
+// governance role's result travels as canonical CBOR, so each is written with
+// PolicyOutput.EncodeCBOR, the generated codec on the shared payload type.
 //
 // Build: GOOS=wasip1 GOARCH=wasm go build -buildmode=c-shared -o policy-go.wasm ./
 package main
@@ -25,28 +27,23 @@ import (
 	"github.com/aggrega-ai/aggrega-pdk-go/pkg/aggrega"
 )
 
-// The fixture emits a constant two-verdict PolicyOutput. The
-// output is a hand-formatted literal — the fixture's wire shape is
-// fixed, so a constant string is the simplest faithful encoding and
-// matches the exact wire shape the wasm-policy JSON Schema
-// describes. The PDK's own round-trip tests exercise the full
-// encoding/json path against the same schema.
-const fixtureOutput = `{"results":[` +
-	`{"severity":"halt","message":"fixture rule B: deliberate fail for end-to-end coverage"},` +
-	`{"severity":"info","message":"fixture rule A: advisory note"}` +
-	`]}`
+// fixtureOutput is the constant two-verdict PolicyOutput the fixture emits: one
+// halt verdict and one info verdict, in that order.
+var fixtureOutput = aggrega.PolicyOutput{Results: []aggrega.Diagnostic{
+	{Severity: aggrega.SeverityHalt, Message: "fixture rule B: deliberate fail for end-to-end coverage"},
+	{Severity: aggrega.SeverityInfo, Message: "fixture rule A: advisory note"},
+}}
 
-// The fixture emits a constant PolicyOutput carrying an error and no verdicts.
-// A policy plugin reaches for this shape when the evaluation itself did not
-// complete — a rule source it could not read, an input it cannot interpret — as
-// opposed to a halt verdict, which reports a rule that fired on a run that did
-// complete. results stays present and empty because the wire shape requires it,
-// and error carries the reason. Like fixtureOutput it is a hand-formatted
-// literal, for the same reason: the fixture's wire shape is fixed, so a constant
-// string is the simplest faithful encoding of what the wasm-policy JSON Schema
-// describes.
-const incompleteOutput = `{"results":[],` +
-	`"error":"fixture rule set could not be evaluated: no rule source was supplied"}`
+// incompleteOutput is the constant PolicyOutput carrying an error and no
+// verdicts. A policy plugin reaches for this shape when the evaluation itself
+// did not complete — a rule source it could not read, an input it cannot
+// interpret — as opposed to a halt verdict, which reports a rule that fired on a
+// run that did complete. results stays present and empty because the wire shape
+// requires it, and error carries the reason.
+var incompleteOutput = aggrega.PolicyOutput{
+	Results: []aggrega.Diagnostic{},
+	Error:   "fixture rule set could not be evaluated: no rule source was supplied",
+}
 
 // descriptor is the static describe() self-report: a v1alpha1 governance plugin
 // declaring both of the fixture's policy entry points. The host reads this once
@@ -79,13 +76,22 @@ func describe() int32 {
 
 //go:wasmexport verdict_ir
 func verdict_ir() int32 {
-	pdk.OutputString(fixtureOutput)
-	return 0
+	return emit(fixtureOutput)
 }
 
 //go:wasmexport report_incomplete
 func report_incomplete() int32 {
-	pdk.OutputString(incompleteOutput)
+	return emit(incompleteOutput)
+}
+
+// emit encodes a PolicyOutput and hands it back to the host.
+func emit(out aggrega.PolicyOutput) int32 {
+	b, err := out.EncodeCBOR()
+	if err != nil {
+		pdk.SetError(err)
+		return 1
+	}
+	pdk.Output(b)
 	return 0
 }
 

@@ -39,7 +39,9 @@
 //! policy reaches the IR graph as `input.graph` and the routing paths as
 //! `input.precalculated_paths`. The attachment's `settings` object becomes the
 //! OPA `data` document, so a policy reads an operator-supplied tunable as
-//! `data.<key>`.
+//! `data.<key>`. The payload arrives as canonical CBOR and is decoded with
+//! `PolicyInput::decode_cbor`; the OPA module reads JSON, so the decoded payload
+//! is written back out as a JSON document under the names the payload declares.
 //!
 //! Loud failure. The baked module declares which external builtins it needs. A
 //! policy compiled to need a host-provided builtin cannot be satisfied in-guest;
@@ -50,8 +52,8 @@
 
 use aggrega_pdk_rust::{
     SEVERITY_HALT, SEVERITY_INFO, SEVERITY_WARN,
-    encode_descriptor, PluginDescriptor, PluginDescriptorMeta, PluginExport, PolicyOutput,
-    Diagnostic, API_VERSION,
+    encode_descriptor, PluginDescriptor, PluginDescriptorMeta, PluginExport, PolicyInput,
+    PolicyOutput, Diagnostic, API_VERSION,
 };
 use anyhow::{anyhow, bail, Context};
 use extism_pdk::{plugin_fn, FnResult};
@@ -91,16 +93,18 @@ pub fn describe() -> FnResult<String> {
     Ok(encode_descriptor(&descriptor()))
 }
 
-/// The host calls `verdict_ir(input)` with the policy payload as a JSON string
-/// and reads back the fired verdicts. A drive or evaluation failure propagates
-/// as an error, which the host surfaces as a build fault naming this call.
+/// The host calls `verdict_ir(input)` with the policy payload as canonical CBOR
+/// and reads back the fired verdicts in the same encoding. A drive or evaluation
+/// failure propagates as an error, which the host surfaces as a build fault
+/// naming this call.
 #[plugin_fn]
-pub fn verdict_ir(input: String) -> FnResult<String> {
+pub fn verdict_ir(input: Vec<u8>) -> FnResult<Vec<u8>> {
     let results = evaluate(&input)?;
-    Ok(serde_json::to_string(&PolicyOutput {
+    Ok(PolicyOutput {
         results,
         ..Default::default()
-    })?)
+    }
+    .encode_cbor()?)
 }
 
 /// ExternalBuiltinInvoked reports a baked policy reaching for a host-provided
@@ -135,23 +139,27 @@ impl core::fmt::Display for OpaAbort {
 
 impl wasmi::core::HostError for OpaAbort {}
 
-/// evaluate parses the payload, wires it into the baked OPA module, drives the
+/// evaluate decodes the payload, wires it into the baked OPA module, drives the
 /// evaluation entrypoints, and collects the fired verdicts. It returns an error
 /// for any genuine drive or evaluation failure so the caller surfaces a build
 /// fault; an entrypoint whose decision set is empty is not a failure and simply
 /// contributes no verdict.
-fn evaluate(raw: &str) -> anyhow::Result<Vec<Diagnostic>> {
-    let payload: serde_json::Value =
-        serde_json::from_str(raw).context("policy payload is not valid JSON")?;
+fn evaluate(raw: &[u8]) -> anyhow::Result<Vec<Diagnostic>> {
+    let payload = PolicyInput::decode_cbor(raw)
+        .map_err(|err| anyhow!("reading the ir-verdict payload: {err}"))?;
 
-    // The attachment's settings object becomes the OPA data document; an absent
-    // or null settings object is the empty data document.
-    let data_json = match payload.get("settings") {
-        Some(s) if !s.is_null() => s.to_string(),
-        _ => "{}".to_string(),
+    // The attachment's settings object becomes the OPA data document; absent
+    // settings are the empty data document.
+    let data_json = match payload.settings.as_deref() {
+        Some(s) => s.get().to_string(),
+        None => "{}".to_string(),
     };
 
-    drive(raw, &data_json)
+    // The whole payload is the OPA input document.
+    let input_json =
+        serde_json::to_string(&payload).context("writing the policy payload as a JSON document")?;
+
+    drive(&input_json, &data_json)
 }
 
 /// read_cstr reads a NUL-terminated string out of the module's linear memory.

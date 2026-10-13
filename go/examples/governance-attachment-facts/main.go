@@ -60,6 +60,10 @@
 // settings.severity overrides the verdict severity (halt by default), so the
 // same plugin exercises the halting and non-halting host paths.
 //
+// The role's payload and result travel as canonical CBOR: the payload is read
+// with PolicyInput.DecodeCBOR and projected to the facts below, and the verdicts
+// are written with PolicyOutput.EncodeCBOR.
+//
 // Build: GOOS=wasip1 GOARCH=wasm go build -buildmode=c-shared -o governance-attachment-facts-go.wasm ./
 package main
 
@@ -75,19 +79,15 @@ import (
 
 // input is the narrow projection of the IR-stage verdict payload this guest
 // reads: the graph's per-node attachment map and the attachment settings. The
-// full payload also carries nodes, edges and precalculated paths; the decoder
+// full payload also carries nodes, edges and precalculated paths; the projection
 // drops the fields these rules do not read.
 type input struct {
-	Graph struct {
-		Spec struct {
-			FeatureValuesMapping map[string]map[string]attachment `json:"feature_values_mapping"`
-		} `json:"spec"`
-	} `json:"graph"`
-	Settings struct {
+	FeatureValuesMapping map[string]map[string]attachment
+	Settings             struct {
 		Rule      string `json:"rule"`
 		Severity  string `json:"severity"`
 		EchoLabel string `json:"echo_label"`
-	} `json:"settings"`
+	}
 }
 
 // attachment is one entry of the graph's per-node attachment map, projected to
@@ -111,12 +111,12 @@ type input struct {
 // An empty sensitivity field is never permission. It says the marking found
 // nothing at that unit, not that the attachment carries nothing sensitive.
 //
-// CatalogAnnotations is held as raw wire bytes rather than decoded into a map,
-// which is deliberate and is about ORDER. The wire carries the annotations in the
-// order the catalog entity declares them; a Go map has no order to hold, so
-// decoding on arrival would destroy exactly the property the wire promises and
-// the observe rule below could no longer report it. Rules that need one key's
-// value decode locally instead.
+// CatalogAnnotations is held as the JSON object the payload's ordered map writes
+// rather than as a Go map, which is deliberate and is about ORDER. The wire
+// carries the annotations in the order the catalog entity declares them; a Go
+// map has no order to hold, so converting on arrival would destroy exactly the
+// property the wire promises and the observe rule below could no longer report
+// it. Rules that need one key's value decode locally instead.
 //
 // SensitivePayloadLeaves is a slice for the same reason read the other way: the
 // wire carries the leaves in the order the payload holds them, and a slice keeps
@@ -132,23 +132,14 @@ type attachment struct {
 	SensitivePayloadLeaves []string                     `json:"sensitive_payload_leaves"`
 }
 
-type result struct {
-	Severity string `json:"severity"`
-	Message  string `json:"message"`
-}
-
-type output struct {
-	Results []result `json:"results"`
-}
-
 // bindingFree is the value an attachment's binding carries when it fills no
 // declared slot on its host Component.
 //
 // A guest re-spells the wire's literals rather than importing them: the socket
-// boundary carries JSON, not Go types, and a plugin written in another language
-// has the same three literals in its own source. So this is a wire-contract
-// constant restated on the far side of a boundary, not a second home for one
-// definition — do not "unify" it with anything on the host side.
+// boundary carries encoded bytes, not Go types, and a plugin written in another
+// language has the same three literals in its own source. So this is a
+// wire-contract constant restated on the far side of a boundary, not a second
+// home for one definition — do not "unify" it with anything on the host side.
 const bindingFree = "free"
 
 // secretKindLabel and secretKindValue are the catalog label the standard
@@ -196,61 +187,61 @@ func describe() int32 {
 
 //go:wasmexport verdict_ir
 func verdict_ir() int32 {
-	var in input
-	if err := json.Unmarshal(pdk.Input(), &in); err != nil {
-		pdk.SetError(fmt.Errorf("governance-attachment-facts: unmarshal PolicyInput: %w", err))
+	in, err := readInput(pdk.Input())
+	if err != nil {
+		pdk.SetError(fmt.Errorf("governance-attachment-facts: %w", err))
 		return 1
 	}
 
 	severity := in.Settings.Severity
 	if severity == "" {
-		severity = "halt"
+		severity = aggrega.SeverityHalt
 	}
 
 	// An empty results set is the allowing answer: a rule that finds nothing to
 	// object to emits no verdict and the build proceeds.
-	results := []result{}
+	results := []aggrega.Diagnostic{}
 
 	// Walk nodes and attachments in sorted order so the first offender a
 	// message names is the same across runs of identical input. The wire
 	// carries the attachments in author order; this container does not keep
 	// it, so the order is re-established here rather than assumed.
 walk:
-	for _, nodeID := range sortedKeys(in.Graph.Spec.FeatureValuesMapping) {
-		attachments := in.Graph.Spec.FeatureValuesMapping[nodeID]
+	for _, nodeID := range sortedKeys(in.FeatureValuesMapping) {
+		attachments := in.FeatureValuesMapping[nodeID]
 		for _, name := range sortedKeys(attachments) {
 			a := attachments[name]
 			switch in.Settings.Rule {
 			case "no-free-attachments":
 				if a.Binding == bindingFree {
-					results = append(results, result{Severity: severity, Message: fmt.Sprintf(
+					results = append(results, aggrega.Diagnostic{Severity: severity, Message: fmt.Sprintf(
 						"governance rule: node %q attachment %q (type %q) fills no declared slot (binding %q); free-form attachment is not permitted%s",
 						nodeID, name, a.Type, a.Binding, echo(a, in.Settings.EchoLabel))})
 					break walk
 				}
 			case "no-sensitive-by-value":
 				if mech, deliveryKey, providesKey, found := firstMarkedDelivery(a); found {
-					results = append(results, result{Severity: severity, Message: fmt.Sprintf(
+					results = append(results, aggrega.Diagnostic{Severity: severity, Message: fmt.Sprintf(
 						"governance rule: node %q attachment %q delivers declared-sensitive material by value through %s key %q (from provides key %q)%s",
 						nodeID, name, mech, deliveryKey, providesKey, echo(a, in.Settings.EchoLabel))})
 					break walk
 				}
 				if leaf, found := firstMarkedPayloadLeaf(a); found {
-					results = append(results, result{Severity: severity, Message: fmt.Sprintf(
+					results = append(results, aggrega.Diagnostic{Severity: severity, Message: fmt.Sprintf(
 						"governance rule: node %q attachment %q carries declared-sensitive material by value at payload leaf %q%s",
 						nodeID, name, leaf, echo(a, in.Settings.EchoLabel))})
 					break walk
 				}
 			case "deny-secret-kind":
 				if a.Labels[secretKindLabel] == secretKindValue {
-					results = append(results, result{Severity: severity, Message: fmt.Sprintf(
+					results = append(results, aggrega.Diagnostic{Severity: severity, Message: fmt.Sprintf(
 						"governance rule: node %q attachment %q handles secret material per its catalog label %s=%s%s",
 						nodeID, name, secretKindLabel, secretKindValue, echo(a, in.Settings.EchoLabel))})
 					break walk
 				}
 			case "deny-unreviewed-attachment":
 				if annotationValue(a, reviewAnnotation) == reviewOutstandingValue {
-					results = append(results, result{Severity: severity, Message: fmt.Sprintf(
+					results = append(results, aggrega.Diagnostic{Severity: severity, Message: fmt.Sprintf(
 						"governance rule: node %q attachment %q has an outstanding review per its catalog annotation %s=%s; an unreviewed attachment is not permitted%s",
 						nodeID, name, reviewAnnotation, reviewOutstandingValue, echo(a, in.Settings.EchoLabel))})
 					break walk
@@ -260,14 +251,72 @@ walk:
 				if err != nil {
 					facts = []byte(`"<unencodable>"`)
 				}
-				results = append(results, result{Severity: "info", Message: fmt.Sprintf(
+				results = append(results, aggrega.Diagnostic{Severity: "info", Message: fmt.Sprintf(
 					"attachment facts: node %q attachment %q: %s", nodeID, name, facts)})
 			}
 		}
 	}
 
-	emit(output{Results: results})
-	return 0
+	return emit(results)
+}
+
+// readInput decodes the IR-stage payload and projects it to what these rules
+// read: each node's attachments reduced to the facts the rules judge, and the
+// attachment's settings, which arrive as the JSON document the attachment wrote.
+func readInput(raw []byte) (input, error) {
+	var payload aggrega.PolicyInput
+	if err := payload.DecodeCBOR(raw); err != nil {
+		return input{}, fmt.Errorf("decode PolicyInput: %w", err)
+	}
+	var in input
+	if len(payload.Settings) != 0 {
+		if err := json.Unmarshal(payload.Settings, &in.Settings); err != nil {
+			return input{}, fmt.Errorf("read settings: %w", err)
+		}
+	}
+	in.FeatureValuesMapping = make(map[string]map[string]attachment, payload.Graph.Spec.FeatureValuesMapping.Len())
+	for nodeID, entries := range payload.Graph.Spec.FeatureValuesMapping.All() {
+		byName := make(map[string]attachment, entries.Len())
+		for name, entry := range entries.All() {
+			a, err := project(entry)
+			if err != nil {
+				return input{}, fmt.Errorf("node %q attachment %q: %w", nodeID, name, err)
+			}
+			byName[name] = a
+		}
+		in.FeatureValuesMapping[nodeID] = byName
+	}
+	return in, nil
+}
+
+// project reduces one attachment to the facts these rules judge. A fact the
+// payload does not carry stays at its zero value, as it did when it was absent.
+func project(entry aggrega.IRFeatureEntry) (attachment, error) {
+	a := attachment{
+		Type:                   entry.Type,
+		Binding:                entry.Binding,
+		Sensitive:              entry.Sensitive,
+		SensitivePayloadLeaves: entry.SensitivePayloadLeaves,
+	}
+	if entry.Labels.Len() != 0 {
+		a.Labels = make(map[string]string, entry.Labels.Len())
+		for k, v := range entry.Labels.All() {
+			a.Labels[k] = v
+		}
+	}
+	if entry.CatalogAnnotations.Len() != 0 {
+		raw, err := json.Marshal(entry.CatalogAnnotations)
+		if err != nil {
+			return attachment{}, fmt.Errorf("catalog annotations: %w", err)
+		}
+		a.CatalogAnnotations = raw
+	}
+	if len(entry.SensitiveInject) != 0 {
+		if err := json.Unmarshal(entry.SensitiveInject, &a.SensitiveInject); err != nil {
+			return attachment{}, fmt.Errorf("sensitive inject: %w", err)
+		}
+	}
+	return a, nil
 }
 
 // firstMarkedDelivery returns the first marked delivery key on an attachment in
@@ -337,13 +386,15 @@ func sortedKeys[V any](m map[string]V) []string {
 	return keys
 }
 
-func emit(o output) {
-	b, err := json.Marshal(o)
+// emit encodes the verdicts reached as the PolicyOutput the host reads.
+func emit(results []aggrega.Diagnostic) int32 {
+	b, err := aggrega.PolicyOutput{Results: results}.EncodeCBOR()
 	if err != nil {
-		pdk.OutputString(`{"results":[{"severity":"halt","message":"fixture failed to encode output"}]}`)
-		return
+		pdk.SetError(fmt.Errorf("governance-attachment-facts: encode PolicyOutput: %w", err))
+		return 1
 	}
 	pdk.Output(b)
+	return 0
 }
 
 func main() {}

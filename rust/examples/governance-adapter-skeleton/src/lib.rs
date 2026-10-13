@@ -130,16 +130,15 @@ pub fn describe() -> FnResult<String> {
 }
 
 /// Serves the annotation-transform role.
+///
+/// Every role's wire carries the binary encoding in both directions, so each
+/// export takes and returns bytes.
 #[plugin_fn]
-pub fn transform_annotations(input: String) -> FnResult<String> {
-    Ok(serde_json::to_string(&annotations::injections(&input)?)?)
+pub fn transform_annotations(input: Vec<u8>) -> FnResult<Vec<u8>> {
+    Ok(annotations::injections(&input)?.encode_cbor()?)
 }
 
 /// Serves the label-transform role.
-///
-/// This role's wire carries the binary encoding in both directions, so the export
-/// takes and returns bytes. The other two exports still carry the textual
-/// encoding; each reads its own payload, so they move independently.
 #[plugin_fn]
 pub fn mutate(input: Vec<u8>) -> FnResult<Vec<u8>> {
     Ok(labels::changes(&input)?.encode_cbor()?)
@@ -147,18 +146,12 @@ pub fn mutate(input: Vec<u8>) -> FnResult<Vec<u8>> {
 
 /// Serves the ir-verdict role.
 #[plugin_fn]
-pub fn verdict_ir(input: String) -> FnResult<String> {
-    Ok(serde_json::to_string(&verdicts::verdicts(
-        &input,
-        "ir-verdict",
-    )?)?)
+pub fn verdict_ir(input: Vec<u8>) -> FnResult<Vec<u8>> {
+    Ok(verdicts::verdicts(&input, "ir-verdict")?.encode_cbor()?)
 }
 
 /// Serves the render-verdict role.
 #[plugin_fn]
-pub fn verdict_render(input: String) -> FnResult<String> {
-    Ok(serde_json::to_string(&verdicts::verdicts(
-        &input,
-        "render-verdict",
-    )?)?)
+pub fn verdict_render(input: Vec<u8>) -> FnResult<Vec<u8>> {
+    Ok(verdicts::verdicts(&input, "render-verdict")?.encode_cbor()?)
 }

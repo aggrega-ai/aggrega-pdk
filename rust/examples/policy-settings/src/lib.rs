@@ -15,6 +15,11 @@
 //! reads the typed setting directly and emits a single info verdict echoing the
 //! value it read — proof that a conforming setting flowed through to the guest as
 //! the declared type.
+//!
+//! The role's payload and result travel as canonical CBOR: the payload is read
+//! with `PolicyInput::decode_cbor` and the result written with
+//! `PolicyOutput::encode_cbor`. The settings arrive as the JSON document the
+//! attachment wrote.
 
 use aggrega_pdk_rust::{
     encode_descriptor, PluginDescriptor, PluginDescriptorMeta, PluginExport, PolicyInput,
@@ -71,8 +76,8 @@ pub fn describe() -> FnResult<String> {
 }
 
 #[plugin_fn]
-pub fn verdict_ir(input: String) -> FnResult<String> {
-    let parsed: PolicyInput = serde_json::from_str(&input)?;
+pub fn verdict_ir(input: Vec<u8>) -> FnResult<Vec<u8>> {
+    let parsed = PolicyInput::decode_cbor(&input)?;
 
     // Settings conformance was enforced by the host against the declared
     // settings_schema before dispatch, so the typed read below is total for any
@@ -96,5 +101,5 @@ pub fn verdict_ir(input: String) -> FnResult<String> {
         }],
         ..Default::default()
     };
-    Ok(serde_json::to_string(&out)?)
+    Ok(out.encode_cbor()?)
 }

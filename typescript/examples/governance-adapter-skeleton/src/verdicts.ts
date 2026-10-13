@@ -39,9 +39,11 @@ import {
   SeverityHalt,
   SeverityInfo,
   SeverityWarn,
-  decodePolicyInput,
-  decodeRenderPolicyInput,
-  encodePolicyOutput,
+  decodeCBORPolicyInput,
+  decodeCBORRenderPolicyInput,
+  encodeCBORPolicyOutput,
+  encodePolicyInput,
+  encodeRenderPolicyInput,
   type Diagnostic,
   type PolicyOutput,
   type PolicySource,
@@ -67,18 +69,20 @@ export const COLLECTIONS: ReadonlyArray<readonly [string, string]> = [
 
 /**
  * What the two verdict payloads have in common once decoded: the programs the
- * attachment supplied and its settings.
+ * attachment supplied, its settings, and the whole payload as the JSON document
+ * the seam evaluates against.
  */
 interface Payload {
   sources: PolicySource[];
   settings: unknown;
+  document: string;
 }
 
 /**
  * Reads one verdict role's payload and returns the verdicts the build reports,
  * encoded.
  */
-export function verdicts(raw: string, role: string): string {
+export function verdicts(raw: Uint8Array, role: string): Uint8Array {
   const payload = readPayload(raw, role);
   const programs: Program[] = payload.sources.map((s) => ({
     path: s.path,
@@ -87,7 +91,7 @@ export function verdicts(raw: string, role: string): string {
 
   const results: Diagnostic[] = [];
   for (const [decision, severity] of COLLECTIONS) {
-    for (const value of evaluate(programs, payload.settings, raw, decision)) {
+    for (const value of evaluate(programs, payload.settings, payload.document, decision)) {
       if (typeof value !== "string") {
         throw new Error(
           `a decision collected under "${decision}" is not a message. ` +
@@ -99,7 +103,7 @@ export function verdicts(raw: string, role: string): string {
   }
 
   const out: PolicyOutput = { results };
-  return encodePolicyOutput(out);
+  return encodeCBORPolicyOutput(out);
 }
 
 /**
@@ -110,22 +114,29 @@ export function verdicts(raw: string, role: string): string {
  * say, so this reads the shape it was told to and nothing else: a payload that
  * does not read that way is refused rather than tried again as the other role's
  * shape and quietly found to contain nothing.
+ *
+ * The payload is read through the generated codec and written back out as the
+ * JSON document the seam reads. The graph's order-keeping members arrive as Maps,
+ * which JSON.stringify writes as empty objects, so the document is written through
+ * the generated encoder, which writes each Map as an object in the order it holds.
  */
-function readPayload(raw: string, role: string): Payload {
+function readPayload(raw: Uint8Array, role: string): Payload {
   if (role === "render-verdict") {
-    const input = decodeRenderPolicyInput(raw);
+    const input = decodeCBORRenderPolicyInput(raw);
     expectList(input.artifacts, "artifacts", "render-verdict");
     return {
       sources: input.sources ?? [],
       settings: input.settings,
+      document: encodeRenderPolicyInput(input),
     };
   }
 
-  const input = decodePolicyInput(raw);
+  const input = decodeCBORPolicyInput(raw);
   expectObject(input.graph, "graph", "ir-verdict");
   expectList(input.precalculated_paths, "precalculated_paths", "ir-verdict");
   return {
     sources: input.sources ?? [],
     settings: input.settings,
+    document: encodePolicyInput(input),
   };
 }

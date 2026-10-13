@@ -75,13 +75,11 @@ pub fn evaluate(
 It receives the programs, the settings, the whole role payload, and the name of
 the decision the caller wants back. It returns one raw JSON value per decision.
 
-The payload reaches the seam as a JSON document at every role. The
-`label-transform` role's wire carries canonical CBOR, so that role reads the
-payload with the generated codec and writes it back out as JSON before handing it
-over — and its export takes and returns `Vec<u8>` rather than `String`; the other
-three roles carry JSON and hand over what arrived. The seam therefore has one
-contract rather than one per encoding, and the names a policy addresses are the
-payload's own names either way.
+The payload reaches the seam as a JSON document at every role. Every role's wire
+carries canonical CBOR, so each role reads the payload with the generated codec
+and writes it back out as JSON before handing it over — and every export takes
+and returns `Vec<u8>` rather than `String`. The seam therefore has one contract,
+and the names a policy addresses are the payload's own names.
 
 Handing over the whole payload rather than a projection of it is deliberate: a
 policy then reads the graph, the artifacts, the nodes or the targets under the
@@ -226,9 +224,10 @@ aggrega plugin run-local --plugin dist/governance-adapter-skeleton-rust.wasm \
 ```
 
 The response reaches you exactly as the guest emitted it, and the wire an export
-carries is fixed by the socket that export serves rather than by any flag, so
-these calls legitimately differ in what they print: the `mutate` call prints
-bytes, and the rest print readable text.
+carries is fixed by the socket that export serves rather than by any flag. Every
+governance role's wire carries canonical CBOR, so each of these calls prints the
+role's reply as bytes; the payload you author stays JSON, and the command
+converts it into the encoding the export reads.
 
 An unmodified skeleton reaches no engine, so each role emits its own neutral
 result — no annotations, no label changes, and one `info` note per verdict role

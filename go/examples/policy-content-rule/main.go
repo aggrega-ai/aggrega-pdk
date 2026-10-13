@@ -18,6 +18,11 @@
 // export the host validates before dispatch. That export names the role it
 // serves, so this guest runs at the render-verdict role over the artifacts.
 //
+// The role's payload and result travel as canonical CBOR: the input is read with
+// RenderPolicyInput.DecodeCBOR and the output written with PolicyOutput.EncodeCBOR.
+// The attachment's settings arrive as the JSON document the attachment wrote, so
+// the rule's two settings are read out of it with encoding/json.
+//
 // Build: GOOS=wasip1 GOARCH=wasm go build -buildmode=c-shared -o policy-content-rule-go.wasm ./
 package main
 
@@ -28,29 +33,15 @@ import (
 
 	pdk "github.com/extism/go-pdk"
 
+	abi "github.com/aggrega-ai/aggrega-abi-go/pkg/abi"
+
 	"github.com/aggrega-ai/aggrega-pdk-go/pkg/aggrega"
 )
 
-// input is the narrow projection of the render-stage verdict payload this guest
-// reads: the rendered artifacts (path and content) and the attachment settings.
-type input struct {
-	Artifacts []struct {
-		Path    string `json:"path"`
-		Content string `json:"content"`
-	} `json:"artifacts"`
-	Settings struct {
-		ForbiddenToken string `json:"forbidden_token"`
-		Severity       string `json:"severity"`
-	} `json:"settings"`
-}
-
-type result struct {
-	Severity string `json:"severity"`
-	Message  string `json:"message"`
-}
-
-type output struct {
-	Results []result `json:"results"`
+// settings is the part of the attachment's settings this rule reads.
+type settings struct {
+	ForbiddenToken string `json:"forbidden_token"`
+	Severity       string `json:"severity"`
 }
 
 // descriptor is the static describe() self-report: a v1alpha1 governance plugin
@@ -78,23 +69,29 @@ func describe() int32 {
 
 //go:wasmexport verdict_render
 func verdict_render() int32 {
-	var in input
-	if err := json.Unmarshal(pdk.Input(), &in); err != nil {
-		pdk.SetError(fmt.Errorf("policy-content-rule: unmarshal RenderPolicyInput: %w", err))
+	var in abi.RenderPolicyInput
+	if err := in.DecodeCBOR(pdk.Input()); err != nil {
+		pdk.SetError(fmt.Errorf("policy-content-rule: decode RenderPolicyInput: %w", err))
 		return 1
 	}
+	var cfg settings
+	if len(in.Settings) != 0 {
+		if err := json.Unmarshal(in.Settings, &cfg); err != nil {
+			pdk.SetError(fmt.Errorf("policy-content-rule: read settings: %w", err))
+			return 1
+		}
+	}
 
-	token := in.Settings.ForbiddenToken
-	severity := in.Settings.Severity
+	token := cfg.ForbiddenToken
+	severity := cfg.Severity
 	if severity == "" {
-		severity = "halt"
+		severity = aggrega.SeverityHalt
 	}
 
 	// A rule with no forbidden token is vacuously satisfied: no verdict, the
 	// build proceeds.
 	if token == "" {
-		pdk.OutputString(`{"results":[]}`)
-		return 0
+		return emit(nil)
 	}
 
 	// The host delivers the artifacts path-sorted, so the first offender the
@@ -102,23 +99,27 @@ func verdict_render() int32 {
 	for _, a := range in.Artifacts {
 		if strings.Contains(a.Content, token) {
 			msg := fmt.Sprintf("governance rule: artifact %q contains forbidden token %q", a.Path, token)
-			emit(output{Results: []result{{Severity: severity, Message: msg}}})
-			return 0
+			return emit([]aggrega.Diagnostic{{Severity: severity, Message: msg}})
 		}
 	}
 
 	// No artifact contains the token: no verdict, build proceeds.
-	pdk.OutputString(`{"results":[]}`)
-	return 0
+	return emit(nil)
 }
 
-func emit(o output) {
-	b, err := json.Marshal(o)
+// emit encodes the verdicts reached as the PolicyOutput the host reads; an empty
+// list is the form of "no verdict fired".
+func emit(results []aggrega.Diagnostic) int32 {
+	if results == nil {
+		results = []aggrega.Diagnostic{}
+	}
+	b, err := aggrega.PolicyOutput{Results: results}.EncodeCBOR()
 	if err != nil {
-		pdk.OutputString(`{"results":[{"severity":"halt","message":"fixture failed to encode output"}]}`)
-		return
+		pdk.SetError(fmt.Errorf("policy-content-rule: encode PolicyOutput: %w", err))
+		return 1
 	}
 	pdk.Output(b)
+	return 0
 }
 
 func main() {}

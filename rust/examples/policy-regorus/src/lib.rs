@@ -30,7 +30,9 @@
 //! policy reaches the IR graph as `input.graph` and the routing paths as
 //! `input.precalculated_paths`. The attachment's `settings` object becomes
 //! the Rego `data` document, so a policy reads operator-supplied thresholds
-//! as `data.<key>`.
+//! as `data.<key>`. The payload arrives as canonical CBOR and is decoded with
+//! `PolicyInput::decode_cbor`; the engine reads a JSON document, so the decoded
+//! payload is written back out as one, under the names the payload declares.
 //!
 //! Which rule syntax a policy is written in. Rego is written in two rule
 //! syntaxes, and this engine is configured to accept both, so a policy set
@@ -59,8 +61,8 @@
 
 use aggrega_pdk_rust::{
     SEVERITY_HALT, SEVERITY_INFO, SEVERITY_WARN,
-    encode_descriptor, PluginDescriptor, PluginDescriptorMeta, PluginExport, PolicyOutput,
-    Diagnostic, API_VERSION,
+    encode_descriptor, PluginDescriptor, PluginDescriptorMeta, PluginExport, PolicyInput,
+    PolicyOutput, Diagnostic, API_VERSION,
 };
 use extism_pdk::{plugin_fn, FnResult};
 use regorus::Value;
@@ -95,21 +97,22 @@ pub fn describe() -> FnResult<String> {
     Ok(encode_descriptor(&descriptor()))
 }
 
-/// The host calls `verdict_ir(input)` with the policy payload as a JSON string
-/// and reads back the fired verdicts. An evaluation failure propagates as an
-/// error, which the host surfaces as a build fault.
+/// The host calls `verdict_ir(input)` with the policy payload as canonical CBOR
+/// and reads back the fired verdicts in the same encoding. An evaluation failure
+/// propagates as an error, which the host surfaces as a build fault.
 #[plugin_fn]
-pub fn verdict_ir(input: String) -> FnResult<String> {
+pub fn verdict_ir(input: Vec<u8>) -> FnResult<Vec<u8>> {
     let out = evaluate(&input)?;
-    Ok(serde_json::to_string(&out)?)
+    Ok(out.encode_cbor()?)
 }
 
 /// evaluate loads the attached policies, wires the payload into the Rego
 /// engine, and collects the fired verdicts. It returns an error for any
 /// genuine load or evaluation failure so the caller surfaces a build fault; an
 /// undefined decision rule is not a failure and simply contributes no verdict.
-fn evaluate(raw: &str) -> anyhow::Result<PolicyOutput> {
-    let payload: serde_json::Value = serde_json::from_str(raw)?;
+fn evaluate(raw: &[u8]) -> anyhow::Result<PolicyOutput> {
+    let payload = PolicyInput::decode_cbor(raw)
+        .map_err(|err| anyhow::anyhow!("reading the ir-verdict payload: {err}"))?;
 
     let mut engine = regorus::Engine::new();
     // Accept the older rule syntax as well as the current one. The engine builds
@@ -118,28 +121,17 @@ fn evaluate(raw: &str) -> anyhow::Result<PolicyOutput> {
     engine.set_rego_v0(true);
 
     // Each attached source is a Rego module; content is the raw .rego text.
-    if let Some(sources) = payload.get("sources").and_then(|s| s.as_array()) {
-        for src in sources {
-            let path = src
-                .get("path")
-                .and_then(|p| p.as_str())
-                .unwrap_or("policy.rego");
-            let content = src.get("content").and_then(|c| c.as_str()).ok_or_else(|| {
-                anyhow::anyhow!("policy source {path:?} carries no string content")
-            })?;
-            engine.add_policy(path.to_string(), content.to_string())?;
-        }
+    for src in &payload.sources {
+        engine.add_policy(src.path.clone(), src.content.clone())?;
     }
 
     // The attachment's settings object becomes the Rego data document.
-    if let Some(settings) = payload.get("settings") {
-        if !settings.is_null() {
-            engine.add_data(Value::from_json_str(&settings.to_string())?)?;
-        }
+    if let Some(settings) = payload.settings.as_deref() {
+        engine.add_data(Value::from_json_str(settings.get())?)?;
     }
 
     // The whole payload is the Rego input document.
-    engine.set_input(Value::from_json_str(raw)?);
+    engine.set_input(Value::from_json_str(&serde_json::to_string(&payload)?)?);
 
     let mut results = Vec::new();
     for pkg in engine.get_packages()? {

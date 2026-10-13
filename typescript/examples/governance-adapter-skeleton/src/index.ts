@@ -55,8 +55,8 @@
  *
  * Entry convention follows the Extism JS PDK: parameterless functions, input read
  * from and output written to the host buffers, exports exposed through
- * module.exports. A role reads and writes text or bytes according to the encoding
- * its own wire carries.
+ * module.exports. Every role's wire carries the binary encoding in both
+ * directions, so every role reads and writes bytes.
  */
 
 import {
@@ -117,28 +117,24 @@ function describe(): void {
 
 /** Serves the annotation-transform role. */
 function transform_annotations(): void {
-  Host.outputString(injections(Host.inputString()));
+  Host.outputBytes(injections(new Uint8Array(Host.inputBytes())).buffer as ArrayBuffer);
 }
 
-/**
- * Serves the label-transform role.
- *
- * This role's wire carries the binary encoding in both directions, so the payload
- * is read and the result written as bytes. The other two roles still carry the
- * textual encoding; each reads its own payload, so they move independently.
- */
+/** Serves the label-transform role. */
 function mutate(): void {
   Host.outputBytes(changes(new Uint8Array(Host.inputBytes())).buffer as ArrayBuffer);
 }
 
 /** Serves the ir-verdict role. */
 function verdict_ir(): void {
-  Host.outputString(verdicts(Host.inputString(), "ir-verdict"));
+  Host.outputBytes(verdicts(new Uint8Array(Host.inputBytes()), "ir-verdict").buffer as ArrayBuffer);
 }
 
 /** Serves the render-verdict role. */
 function verdict_render(): void {
-  Host.outputString(verdicts(Host.inputString(), "render-verdict"));
+  Host.outputBytes(
+    verdicts(new Uint8Array(Host.inputBytes()), "render-verdict").buffer as ArrayBuffer,
+  );
 }
 
 module.exports = { describe, transform_annotations, mutate, verdict_ir, verdict_render };
