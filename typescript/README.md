@@ -21,8 +21,11 @@ plugin runtime (`Host`, `Memory`, the `extism:host` ambient module).
 The plugin entry follows the Extism JS PDK CommonJS convention:
 
 - The exported function takes no parameters and returns nothing.
-- Input flows in via `Host.inputString()` (or `Host.inputBytes()`).
-- Output flows out via `Host.outputString(s)` (or `Host.outputBytes(b)`).
+- Input flows in via `Host.inputBytes()`, the form a socket's canonical CBOR
+  payload takes; a CLI plugin's argument vector is JSON text, which the kit
+  reads with `Host.inputString()` for it.
+- Output flows out via `Host.outputBytes(b)`; the `describe` export's
+  self-report is JSON text, written with `Host.outputString(s)`.
 - Exports go through `module.exports = { ... }`.
 
 Host functions exposed by the PDK (`log`, `emitWarning`) wrap the
