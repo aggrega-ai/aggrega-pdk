@@ -88,6 +88,18 @@ CBOR: read `Host.inputBytes()` into the input type's `decodeCBOR…` function
 raw bytes. [`examples/render-node/`](examples/render-node) and
 [`examples/link/`](examples/link) are providers built this way.
 
+### The pipeline-step socket
+
+A pipeline step's `step` export reads `Host.inputBytes()` into
+`decodeCBORFRPStepInput` and writes its answer with
+`Host.outputBytes(encodeCBORFRPStepOutput(output).buffer as ArrayBuffer)`. The
+step's `with` input (`step_input`), its `outputs` and its two document sets are
+`Map`s, which keep every key where it was set — an integer-like key included,
+which a plain object would move to the front — so build the outputs as a `Map` to
+have them reach `.steps.<id>.outputs` in the order you set them.
+[`examples/frp/`](examples/frp) is a step built this way, and returns its `with`
+input as its outputs.
+
 ### Reporting facts about what a provider emitted
 
 A provider's `render_node` may return `render_facts` beside its files: an

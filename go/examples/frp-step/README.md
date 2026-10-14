@@ -43,4 +43,6 @@ against a Plugin entity's `metadata.version`, so the two stay in lockstep.
 The plugin is a WASI reactor: its Go runtime bootstraps under the Aggrega
 loader's deterministic, capability-denied WASI configuration, then
 `step` decodes the keyed document set and emits its patches and side
-effects.
+effects. The pipeline-step socket carries canonical CBOR in both
+directions, so `step` reads its input with `DecodeCBOR` and writes its
+output with `EncodeCBOR`, through the generated ABI codec.

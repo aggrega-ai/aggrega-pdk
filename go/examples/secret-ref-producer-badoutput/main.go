@@ -56,10 +56,13 @@ func describe() int32 {
 	return 0
 }
 
+// step reads its input and writes its output in canonical CBOR, the encoding the
+// pipeline-step socket carries in both directions, through the generated codec.
+//
 //go:wasmexport step
 func step() int32 {
 	var in abi.FRPStepInput
-	if err := in.UnmarshalJSON(pdk.Input()); err != nil {
+	if err := in.DecodeCBOR(pdk.Input()); err != nil {
 		pdk.SetError(err)
 		return 1
 	}
@@ -69,7 +72,7 @@ func step() int32 {
 	// number instead so the host's post-step output validation halts the build.
 	out.Outputs.Set("secretName", json.RawMessage("12345"))
 
-	raw, err := out.MarshalJSON()
+	raw, err := out.EncodeCBOR()
 	if err != nil {
 		pdk.SetError(err)
 		return 1

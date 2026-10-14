@@ -70,6 +70,8 @@ mkdir -p "${OUT_DIR}" "${SCRIPT_DIR}/dist"
 # package (whose entry is declared under "main").
 (cd "${SCRIPT_DIR}" && npx esbuild src/index.ts --bundle --format=cjs --target=es2022 --platform=neutral --main-fields=module,main --outfile=dist/plugin.js)
 
-# Compile the bundled JS into a Wasm artifact embedding QuickJS.
-extism-js -i "${SCRIPT_DIR}/index.d.ts" "${SCRIPT_DIR}/dist/plugin.js" -o "${OUT_DIR}/frp-step-typescript.wasm"
-echo "Wrote ${OUT_DIR}/frp-step-typescript.wasm"
+# Compile the bundled JS into a Wasm artifact embedding QuickJS. The artifact is
+# named for this example's directory and language, the name the umbrella's
+# fixture builder resolves back to this directory.
+extism-js -i "${SCRIPT_DIR}/index.d.ts" "${SCRIPT_DIR}/dist/plugin.js" -o "${OUT_DIR}/frp-typescript.wasm"
+echo "Wrote ${OUT_DIR}/frp-typescript.wasm"

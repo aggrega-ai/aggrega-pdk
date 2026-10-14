@@ -25,10 +25,12 @@
 //
 // The step payload is decoded and re-encoded through the generated ABI
 // codec (github.com/aggrega-ai/aggrega-abi-go/pkg/abi) rather than
-// hand-declared wire types. The codec is dispatch-free on the typed path
-// (it decodes each nested type by a direct call to its own UnmarshalJSON
-// and writes leaves by hand, with no reflective struct-walk), so the wire
-// shape stays single-sourced from the schema.
+// hand-declared wire types. The socket carries canonical CBOR in both
+// directions, so the step reads its input with DecodeCBOR and writes its
+// output with EncodeCBOR. The codec is dispatch-free on the typed path (it
+// decodes each nested type by a direct call to its own decoder and writes
+// leaves by hand, with no reflective struct-walk), so the wire shape stays
+// single-sourced from the schema.
 //
 // Build: GOOS=wasip1 GOARCH=wasm go build -buildmode=c-shared -o frp-step-go.wasm ./
 package main
@@ -93,10 +95,10 @@ func describe() int32 {
 //go:wasmexport step
 func step() int32 {
 	// Decode the real FRPStepInput through the generated codec's
-	// UnmarshalJSON — a streaming token walk into the typed value, no
-	// reflective struct-walk.
+	// DecodeCBOR — a streaming walk into the typed value, no reflective
+	// struct-walk.
 	var in abi.FRPStepInput
-	if err := in.UnmarshalJSON(pdk.Input()); err != nil {
+	if err := in.DecodeCBOR(pdk.Input()); err != nil {
 		pdk.SetError(err)
 		return 1
 	}
@@ -152,10 +154,11 @@ func step() int32 {
 		})
 	}
 
-	// Encode the output through the generated codec's MarshalJSON — a
+	// Encode the output through the generated codec's EncodeCBOR — a
 	// manual field-ordered build, no reflective struct-walk. The patch
-	// Value is an any-typed JSON fragment the codec marshals as-is.
-	raw, err := out.MarshalJSON()
+	// Value is an any-typed JSON fragment the codec carries as the bytes of
+	// its JSON document.
+	raw, err := out.EncodeCBOR()
 	if err != nil {
 		pdk.SetError(err)
 		return 1

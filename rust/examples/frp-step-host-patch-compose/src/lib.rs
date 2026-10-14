@@ -29,14 +29,18 @@
 //! document the compose provider hands the stock node-span codec, so it is
 //! cleanly RFC-6902-patchable and the surgical insert preserves every sibling
 //! service, key, comment, and scalar style verbatim.
+//!
+//! The pipeline-step socket carries canonical CBOR in both directions, so
+//! `step` takes and returns bytes: it reads its input with
+//! `FRPStepInput::decode_cbor` and returns its output's `encode_cbor()`,
+//! through the codec generated into the `aggrega-abi` crate.
 
+use aggrega_abi::{FRPStepInput, FRPStepOutput, JSONPatchOp};
 use aggrega_pdk_rust::{
     encode_descriptor, PluginDescriptor, PluginDescriptorMeta, PluginExport, API_VERSION,
 };
 use extism_pdk::{plugin_fn, FnResult};
-use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::collections::BTreeMap;
 
 /// The static `describe()` self-report: a v1alpha1 `pipeline-step` plugin whose
 /// `step` export patches the merged compose document and is tested-compatible
@@ -61,49 +65,6 @@ fn descriptor() -> PluginDescriptor {
         })),
         ..Default::default()
     }
-}
-
-/// One addressable unit the host hands the guest. A structured unit carries a
-/// `tree` (the RFC-6902-addressable view the guest content-selects and
-/// patches); an opaque unit carries no `tree`, so it is never a PATCH target.
-#[derive(Deserialize)]
-struct Unit {
-    #[serde(default)]
-    tree: Option<Value>,
-}
-
-/// The keyed, scope-rooted unit set the host hands the guest. A
-/// component-scope FeatureRecipe attached to a host receives both roots; this
-/// guest acts only on `host`.
-#[derive(Deserialize)]
-struct DocumentSet {
-    #[serde(default)]
-    own: BTreeMap<String, Unit>,
-    #[serde(default)]
-    host: BTreeMap<String, Unit>,
-}
-
-/// The subset of the host's FRPStepInput this plugin reads.
-#[derive(Deserialize)]
-struct StepInput {
-    documents: DocumentSet,
-}
-
-/// One RFC 6902 patch addressed to a document by scope and key.
-#[derive(Serialize)]
-struct JsonPatchOp {
-    scope: String,
-    key: String,
-    op: String,
-    path: String,
-    value: Value,
-}
-
-/// The host's FRPStepOutput wire shape: key-addressed patches.
-#[derive(Serialize, Default)]
-struct StepOutput {
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    patches: Vec<JsonPatchOp>,
 }
 
 /// The host calls `describe()` once at load to read the plugin's
@@ -133,35 +94,50 @@ fn compose_service_names(tree: &Value) -> Vec<String> {
 
 /// `step` runs one cross-entity pipeline step over the keyed document set: it
 /// content-selects the merged compose document and PATCHes each service's
-/// `environment` block, injecting an environment variable. Iterating a
-/// BTreeMap and sorting service names keeps selection deterministic across
-/// runs.
+/// `environment` block, injecting an environment variable. A component-scope
+/// FeatureRecipe attached to a host receives both roots; this guest acts only
+/// on `host`. The host set arrives in the order the host holds it; visiting its
+/// keys in sorted order, and sorting service names, keeps selection
+/// deterministic across runs.
 #[plugin_fn]
-pub fn step(input: String) -> FnResult<String> {
-    let parsed: StepInput = serde_json::from_str(&input)?;
-    let _ = &parsed.documents.own; // this guest acts only on the host root.
+pub fn step(input: Vec<u8>) -> FnResult<Vec<u8>> {
+    let parsed = FRPStepInput::decode_cbor(&input)?;
 
-    let mut out = StepOutput::default();
+    let mut out = FRPStepOutput::default();
 
-    for (key, unit) in parsed.documents.host.iter() {
-        let tree = match unit.tree.as_ref() {
+    let mut host_keys: Vec<&String> = parsed.documents.host.keys().collect();
+    host_keys.sort();
+    for key in host_keys {
+        // An opaque unit carries no tree and is never a PATCH target. A
+        // structured unit's tree rides as the bytes of its JSON document, which
+        // the guest parses to select by content.
+        let tree: Value = match parsed
+            .documents
+            .host
+            .get(key)
+            .and_then(|u| u.tree.as_deref())
+            .and_then(|raw| serde_json::from_str(raw.get()).ok())
+        {
             Some(t) => t,
-            None => continue, // opaque unit: never a PATCH target.
+            None => continue,
         };
-        for svc in compose_service_names(tree) {
+        for svc in compose_service_names(&tree) {
             // Inject an env var into the service's `environment` map. The
             // synthesized service ships a non-empty `environment` block, so an
             // `add` of a new member is a clean node-span insertion the stock
             // codec splices in without disturbing sibling keys or styles.
-            out.patches.push(JsonPatchOp {
+            out.patches.push(JSONPatchOp {
                 scope: "host".to_string(),
                 key: key.clone(),
                 op: "add".to_string(),
                 path: format!("/services/{svc}/environment/INJECTED_BY_FEATURE"),
-                value: Value::String("frp-step-host-patch-compose".to_string()),
+                value: Some(serde_json::value::to_raw_value(&Value::String(
+                    "frp-step-host-patch-compose".to_string(),
+                ))?),
+                ..Default::default()
             });
         }
     }
 
-    Ok(serde_json::to_string(&out)?)
+    Ok(out.encode_cbor()?)
 }

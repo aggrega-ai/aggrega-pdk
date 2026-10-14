@@ -14,6 +14,9 @@
  *  - It EMITs a new host-scope marker document (an additive cross-entity
  *    side effect) only when the host document set is present — a
  *    component-scope FeatureRecipe attached to a host.
+ *  - It RETURNS its `with` input as its outputs, entry for entry and in the
+ *    order the entries arrived, so a later step reads each value through
+ *    .steps.<id>.outputs.<key>.
  *
  * It self-describes via describe() as a pipeline-step plugin whose step export
  * declares operates=patch, scope=own, and the helm and helm-chart
@@ -21,18 +24,24 @@
  * the descriptor, then dispatches step with the keyed document set as
  * input.
  *
- * Entry convention follows the Extism JS PDK: parameterless function,
- * read input via Host.inputString(), write output via Host.outputString(),
- * expose via module.exports. The FRP-step codec is consumed from the
- * TypeScript Plugin Development Kit, which re-exports it from the portable
- * ABI package.
+ * Entry convention follows the Extism JS PDK: parameterless function, expose
+ * via module.exports. The pipeline-step socket carries canonical CBOR in both
+ * directions, so step reads Host.inputBytes() into decodeCBORFRPStepInput and
+ * writes its output with encodeCBORFRPStepOutput through Host.outputBytes().
+ * The step codec is consumed from the TypeScript Plugin Development Kit, which
+ * re-exports it from the portable ABI package.
+ *
+ * The step input and the outputs are Maps, which keep their entries in the
+ * order they were set — an integer-like key included, which a plain object
+ * would move to the front. Building the outputs as a Map is what lets a step
+ * return them in the order it chose.
  */
 
 import {
   API_VERSION,
-  decodeFRPStepInput,
+  decodeCBORFRPStepInput,
+  encodeCBORFRPStepOutput,
   encodeDescriptor,
-  encodeFRPStepOutput,
   type JSONPatchOp,
   type PluginDescriptor,
   type SideEffect,
@@ -81,7 +90,7 @@ function describe(): void {
 }
 
 function step(): void {
-  const input = decodeFRPStepInput(Host.inputString());
+  const input = decodeCBORFRPStepInput(new Uint8Array(Host.inputBytes()));
 
   const patches: JSONPatchOp[] = [];
   const sideEffects: SideEffect[] = [];
@@ -136,7 +145,16 @@ function step(): void {
     });
   }
 
-  Host.outputString(encodeFRPStepOutput({ patches, side_effects: sideEffects }));
+  // Return the `with` input as the step's outputs, in the order its entries
+  // arrived.
+  const outputs = new Map<string, unknown>();
+  for (const [key, value] of input.step_input ?? new Map<string, unknown>()) {
+    outputs.set(key, value);
+  }
+
+  Host.outputBytes(
+    encodeCBORFRPStepOutput({ patches, side_effects: sideEffects, outputs }).buffer as ArrayBuffer,
+  );
 }
 
 module.exports = { step, describe };

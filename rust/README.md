@@ -100,6 +100,19 @@ bytes to write, and the encoder carries them as raw bytes.
 [`examples/link-cross-boundary/`](examples/link-cross-boundary) are providers
 built this way.
 
+### The pipeline-step socket
+
+A pipeline step's `step` export takes and returns `Vec<u8>`: read the input with
+`FRPStepInput::decode_cbor` and return an `FRPStepOutput`'s `encode_cbor()`. The
+step types come from the `aggrega-abi` crate the kit builds on, which a step names
+as a dependency of its own. Each unit's `tree`, each `with` and output value and a
+patch's `value` are the JSON documents they carry (`Box<RawValue>`), which a step
+parses with `serde_json`; the step's `with` input, its outputs and its two
+document sets are `OrderedMap`s, so the outputs a step inserts reach
+`.steps.<id>.outputs` in the order it inserted them.
+[`examples/frp-step-patch/`](examples/frp-step-patch) and the three
+`frp-step-*` examples beside it are steps built this way.
+
 ### Reporting facts about what a provider emitted
 
 A provider's `render_node` may return `render_facts` beside its files: an
@@ -191,8 +204,8 @@ rust/
 
 `types.rs` carries no types: the socket payload types are generated
 into the shared `aggrega-abi` crate and re-exported from `lib.rs` with
-`pub use`, so the spelling a plugin author writes is the type the codec
-serializes. See the [kit overview](../README.md) for the generation and
+`pub use` — the pipeline step's are taken from `aggrega-abi` directly —
+so the spelling a plugin author writes is the type the codec serializes. See the [kit overview](../README.md) for the generation and
 the gates that hold it.
 
 ## Standalone reuse

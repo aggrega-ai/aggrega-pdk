@@ -144,6 +144,17 @@ file's `Content` is the byte slice to write, which the encoder carries as raw
 bytes. [`examples/render/`](examples/render) and [`examples/link/`](examples/link)
 are providers built this way.
 
+### The pipeline-step socket
+
+A pipeline step's `step` export reads its input and writes its output in
+canonical CBOR. Decode the input with `abi.FRPStepInput`'s `DecodeCBOR` and return
+the `abi.FRPStepOutput` encoded with `EncodeCBOR`; the step types come from the
+ABI package (`github.com/aggrega-ai/aggrega-abi-go/pkg/abi`) directly. The step's
+`with` input, its outputs and its two document sets are order-keeping maps, so the
+outputs a step sets reach `.steps.<id>.outputs` in the order it set them.
+[`examples/frp-step/`](examples/frp-step) and the producer and injector examples
+beside it are steps built this way.
+
 ### Reporting facts about what a provider emitted
 
 A provider's `render_node` may return `RenderFacts` beside its files: an ordered

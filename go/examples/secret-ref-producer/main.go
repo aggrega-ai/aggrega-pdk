@@ -22,7 +22,9 @@
 //
 // The step payload is decoded and re-encoded through the generated ABI codec
 // (github.com/aggrega-ai/aggrega-abi-go/pkg/abi) rather than hand-declared wire
-// types, so the wire shape stays single-sourced from the schema.
+// types, so the wire shape stays single-sourced from the schema. The socket
+// carries canonical CBOR in both directions, so the step reads its input with
+// DecodeCBOR and writes its output with EncodeCBOR.
 //
 // Build: GOOS=wasip1 GOARCH=wasm go build -buildmode=c-shared -o secret-ref-producer-go.wasm ./
 package main
@@ -82,7 +84,7 @@ func describe() int32 {
 //go:wasmexport step
 func step() int32 {
 	var in abi.FRPStepInput
-	if err := in.UnmarshalJSON(pdk.Input()); err != nil {
+	if err := in.DecodeCBOR(pdk.Input()); err != nil {
 		pdk.SetError(err)
 		return 1
 	}
@@ -111,7 +113,7 @@ func step() int32 {
 	}
 	out.Outputs.Set("secretName", name)
 
-	raw, err := out.MarshalJSON()
+	raw, err := out.EncodeCBOR()
 	if err != nil {
 		pdk.SetError(err)
 		return 1
