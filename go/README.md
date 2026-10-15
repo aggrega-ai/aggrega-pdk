@@ -104,15 +104,22 @@ tested on the host by handing `Import` a parse function of the test's own. Its
 package documentation carries the scoring signals, the tiers and the settings in
 full.
 
-[`examples/import-langflow/`](examples/import-langflow) and
-[`examples/import-flowise/`](examples/import-flowise) are two importers built this
-way, one per format. Each holds its descriptor and export wiring (`main.go`), its
-walker (`walk.go`), and its format's mapping arm and syntactic format
-(`format.go`). Each builds with its own `./build.sh`, which writes
-`import-langflow-go.wasm` or `import-flowise-go.wasm` into `$AGGREGA_PDK_WASM_OUT`
-when that is set, and stamps the version the guest reports through `describe()`
-from `AGGREGA_PLUGIN_VERSION` (default `1.0.0`). The commit is left unstamped, so
-two builds of one tree are byte-identical.
+The compiler's own Langflow and Flowise importers are built this way, one per
+format, and they are the worked example to read: their sources are in the
+compiler's repository (`github.com/aggrega-ai/aggrega-cli`), under
+`plugins/langflow-importer/` and `plugins/flowise-importer/`. Each holds its
+descriptor and export wiring (`main.go`), its walker (`walk.go`), and its format's
+mapping arm and syntactic format (`format.go`), and takes everything else from
+`pkg/importer`.
+
+[`examples/import/`](examples/import) is this kit's teaching importer: a minimal
+scaffold that declares a recognition signature and exercises both directions of
+the import codec, answering with one drafted entity and one scaffold file rather
+than a real mapping. It builds with its own `./build.sh`, which writes
+`import-go.wasm` into `$AGGREGA_PDK_WASM_OUT` when that is set, and stamps the
+version the guest reports through `describe()` from `AGGREGA_PLUGIN_VERSION`
+(default `1.0.0`). The commit is left unstamped, so two builds of one tree are
+byte-identical.
 
 ### Values an input marks sensitive
 
@@ -239,8 +246,8 @@ go/
 │                     rendering, settings, and the tree readers walkers use)
 └── examples/         (one directory per worked plugin — a mutator, a
                       policy, a governance adapter skeleton, an FRP
-                      step, a CLI plugin, an importer per agent-flow
-                      format, and others)
+                      step, a CLI plugin, a minimal importer, and
+                      others)
 ```
 
 `types.go` carries no types: the socket payload types are generated
