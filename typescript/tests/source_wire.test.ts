@@ -47,7 +47,7 @@ function readVector(name: string): string {
     return readFileSync(path, "utf8");
   } catch (err) {
     throw new Error(
-      `shared payload vector ${name} is not readable at ${path}: ${String(err)}; run scripts/setup-workspace.sh from the umbrella checkout so the sibling ABI checkout is present`,
+      `shared payload vector ${name} is not readable at ${path}: ${String(err)}; the vectors are read from the testdata directory of the aggrega-abi repository, which must be checked out beside this one`,
     );
   }
 }

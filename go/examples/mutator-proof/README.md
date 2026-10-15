@@ -26,12 +26,10 @@ bash build.sh
 
 Destination resolution:
 
-1. `$AGGREGA_PDK_WASM_OUT` if set — explicit override (the umbrella's
-   integration test driver uses this when staging into a temporary
-   directory).
-2. The umbrella's `aggrega-cli/internal/wasm/testdata/` directory when
-   this PDK is checked out as a submodule of the umbrella.
-3. The PDK's own `testdata/` directory for standalone checkouts.
+1. `$AGGREGA_PDK_WASM_OUT` if set — explicit override (the `aggrega-cli`
+   test harness sets it when it builds this example as a fixture, staging
+   into a temporary directory).
+2. Otherwise, the PDK's own `testdata/` directory.
 
 The build stamps a version into the guest via the linker, defaulting to
 `1.0.0` and overridable with `AGGREGA_PLUGIN_VERSION`. The guest reports

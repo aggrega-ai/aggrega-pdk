@@ -18,7 +18,7 @@ on:
 # The PDK manifests carry local relative path deps to the sibling ABI
 # (go: replace ../../aggrega-abi/go; rust: path ../../aggrega-abi/rust;
 # ts: file:../../aggrega-abi/typescript). Standalone CI has no sibling,
-# so each job recreates the umbrella layout under $GITHUB_WORKSPACE:
+# so each job recreates the side-by-side layout under $GITHUB_WORKSPACE:
 # this repo at aggrega-pdk/ and the ABI at aggrega-abi/, then builds from
 # aggrega-pdk/<lang>/ so ../../aggrega-abi/<lang> resolves. The ABI is a
 # private repo, so it is cloned with a short-lived org GitHub App token.
@@ -134,11 +134,10 @@ jobs:
         working-directory: aggrega-pdk/rust
         run: |
           # idna_adapter @ 1.2.x requires rustc 1.86 (pulls in
-          # icu_normalizer >= 2.2). The Rust PDK targets rustc 1.85
-          # per the umbrella's setup-workspace.sh; Cargo.lock pins
-          # idna_adapter to the 1.1.x line. Fail the build if a future
-          # cargo update bumps past that line before the toolchain
-          # floor moves.
+          # icu_normalizer >= 2.2). The Rust PDK targets rustc 1.85;
+          # Cargo.lock pins idna_adapter to the 1.1.x line. Fail the
+          # build if a future cargo update bumps past that line before
+          # the toolchain floor moves.
           resolved="$(grep -A 1 '^name = "idna_adapter"' Cargo.lock | awk -F\" '/version/ {print $2; exit}')"
           if [ -z "$resolved" ]; then
             echo "ERROR: idna_adapter not found in Cargo.lock; pin verification cannot run."
@@ -224,7 +223,7 @@ jobs:
       # sudo; a self-hosted one does not, and `sudo tar` there fails the whole job
       # with "a terminal is required to read the password" — a provisioning fact
       # reported as a build failure, on a step that has nothing to do with the
-      # build. The same pattern failed in the umbrella's full battery.
+      # build.
       #
       # Both install into a writable per-run directory added to PATH. That needs no
       # privilege, and since the tools are downloaded from the network either way,

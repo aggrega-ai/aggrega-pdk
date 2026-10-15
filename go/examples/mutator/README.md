@@ -21,16 +21,15 @@ bash build.sh
 
 Destination resolution:
 
-1. `$AGGREGA_PDK_WASM_OUT` if set — explicit override (the umbrella's
-   integration test driver uses this when staging into a temporary
-   directory).
-2. The umbrella's `aggrega-cli/internal/wasm/testdata/` directory when
-   this PDK is checked out as a submodule of the umbrella.
-3. The PDK's own `testdata/` directory for standalone checkouts.
+1. `$AGGREGA_PDK_WASM_OUT` if set — explicit override (the `aggrega-cli`
+   test harness sets it when it builds this example as a fixture, staging
+   into a temporary directory).
+2. Otherwise, the PDK's own `testdata/` directory.
 
 ## Source-level dependency
 
 This fixture consumes the PDK via a `replace` directive in `go.mod`
-pointing at the sibling PDK source at `../../`. The umbrella checkout
-provides the file-relative resolution. Standalone reuse by end users
+pointing at the sibling PDK source at `../../`. The ABI module it
+depends on resolves the same way, from the `aggrega-abi` repository
+checked out beside this repository. Standalone reuse by end users
 is gated on PDK publication (planned post-`v1alpha1`).

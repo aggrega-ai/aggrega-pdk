@@ -260,11 +260,12 @@ the gates that hold it.
 
 The Go PDK's tests reference the JSON Schemas at relative path
 `../../../aggrega-schemas/json/` (relative to `pkg/aggrega/`).
-This assumes the umbrella workspace layout. Standalone consumption
-(after publication to `pkg.go.dev`) bundles the schemas in the
-release artifact; the file-relative reference becomes
-publication-bundled. Until publication, only the umbrella checkout
-runs the round-trip tests end-to-end.
+This assumes the `aggrega-schemas` repository is checked out beside
+this repository. Standalone consumption (after publication to
+`pkg.go.dev`) bundles the schemas in the release artifact; the
+file-relative reference becomes publication-bundled. Until
+publication, only a checkout with `aggrega-schemas` beside it runs the
+round-trip tests end-to-end.
 
 When the schemas are not reachable those tests **fail** with a clear
 diagnostic, because a run that could not read them has verified

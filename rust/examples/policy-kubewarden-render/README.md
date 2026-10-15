@@ -140,5 +140,5 @@ The crate is a self-contained workspace with its own toolchain pin and
 lockfile — so its dependency tree (including the YAML parser it pulls in)
 resolves independently of the enclosing plugin workspace's shared,
 deliberately-floored lockfile — so `build.sh` builds it under
-`rustup run stable` and copies the artifact to the umbrella's Wasm testdata
-directory (or `$AGGREGA_PDK_WASM_OUT` when set).
+`rustup run stable` and copies the artifact to `$AGGREGA_PDK_WASM_OUT` when
+set, and otherwise to the PDK's own `testdata/` directory.

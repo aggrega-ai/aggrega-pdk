@@ -44,7 +44,7 @@ func readVector(t *testing.T, name string) []byte {
 	path := filepath.Join(vectorDir(), name)
 	b, err := os.ReadFile(path)
 	if err != nil {
-		t.Fatalf("shared payload vector %s is not readable at %s: %v; run scripts/setup-workspace.sh from the umbrella checkout so the sibling ABI checkout is present", name, path, err)
+		t.Fatalf("shared payload vector %s is not readable at %s: %v; the vectors are read from the testdata directory of the aggrega-abi repository, which must be checked out beside this one", name, path, err)
 	}
 	return b
 }

@@ -24,9 +24,8 @@ The build:
 
 1. Verifies the four required tools are on PATH (fails fast with
    install pointers if any is missing).
-2. Resolves the artifact destination directory (three-tier order:
-   `$AGGREGA_PDK_WASM_OUT` → umbrella superproject's testdata →
-   PDK-root testdata).
+2. Resolves the artifact destination directory
+   (`$AGGREGA_PDK_WASM_OUT` when set, otherwise the PDK-root testdata).
 3. `npm install --no-save` brings esbuild + types into a fixture-
    local `node_modules/` without writing a lockfile.
 4. `esbuild` bundles `src/index.ts` to a single CommonJS JS file at

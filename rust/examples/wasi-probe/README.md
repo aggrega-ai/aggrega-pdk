@@ -37,9 +37,7 @@ bash build.sh
 Destination resolution:
 
 1. `$AGGREGA_PDK_WASM_OUT` if set — explicit override.
-2. The umbrella's `aggrega-cli/internal/wasm/testdata/` directory
-   when this PDK is checked out as a submodule.
-3. The PDK's own `testdata/` directory for standalone checkouts.
+2. Otherwise, the PDK's own `testdata/` directory.
 
 The Rust toolchain's `wasm32-wasip1` target is required; `build.sh`
 runs `rustup target add wasm32-wasip1` idempotently.

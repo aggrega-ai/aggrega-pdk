@@ -10,6 +10,7 @@ require (
 
 require golang.org/x/text v0.14.0 // indirect
 
-// The portable ABI codec is a sibling submodule in the umbrella; the module
-// path is its publication identity while the local checkout serves the build.
+// The portable ABI codec is the aggrega-abi repository, checked out beside this
+// one; the module path is its publication identity while the local checkout
+// serves the build.
 replace github.com/aggrega-ai/aggrega-abi-go => ../../aggrega-abi/go

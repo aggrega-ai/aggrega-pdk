@@ -29,9 +29,8 @@ pipeline contract.
 ./build.sh
 ```
 
-Builds `frp-step-go.wasm` into the umbrella's
-`aggrega-cli/internal/wasm/testdata/` (or the PDK's own `testdata/` for a
-standalone checkout) with
+Builds `frp-step-go.wasm` into `$AGGREGA_PDK_WASM_OUT` when that is set,
+and otherwise into the PDK's own `testdata/`, with
 `GOOS=wasip1 GOARCH=wasm go build -buildmode=c-shared`. Requires the
 standard Go toolchain.
 

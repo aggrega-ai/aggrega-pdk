@@ -9,9 +9,7 @@
 #
 # Resolution order for the destination directory:
 #   1. $AGGREGA_PDK_WASM_OUT  (explicit override).
-#   2. The umbrella's renderer pipeline testdata directory, when this PDK
-#      is checked out as a submodule of the aggrega-umbrella superproject.
-#   3. The PDK's own root testdata/, for genuine standalone checkouts.
+#   2. Otherwise, the PDK's own root testdata/.
 
 set -eo pipefail
 
@@ -24,12 +22,7 @@ fi
 if [ -n "${AGGREGA_PDK_WASM_OUT:-}" ]; then
     OUT_DIR="${AGGREGA_PDK_WASM_OUT}"
 else
-    SUPERPROJECT="$(git rev-parse --show-superproject-working-tree 2>/dev/null)"
-    if [ -n "$SUPERPROJECT" ]; then
-        OUT_DIR="${SUPERPROJECT}/aggrega-cli/internal/wasm/testdata"
-    else
-        OUT_DIR="$(git rev-parse --show-toplevel)/testdata"
-    fi
+    OUT_DIR="$(git rev-parse --show-toplevel)/testdata"
 fi
 
 mkdir -p "${OUT_DIR}"

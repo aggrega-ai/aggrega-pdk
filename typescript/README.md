@@ -210,21 +210,17 @@ The PDK and its fixture builds need three external tools beyond Node
   npm for fixture dependency installation.
 
 The fixture `build.sh` scripts run a precondition check and fail fast
-with install pointers if any of the three are missing.
-
-The umbrella's `scripts/setup-workspace.sh` provisions `extism-js`,
-binaryen, and Node, so a workspace set up through that script has the
-fixture-build toolchain ready. For standalone checkouts, install the
-tools manually per the pointers in the build.sh diagnostics.
+with install pointers if any of the three are missing. Install the
+tools manually per those pointers.
 
 ## Standalone reuse
 
 The PDK's tests reference the JSON Schemas at relative path
 `../../aggrega-schemas/json/` (relative to this package
-root). This assumes the umbrella workspace layout. Standalone
-consumption (after publication to npm) bundles the schemas in the
-release artifact; the file-relative reference becomes
-publication-bundled.
+root). This assumes the `aggrega-schemas` repository is checked out
+beside this repository. Standalone consumption (after publication to
+npm) bundles the schemas in the release artifact; the file-relative
+reference becomes publication-bundled.
 
 When running `npm test` from a checkout that does not have the
 schemas alongside, the schema-dependent tests **fail** with a clear
@@ -252,5 +248,5 @@ AGGREGA_SKIP_SCHEMA_TESTS=1 node --test --experimental-strip-types \
   tests/round_trip.test.ts
 ```
 
-The umbrella's checkout always has the schemas in place, so neither
-the refusal nor the skip fires there.
+A checkout with `aggrega-schemas` beside it has the schemas in place,
+so neither the refusal nor the skip fires there.

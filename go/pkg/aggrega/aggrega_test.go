@@ -43,8 +43,9 @@ func refuseOrSkipUnreachableSchemas(t *testing.T, path string, err error) {
 		t.Skipf("skipped: schemas not reachable at %s (%v); %s is set", path, err, skipSchemaTestsEnv)
 	}
 	t.Fatalf("schemas not reachable at %s: %v; these tests validate against the JSON Schemas "+
-		"published alongside this kit and verify nothing without them. Restore the umbrella "+
-		"checkout layout (aggrega-pdk/ and aggrega-schemas/ as siblings), or set %s=1 to skip them.",
+		"published alongside this kit and verify nothing without them. Check out the "+
+		"aggrega-schemas repository beside this one (aggrega-pdk/ and aggrega-schemas/ as "+
+		"siblings), or set %s=1 to skip them.",
 		path, err, skipSchemaTestsEnv)
 }
 

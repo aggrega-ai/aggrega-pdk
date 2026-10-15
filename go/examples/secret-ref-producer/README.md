@@ -25,5 +25,5 @@ omits the field or gives it a non-string value halts the build.
 GOOS=wasip1 GOARCH=wasm go build -buildmode=c-shared -o secret-ref-producer-go.wasm ./
 ```
 
-Or run `./build.sh`, which resolves the output directory (the umbrella's
-Wasm testdata directory when checked out as a submodule) and builds there.
+Or run `./build.sh`, which resolves the output directory (`$AGGREGA_PDK_WASM_OUT`
+when set, otherwise the PDK's own `testdata/`) and builds there.

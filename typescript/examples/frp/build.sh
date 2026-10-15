@@ -4,19 +4,17 @@
 # via the Extism JS PDK (extism-js compiler + QuickJS runtime).
 #
 # Resolution order for the destination directory:
-#   1. $AGGREGA_PDK_WASM_OUT  (explicit override; the umbrella's
-#      integration test driver may set this when staging into a
-#      temporary directory).
-#   2. The umbrella's testdata directory, when this PDK is checked
-#      out as a submodule of the aggrega-umbrella superproject.
-#   3. The PDK's own root testdata/, for genuine standalone checkouts.
+#   1. $AGGREGA_PDK_WASM_OUT  (explicit override; the aggrega-cli test
+#      harness sets this when it builds this example as a fixture,
+#      staging into a temporary directory).
+#   2. Otherwise, the PDK's own root testdata/.
 
 set -eo pipefail
 
 # Bring node + extism-js + binaryen onto PATH for non-interactive
-# subprocess invocations. The setup-workspace.sh script installs node
-# under ~/n/bin and the user-local toolchain binaries under
-# ~/.local/bin; both are added here defensively.
+# subprocess invocations. Node under ~/n/bin and the user-local
+# toolchain binaries under ~/.local/bin are both added here
+# defensively, each only when its directory exists.
 if [ -d "${HOME}/n/bin" ]; then
     export PATH="${HOME}/n/bin:${PATH}"
 fi
@@ -39,7 +37,7 @@ for tool in node npm extism-js wasm-merge wasm-opt; do
         echo "    mkdir -p ~/.local/share/binaryen-version_129 && tar -C ~/.local/share/binaryen-version_129 --strip-components=1 -xzf /tmp/binaryen.tar.gz"
         echo "    ln -sf ~/.local/share/binaryen-version_129/bin/wasm-merge ~/.local/bin/wasm-merge"
         echo "    ln -sf ~/.local/share/binaryen-version_129/bin/wasm-opt ~/.local/bin/wasm-opt"
-        echo "  node + npm: ensure ~/n/bin is on PATH per scripts/setup-workspace.sh"
+        echo "  node + npm: ensure both are on PATH (this script adds ~/n/bin when it exists)"
         exit 1
     fi
 done
@@ -47,12 +45,7 @@ done
 if [ -n "${AGGREGA_PDK_WASM_OUT:-}" ]; then
     OUT_DIR="${AGGREGA_PDK_WASM_OUT}"
 else
-    SUPERPROJECT="$(git rev-parse --show-superproject-working-tree 2>/dev/null)"
-    if [ -n "$SUPERPROJECT" ]; then
-        OUT_DIR="${SUPERPROJECT}/aggrega-cli/internal/wasm/testdata"
-    else
-        OUT_DIR="$(git rev-parse --show-toplevel)/testdata"
-    fi
+    OUT_DIR="$(git rev-parse --show-toplevel)/testdata"
 fi
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -71,7 +64,7 @@ mkdir -p "${OUT_DIR}" "${SCRIPT_DIR}/dist"
 (cd "${SCRIPT_DIR}" && npx esbuild src/index.ts --bundle --format=cjs --target=es2022 --platform=neutral --main-fields=module,main --outfile=dist/plugin.js)
 
 # Compile the bundled JS into a Wasm artifact embedding QuickJS. The artifact is
-# named for this example's directory and language, the name the umbrella's
-# fixture builder resolves back to this directory.
+# named for this example's directory and language, the name the aggrega-cli test
+# harness resolves back to this directory.
 extism-js -i "${SCRIPT_DIR}/index.d.ts" "${SCRIPT_DIR}/dist/plugin.js" -o "${OUT_DIR}/frp-typescript.wasm"
 echo "Wrote ${OUT_DIR}/frp-typescript.wasm"

@@ -17,8 +17,9 @@ serde_json = "1"
 # line extism-pdk already pins transitively, so no new code enters the
 # dependency tree.
 base64 = "0.22"
-# Portable ABI codec — sibling submodule in the umbrella. The crate name is its
-# publication identity (crates.io: aggrega-abi); the local path serves the build.
+# Portable ABI codec — the aggrega-abi repository, checked out beside this one.
+# The crate name is its publication identity (crates.io: aggrega-abi); the local
+# path serves the build.
 aggrega-abi = { path = "../../aggrega-abi/rust" }
 
 [dev-dependencies]

@@ -23,12 +23,7 @@ done
 if [ -n "${AGGREGA_PDK_WASM_OUT:-}" ]; then
     OUT_DIR="${AGGREGA_PDK_WASM_OUT}"
 else
-    SUPERPROJECT="$(git rev-parse --show-superproject-working-tree 2>/dev/null)"
-    if [ -n "$SUPERPROJECT" ]; then
-        OUT_DIR="${SUPERPROJECT}/aggrega-cli/internal/wasm/testdata"
-    else
-        OUT_DIR="$(git rev-parse --show-toplevel)/testdata"
-    fi
+    OUT_DIR="$(git rev-parse --show-toplevel)/testdata"
 fi
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"

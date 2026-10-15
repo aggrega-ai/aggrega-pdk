@@ -14,9 +14,9 @@
  *  4. Deserialises it back and asserts it equals the fixture, or that it
  *     re-encodes to the same text.
  *
- * Schemas live alongside the umbrella checkout at
- * `../../aggrega-schemas/json/` relative to this crate root. A run that could
- * not read them has verified nothing, so these tests refuse with a clear
+ * Schemas are read from the `aggrega-schemas` repository checked out beside
+ * this one, at `../../aggrega-schemas/json/` relative to this package root. A
+ * run that could not read them has verified nothing, so these tests refuse with a clear
  * diagnostic rather than passing quietly. Where the schemas are genuinely
  * absent — a standalone checkout of this kit, or a packaging test — opt out
  * with `AGGREGA_SKIP_SCHEMA_TESTS=1`, and each affected test reports that it
@@ -106,8 +106,9 @@ function requireSchemas(t: TestContext, schemaName: string): boolean {
   }
   throw new Error(
     `${reason}: these tests validate against the JSON Schemas published ` +
-      `alongside this kit and verify nothing without them. Restore the umbrella ` +
-      `checkout layout (aggrega-pdk/ and aggrega-schemas/ as siblings), or set ` +
+      `alongside this kit and verify nothing without them. Check out the ` +
+      `aggrega-schemas repository beside this one (aggrega-pdk/ and aggrega-schemas/ ` +
+      `as siblings), or set ` +
       `${SKIP_SCHEMA_TESTS_ENV}=1 to skip them.`,
   );
 }

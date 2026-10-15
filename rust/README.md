@@ -26,9 +26,10 @@ cargo build --release --target wasm32-unknown-unknown
 
 The artifact lands at
 `target/wasm32-unknown-unknown/release/<crate>.wasm`. The crate's own
-`build.sh` (where one ships) copies it into the umbrella's testdata
-directory under the `<socket>-<lang>.wasm` naming convention the
-host's integration tests consume.
+`build.sh` (where one ships) copies it into `$AGGREGA_PDK_WASM_OUT`
+when that is set, and otherwise into this repository's `testdata/`,
+under the `<socket>-<lang>.wasm` naming convention the host's
+integration tests consume.
 
 See `examples/mutator/` and `examples/policy/` for working
 plugin sources.
@@ -212,9 +213,10 @@ the gates that hold it.
 
 The Rust PDK's tests reference the JSON Schemas at relative path
 `../../aggrega-schemas/json/` (relative to this crate root).
-This assumes the umbrella workspace layout. Standalone consumption
-(after publication to `crates.io`) bundles the schemas in the release
-artifact; the file-relative reference becomes publication-bundled.
+This assumes the `aggrega-schemas` repository is checked out beside
+this repository. Standalone consumption (after publication to
+`crates.io`) bundles the schemas in the release artifact; the
+file-relative reference becomes publication-bundled.
 
 When running `cargo test` from a checkout that does not have the
 schemas alongside, the schema-dependent tests **fail** with a clear
@@ -236,14 +238,13 @@ verified pass. The switch keys on the schemas being unreachable: with
 them in place it changes nothing, so it cannot quietly turn a real run
 into a skipped one.
 
-The umbrella's checkout always has the schemas in place, so neither
-the refusal nor the skip fires there.
+A checkout with `aggrega-schemas` beside it has the schemas in place,
+so neither the refusal nor the skip fires there.
 
 ## Toolchain pin requirements
 
-The Rust 1.85 floor (the umbrella's `setup-workspace.sh` minimum) is
-held in place by transitive-dependency version pins inside
-`Cargo.lock`. Specifically, `idna_adapter` must stay at the 1.1.x
+The Rust 1.85 floor is held in place by transitive-dependency version
+pins inside `Cargo.lock`. Specifically, `idna_adapter` must stay at the 1.1.x
 line or earlier: the 1.2.x line requires Rust 1.86 (via
 `icu_normalizer >= 2.2`).
 

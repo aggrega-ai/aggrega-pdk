@@ -481,7 +481,7 @@ mod tests {
         let path = vector_dir().join(name);
         std::fs::read_to_string(&path).unwrap_or_else(|e| {
             panic!(
-                "shared payload vector {name} is not readable at {}: {e}; run scripts/setup-workspace.sh from the umbrella checkout so the sibling ABI checkout is present",
+                "shared payload vector {name} is not readable at {}: {e}; the vectors are read from the testdata directory of the aggrega-abi repository, which must be checked out beside this one",
                 path.display()
             )
         })
