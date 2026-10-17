@@ -77,8 +77,14 @@
 // wherever a connection's alias can take that name. A format may also refuse a
 // node a socket, as a platform reaching a tools connection only through a node
 // naming it refuses that socket to every other node: the part passes that socket
-// over for the next one whose selector its Component satisfies. Every other node
-// stays inside the flow and becomes no Component; its decision records the
+// over for the next one whose selector its Component satisfies. And a format may
+// say that a socket draws a single connection, as one does whose connection the
+// platform delivers under fixed variable names: of the parts placed in it, the
+// first whose Component carries the labels the format prefers holds the
+// connection — the first part, where none does — and every other stays in the
+// flow, reported with the part holding the connection and with how the flow
+// reaches it as its node is written. Every other node stays inside the flow and
+// becomes no Component; its decision records the
 // candidates it was weighed against, chooses nothing, and says that the flow
 // keeps it. A part no socket admits, or that every socket admitting it refuses,
 // stays in the flow too, and the import reports it with why. Where the

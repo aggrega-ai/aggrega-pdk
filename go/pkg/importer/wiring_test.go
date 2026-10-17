@@ -459,6 +459,144 @@ func TestASocketTheFormatRefusesANodeIsPassedOver(t *testing.T) {
 	}
 }
 
+// singleSource is a flow of the test's format holding three models in this
+// order: a widget the settings map to an embedding model, whose data says it
+// reads what the platform delivers; a generative model; and a second widget,
+// holding an address of its own.
+const singleSource = `{"id":"flow-s","nodes":[` +
+	`{"id":"e1","type":"generic","data":{"type":"Widget","readsVariables":true}},` +
+	`{"id":"m1","type":"generic","data":{"type":"OpenAIModel"}},` +
+	`{"id":"e2","type":"generic","data":{"type":"Widget"}}],` +
+	`"edges":[]}` + "\n"
+
+// singleSettings maps the test's widget to an embedding model.
+const singleSettings = `{"mapping_overrides":{"testflow":{"Widget":{"component":"core/ai-model/openai-embedding","category":"ai-model"}}}}`
+
+// TestASocketDrawingASingleConnectionIsHeldByOnePart drafts singleSource against
+// a platform whose model socket admits any model, so all three models are placed
+// in it, and declares that socket as drawing a single connection:
+//
+//   - preferring a generative model, the connection goes to m1, the one part
+//     whose Component carries that label, though it is not the first; preferring
+//     a label no part's Component carries, it goes to the first part, e1;
+//   - every other model stays in the flow: it chooses nothing, is not drafted,
+//     and is reported, in the order of the nodes, with the part holding the
+//     connection, why it holds it, and how the flow reaches it as its node is
+//     written, as Standing says — asked with the node in that socket under the
+//     holder's key and alias;
+//   - the holder's decision says it holds the socket's single connection;
+//   - with no socket declared as drawing a single connection, all three are
+//     wired, as before.
+//
+// 🔴 PLANTED DEFECTS, each in platform.go:
+//
+//   - in holdSingleSockets, replace
+//     `if carriesEvery(labels[placements[i].target], s.Prefer) {` with
+//     `if false {`: the generative row fails, e1 holding the connection;
+//   - in importPlatform, replace `if pl.heldBy != "" {` with
+//     `if pl.heldBy == "\x00" {`: both rows declaring the socket fail, the
+//     platform drawing three model connections.
+func TestASocketDrawingASingleConnectionIsHeldByOnePart(t *testing.T) {
+	t.Parallel()
+	anyModel := aggrega.CatalogSocket{Name: "model", Selector: "component.aggrega.ai/category=ai-model"}
+	const generative = "model.aggrega.ai/capability"
+	for _, tc := range []struct {
+		name   string
+		single []SingleSocket
+		holder string
+		why    string
+		held   []string
+	}{
+		{name: "a generative model preferred", single: []SingleSocket{{Name: "model", Prefer: map[string]string{generative: "generative"}}},
+			holder: "m1", why: "its Component carries model.aggrega.ai/capability: generative", held: []string{"e1", "e2"}},
+		{name: "a label no part carries preferred", single: []SingleSocket{{Name: "model", Prefer: map[string]string{generative: "reasoning"}}},
+			holder: "e1", why: "it is the first of the parts placed there in the flow, none of whose Components carries " +
+				"model.aggrega.ai/capability: reasoning", held: []string{"m1", "e2"}},
+		{name: "no socket drawing a single connection"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var asked []Part
+			format := platformTestFormat()
+			format.Platform.Single = tc.single
+			format.Platform.Standing = func(tree json.RawMessage, part Part) (bool, string) {
+				asked = append(asked, part)
+				if _, data := testNode(tree, part.Node.ID); data["readsVariables"] != nil {
+					return true, "it reads what the platform delivers"
+				}
+				return false, "it holds an address of its own"
+			}
+			out := platformImport(t, format, platformCatalog(anyModel), singleSettings, oneSource(singleSource))
+			agg := out.Files[len(out.Files)-1].Content
+
+			if tc.single == nil {
+				const uses = "      uses:\n        model:\n          e1:\n            target: e1\n" +
+					"          m1:\n            target: m1\n          e2:\n            target: e2\n"
+				if !strings.Contains(agg, uses) {
+					t.Errorf("the platform does not draw\n%s\nit reads\n%s", uses, agg)
+				}
+				if len(asked) != 0 {
+					t.Errorf("Standing was asked about %+v with no socket drawing a single connection", asked)
+				}
+				return
+			}
+
+			uses := "      uses:\n        model:\n          " + tc.holder + ":\n            target: " + tc.holder + "\n"
+			if !strings.Contains(agg, uses) || strings.Count(agg, "            target: ") != 1 {
+				t.Errorf("the platform does not draw the one connection\n%s\nit reads\n%s", uses, agg)
+			}
+			holderClause := "; the model socket of core/ai-agent/testplat draws a single connection, which this part holds " +
+				"since " + tc.why
+			if d := decisionOf(t, out, tc.holder); d.Chosen == nil || !strings.HasSuffix(d.Rationale, holderClause) {
+				t.Errorf("the holder %s was decided %+v: %q, want a choice and a rationale ending %q", tc.holder, d.Chosen,
+					d.Rationale, holderClause)
+			}
+
+			standing := map[string]string{
+				"e1": "; as its node is written, the flow reaches it through the connection " + tc.holder +
+					": it reads what the platform delivers",
+				"m1": "; as its node is written, the flow reaches it other than through the connection " + tc.holder +
+					": it holds an address of its own",
+				"e2": "; as its node is written, the flow reaches it other than through the connection " + tc.holder +
+					": it holds an address of its own",
+			}
+			targets := map[string]string{"e1": "core/ai-model/openai-embedding", "m1": "core/ai-model/openai",
+				"e2": "core/ai-model/openai-embedding"}
+			var want []aggrega.Diagnostic
+			var wantAsked []Part
+			for _, ref := range tc.held {
+				reason := "it maps to " + targets[ref] + ", which satisfies the selector of the model socket of " +
+					"core/ai-agent/testplat, but that socket draws a single connection, which reaches " + tc.holder +
+					", wired from node " + tc.holder + " since " + tc.why + standing[ref]
+				if d := decisionOf(t, out, ref); d.Chosen != nil || d.Rationale != "kept in the flow core/ai-agent/testplat "+
+					"carries, with no Component of its own: "+reason {
+					t.Errorf("%s was decided %+v: %q, want no choice and %q", ref, d.Chosen, d.Rationale, reason)
+				}
+				if strings.Contains(agg, "\n    "+ref+":\n") {
+					t.Errorf("the held-out %s is drafted as a part:\n%s", ref, agg)
+				}
+				want = append(want, aggrega.Diagnostic{Severity: "warn", Code: "part-not-placed", SourceRef: ref,
+					Message: "node " + ref + " (" + map[string]string{"e1": "Widget", "m1": "OpenAIModel", "e2": "Widget"}[ref] +
+						") is wired to no socket of core/ai-agent/testplat: " + reason + "; it stays in the flow"})
+				node := Node{ID: ref, Type: map[string]string{"e1": "Widget", "m1": "OpenAIModel", "e2": "Widget"}[ref]}
+				wantAsked = append(wantAsked, Part{Node: node, Socket: "model", Key: tc.holder, Alias: tc.holder})
+			}
+			var placed []aggrega.Diagnostic
+			for _, d := range out.Diagnostics {
+				if d.Code == "part-not-placed" {
+					placed = append(placed, d)
+				}
+			}
+			if !reflect.DeepEqual(placed, want) {
+				t.Errorf("the import reports\n%+v\nwant\n%+v", placed, want)
+			}
+			if !reflect.DeepEqual(asked, wantAsked) {
+				t.Errorf("Standing was asked about %+v, want %+v", asked, wantAsked)
+			}
+		})
+	}
+}
+
 // TestVariableName pins the name a platform delivering a connection under
 // variables named for its alias gives the alias.
 func TestVariableName(t *testing.T) {

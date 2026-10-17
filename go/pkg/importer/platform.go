@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"path"
 	"regexp"
+	"sort"
 	"strings"
 
 	"github.com/aggrega-ai/aggrega-pdk-go/pkg/aggrega"
@@ -30,9 +31,10 @@ import (
 // candidate is at least a MEDIUM match. Every other node stays inside the flow
 // and becomes no Component, and so does a part no socket admits, or whose labels
 // nothing supplies, or which Reach refuses, or which Refuse refuses every socket
-// its labels satisfy, each of which the import reports. Where the workspace's
-// catalog holds no Component of that name the platform is drafted all the same,
-// no node becomes a part, and the import says so.
+// its labels satisfy, or which is placed in a socket of Single whose one
+// connection another part holds, each of which the import reports. Where the
+// workspace's catalog holds no Component of that name the platform is drafted
+// all the same, no node becomes a part, and the import says so.
 //
 // The source is carried as its own bytes, with every credential value it holds
 // written empty, every value Wire asks for written anew, every carriage return
@@ -90,10 +92,42 @@ type Platform struct {
 	// edits it returns write the alias in place of that name. Nil writes nothing
 	// and reports nothing.
 	Wire func(tree json.RawMessage, part Part) Wiring
+	// Single lists the sockets of the platform that draw a single connection, as
+	// a socket does whose connection the platform's Recipes deliver under fixed
+	// variable names, which can carry one connection only. Of the parts placed
+	// in such a socket one is wired, as [SingleSocket] chooses it; every other
+	// stays in the flow, and the import reports it with the part that holds the
+	// connection and, as Standing says, how the flow reaches it as its node is
+	// written. Nil lists none: every socket draws a connection per part.
+	Single []SingleSocket
+	// Standing says, for a node whose part stays in the flow because another
+	// part holds the single connection of the socket it was placed in, whether
+	// the flow reaches the node's part through that connection as the node is
+	// written, nothing written anew, and how — or how it reaches it instead.
+	// part is the node as it would be wired: in that socket, under the key of
+	// the part holding the connection and the connection's alias. An empty how
+	// says nothing. Nil says nothing of any such node.
+	Standing func(tree json.RawMessage, part Part) (through bool, how string)
 	// LeftForRelease names the platform's own inputs a source cannot supply, one
 	// entry each, which the drafted Aggregate leaves for the Release in a comment
 	// above the platform's instance.
 	LeftForRelease []string
+}
+
+// SingleSocket is a socket of a platform that draws a single connection, as
+// [Platform.Single] lists them, and how the part its connection goes to is
+// chosen where several parts are placed in it: the first part, in the order the
+// source lists its nodes, whose Component carries every label of Prefer, and,
+// where none does, the first part. A part's Component is the one placing it
+// reads labels off: the referenced Component, or a drafted part's best
+// candidate.
+type SingleSocket struct {
+	// Name is the socket's name, as the platform's catalog entry declares it.
+	Name string
+	// Prefer are the labels marking the Component of the part the connection
+	// goes to where several parts are placed in the socket. Empty prefers none,
+	// and the first part holds it.
+	Prefer map[string]string
 }
 
 // Reach is how a node reaches the part of the flow it stands for, as
@@ -220,62 +254,41 @@ func importPlatform(in aggrega.ImportInput, served Format, settings importSettin
 			Kind: "Component", Name: p.Component, Mode: "reference", SourceRef: src.Name,
 		})
 
-		// The nodes are decided first and the flow carried after, since what is
-		// carried depends on the parts wired; the import reports what carrying
-		// raised ahead of what deciding the nodes raised.
+		// The nodes are placed first, every one of them, since which part a
+		// socket drawing a single connection goes to depends on all the parts
+		// placed in it; then wired, in the order of the nodes; and the flow is
+		// carried after, since what is carried depends on the parts wired. The
+		// import reports what carrying raised ahead of what deciding the nodes
+		// raised, and what deciding them raised in the order of the nodes.
+		placements := make([]placement, 0, len(nodes))
+		for _, node := range nodes {
+			placements = append(placements, placeNode(p, platform, settings, table, catalog, labels, unreadable, tree,
+				node, refOf(node.ID)))
+		}
+		holders := holdSingleSockets(p, placements, labels)
+
 		var nodeDiags []aggrega.Diagnostic
 		var wired []wiredNode
-		for _, node := range nodes {
-			ref := refOf(node.ID)
-			decision, entity := decideNode(settings, table, catalog, node, ref)
-			var reach Reach
-			if p.Reach != nil {
-				reach = p.Reach(tree, node)
-			}
-			named := reach.Name != "" || reach.Refused != ""
-			if !named && !isPart(table, node, decision) {
-				out.Decisions = append(out.Decisions, keptInFlow(decision, p.Component, notAPart(decision)))
+		var held []heldOut
+		for i := range placements {
+			pl := &placements[i]
+			node, ref, decision, entity, reach, socket, passed := pl.node, pl.ref, pl.decision, pl.entity, pl.reach,
+				pl.socket, pl.passed
+			nodeDiags = append(nodeDiags, pl.diags...)
+			if pl.heldBy != "" {
+				held = append(held, heldOut{placement: i, decision: len(out.Decisions), diag: len(nodeDiags)})
+				out.Decisions = append(out.Decisions, decision)
+				// Written once the part holding the connection is wired and the
+				// flow carried, since it names both.
+				nodeDiags = append(nodeDiags, aggrega.Diagnostic{})
 				continue
-			}
-			if reach.Refused != "" {
-				out.Decisions = append(out.Decisions, keptInFlow(decision, p.Component, reach.Refused))
-				nodeDiags = append(nodeDiags, partNotPlaced(ref, node, p.Component, reach.Refused))
-				continue
-			}
-			target := partTarget(decision)
-			if platform == nil {
-				reason := fmt.Sprintf("it maps to %s, but the workspace's catalog holds no %s, so no socket of it can be read",
-					target, p.Component)
-				if target == "" {
-					reason = fmt.Sprintf("a mapping row maps its type, but the workspace's catalog holds no %s, so no socket "+
-						"of it can be read", p.Component)
-				}
-				out.Decisions = append(out.Decisions, keptInFlow(decision, p.Component, reason))
-				nodeDiags = append(nodeDiags, partNotPlaced(ref, node, p.Component, reason))
-				continue
-			}
-			var refuse func(socket string) string
-			if p.Refuse != nil {
-				refuse = func(socket string) string { return p.Refuse(tree, node, socket) }
-			}
-			socket, refusals, passed := placePart(platform, labels[target], target != "", p.Match, refuse)
-			for _, r := range refusals {
-				if !unreadable[r.socket] {
-					unreadable[r.socket] = true
-					nodeDiags = append(nodeDiags, aggrega.Diagnostic{
-						Severity: "warn",
-						Code:     "socket-selector-unreadable",
-						Message: fmt.Sprintf("the selector of the %s socket %s declares does not read, so no part is wired to it: %s",
-							r.socket, p.Component, r.err),
-					})
-				}
 			}
 			if socket == "" {
-				reason := unplacedReason(target, p.Component, p.Match != nil, passed)
-				out.Decisions = append(out.Decisions, keptInFlow(decision, p.Component, reason))
-				nodeDiags = append(nodeDiags, partNotPlaced(ref, node, p.Component, reason))
+				out.Decisions = append(out.Decisions, decision)
 				continue
 			}
+			holder, holds := holders[socket]
+			holds = holds && holder.placement == i
 
 			if reach.Name != "" {
 				if shared, ok := inst.named[namedPart{socket, reach.Name}]; ok {
@@ -299,6 +312,11 @@ func importPlatform(in aggrega.ImportInput, served Format, settings importSettin
 					"named %s in the flow the draft carries", reach.Name, alias)
 			}
 			decision.Rationale += passedOverClause(passed)
+			if holds {
+				holder.key, holder.alias = key, alias
+				decision.Rationale += fmt.Sprintf("; the %s socket of %s draws a single connection, which this part "+
+					"holds since %s", socket, p.Component, holder.why)
+			}
 			if reach.Name != "" {
 				inst.named[namedPart{socket, reach.Name}] = sharedPart{key: key, alias: alias, ref: ref}
 			}
@@ -318,6 +336,12 @@ func importPlatform(in aggrega.ImportInput, served Format, settings importSettin
 			}
 		}
 		out.Diagnostics = append(out.Diagnostics, inst.carry(p, format, src, tree, nodes, refOf, edits)...)
+		for _, h := range held {
+			pl := placements[h.placement]
+			reason := heldOutReason(p, inst.carried, tree, pl, holders[pl.heldBy])
+			out.Decisions[h.decision] = keptInFlow(out.Decisions[h.decision], p.Component, reason)
+			nodeDiags[h.diag] = partNotPlaced(pl.ref, pl.node, p.Component, reason)
+		}
 		out.Diagnostics = append(out.Diagnostics, nodeDiags...)
 		for _, w := range wired {
 			inst.leave(w.wiring.LeftForRelease...)
@@ -374,6 +398,215 @@ type wiredNode struct {
 	ref      string
 	part     Part
 	wiring   Wiring
+}
+
+// placement is what placing one node decided, before any part is wired: its
+// decision and the entity it would be emitted as, how it reaches its part, the
+// Component whose labels placed it, and the socket it is wired to and the
+// sockets passed over for it — or, with no socket, the decision already says
+// why the flow keeps it. diags are what placing it raised.
+type placement struct {
+	node     Node
+	ref      string
+	decision aggrega.ImportDecision
+	entity   aggrega.EmittedEntity
+	reach    Reach
+	target   string
+	socket   string
+	passed   []passedOver
+	diags    []aggrega.Diagnostic
+	// heldBy, where set, is the socket drawing a single connection the node's
+	// part was placed in, which another part holds: the part stays in the flow.
+	heldBy string
+}
+
+// placeNode decides one node of a source and places it: a part of the flow in
+// the socket of the platform it is wired to, or a node the flow keeps, with
+// why. unreadable records the sockets whose unreadable selector the import has
+// reported already, so each is reported once.
+func placeNode(p *Platform, platform *aggrega.CatalogComponent, settings importSettings, table mappingTable,
+	catalog []candidate, labels map[string]map[string]string, unreadable map[string]bool, tree json.RawMessage,
+	node Node, ref string) placement {
+	pl := placement{node: node, ref: ref}
+	pl.decision, pl.entity = decideNode(settings, table, catalog, node, ref)
+	if p.Reach != nil {
+		pl.reach = p.Reach(tree, node)
+	}
+	keep := func(reason string, report bool) placement {
+		pl.decision = keptInFlow(pl.decision, p.Component, reason)
+		if report {
+			pl.diags = append(pl.diags, partNotPlaced(ref, node, p.Component, reason))
+		}
+		return pl
+	}
+	named := pl.reach.Name != "" || pl.reach.Refused != ""
+	if !named && !isPart(table, node, pl.decision) {
+		return keep(notAPart(pl.decision), false)
+	}
+	if pl.reach.Refused != "" {
+		return keep(pl.reach.Refused, true)
+	}
+	pl.target = partTarget(pl.decision)
+	if platform == nil {
+		reason := fmt.Sprintf("it maps to %s, but the workspace's catalog holds no %s, so no socket of it can be read",
+			pl.target, p.Component)
+		if pl.target == "" {
+			reason = fmt.Sprintf("a mapping row maps its type, but the workspace's catalog holds no %s, so no socket "+
+				"of it can be read", p.Component)
+		}
+		return keep(reason, true)
+	}
+	var refuse func(socket string) string
+	if p.Refuse != nil {
+		refuse = func(socket string) string { return p.Refuse(tree, node, socket) }
+	}
+	socket, refusals, passed := placePart(platform, labels[pl.target], pl.target != "", p.Match, refuse)
+	for _, r := range refusals {
+		if !unreadable[r.socket] {
+			unreadable[r.socket] = true
+			pl.diags = append(pl.diags, aggrega.Diagnostic{
+				Severity: "warn",
+				Code:     "socket-selector-unreadable",
+				Message: fmt.Sprintf("the selector of the %s socket %s declares does not read, so no part is wired to it: %s",
+					r.socket, p.Component, r.err),
+			})
+		}
+	}
+	if socket == "" {
+		return keep(unplacedReason(pl.target, p.Component, p.Match != nil, passed), true)
+	}
+	pl.socket, pl.passed = socket, passed
+	return pl
+}
+
+// singleHolder is the part holding the one connection a socket drawing a
+// single connection draws: the placement of its first node and that node's
+// reference, why it holds it, and, once wired, its key and its connection's
+// alias.
+type singleHolder struct {
+	placement  int
+	ref        string
+	why        string
+	key, alias string
+}
+
+// heldOut is a node whose part stays in the flow because another part holds
+// the single connection of its socket: its placement, and the positions of its
+// decision and of the diagnostic reporting it.
+type heldOut struct {
+	placement, decision, diag int
+}
+
+// holdSingleSockets chooses, for each socket of [Platform.Single] that parts
+// were placed in, the part holding its single connection, as [SingleSocket]
+// describes, and marks every node of every other part placed there as held out
+// of it. Nodes the format names one part by are one part. It returns the
+// holders by socket.
+func holdSingleSockets(p *Platform, placements []placement, labels map[string]map[string]string) map[string]*singleHolder {
+	holders := map[string]*singleHolder{}
+	for _, s := range p.Single {
+		if _, chosen := holders[s.Name]; chosen {
+			continue
+		}
+		// The parts placed in the socket, each by the placement of its first
+		// node, in the order of the nodes.
+		var parts []int
+		first := map[string]int{}
+		partOf := map[int]int{}
+		for i, pl := range placements {
+			if pl.socket != s.Name {
+				continue
+			}
+			if pl.reach.Name != "" {
+				if at, seen := first[pl.reach.Name]; seen {
+					partOf[i] = at
+					continue
+				}
+				first[pl.reach.Name] = i
+			}
+			partOf[i] = i
+			parts = append(parts, i)
+		}
+		if len(parts) == 0 {
+			continue
+		}
+		holder := &singleHolder{placement: parts[0]}
+		preferred := false
+		for _, i := range parts {
+			if carriesEvery(labels[placements[i].target], s.Prefer) {
+				holder.placement, preferred = i, true
+				break
+			}
+		}
+		prefer := labelList(s.Prefer)
+		switch {
+		case preferred && prefer != "":
+			holder.why = "its Component carries " + prefer
+		case prefer != "":
+			holder.why = "it is the first of the parts placed there in the flow, none of whose Components carries " + prefer
+		default:
+			holder.why = "it is the first of the parts placed there in the flow"
+		}
+		holder.ref = placements[holder.placement].ref
+		if len(parts) > 1 {
+			holders[s.Name] = holder
+		}
+		for i, at := range partOf {
+			if at != holder.placement {
+				placements[i].heldBy = s.Name
+			}
+		}
+	}
+	return holders
+}
+
+// carriesEvery reports whether labels carries every label of want.
+func carriesEvery(labels, want map[string]string) bool {
+	for k, v := range want {
+		if have, ok := labels[k]; !ok || have != v {
+			return false
+		}
+	}
+	return true
+}
+
+// labelList writes labels as key: value pairs, sorted by key and joined with
+// "and".
+func labelList(labels map[string]string) string {
+	keys := make([]string, 0, len(labels))
+	for k := range labels {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	pairs := make([]string, 0, len(keys))
+	for _, k := range keys {
+		pairs = append(pairs, k+": "+labels[k])
+	}
+	return strings.Join(pairs, " and ")
+}
+
+// heldOutReason says why a node's part stays in the flow when another part
+// holds the single connection of the socket it was placed in, and, where the
+// flow is carried and the format says so, how the flow reaches the node's part
+// as the node is written.
+func heldOutReason(p *Platform, carried bool, tree json.RawMessage, pl placement, holder *singleHolder) string {
+	reason := fmt.Sprintf("it maps to %s, which satisfies the selector of the %s socket of %s, but that socket draws a "+
+		"single connection, which reaches %s, wired from node %s since %s",
+		pl.target, pl.heldBy, p.Component, holder.key, holder.ref, holder.why)
+	if !carried || p.Standing == nil {
+		return reason
+	}
+	through, how := p.Standing(tree, Part{Node: pl.node, Socket: pl.heldBy, Key: holder.key, Name: pl.reach.Name,
+		Alias: holder.alias})
+	switch {
+	case how == "":
+	case through:
+		reason += fmt.Sprintf("; as its node is written, the flow reaches it through the connection %s: %s", holder.alias, how)
+	default:
+		reason += fmt.Sprintf("; as its node is written, the flow reaches it other than through the connection %s: %s",
+			holder.alias, how)
+	}
+	return reason
 }
 
 // namedPart identifies a part nodes reach by name: the socket it is wired to and
