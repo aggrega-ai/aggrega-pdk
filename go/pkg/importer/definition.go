@@ -147,8 +147,9 @@ func lineFeedsFor(text string) (string, int) {
 }
 
 // Credential is one value a source holds in a field its format marks as a
-// credential: the node holding the field, the field's name as the format names
-// it, and the JSON Pointer (RFC 6901) addressing the value from the root of the
+// credential, or one the format writes empty as a credential though it marks it
+// as none: the node holding the field, the field's name as the format names it,
+// and the JSON Pointer (RFC 6901) addressing the value from the root of the
 // source's tree.
 type Credential struct {
 	Node    string

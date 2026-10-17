@@ -74,19 +74,25 @@
 // being one, as an MCP Tools node names the server it calls: such a node is a
 // part whatever its scores, nodes naming one part reach one Component wired
 // once, and its connection is written under the name the flow gives the part
-// wherever a connection's alias can take that name. Every other node stays
-// inside the flow and becomes no Component; its decision records the candidates
-// it was weighed against, chooses nothing, and says that the flow keeps it. A
-// part no socket admits stays in the flow too, and the import reports it. Where
-// the workspace's catalog holds no Component of the platform's name, the
-// platform is drafted all the same, no part is wired, and the import warns.
+// wherever a connection's alias can take that name. A format may also refuse a
+// node a socket, as a platform reaching a tools connection only through a node
+// naming it refuses that socket to every other node: the part passes that socket
+// over for the next one whose selector its Component satisfies. Every other node
+// stays inside the flow and becomes no Component; its decision records the
+// candidates it was weighed against, chooses nothing, and says that the flow
+// keeps it. A part no socket admits, or that every socket admitting it refuses,
+// stays in the flow too, and the import reports it with why. Where the
+// workspace's catalog holds no Component of the platform's name, the platform
+// is drafted all the same, no part is wired, and the import warns.
 //
 // The source is carried as its own bytes with every value in a field the format
-// marks as a credential written empty, each one reported by its node and field
-// and never by its value, and nothing else changed but what the format writes
-// so that the flow reaches each wired part through its connection: the name of
-// the variable the platform delivers for the connection, written into the field
-// that reads it, or an address the platform writes for itself, written empty.
+// marks as a credential written empty, and every value the format writes empty
+// as one though it marks it as none, as an argument a server is started with
+// can carry a key; each one is reported by its node and field and never by its
+// value, and nothing else is changed but what the format writes so that the
+// flow reaches each wired part through its connection: the name of the variable
+// the platform delivers for the connection, written into the field that reads
+// it, or an address the platform writes for itself, written empty.
 // The import reports how the flow reaches each wired part, and a part the flow
 // reaches other than through its connection. Each carriage return is written
 // as a line feed, which a JSON reader reads alike, and the import says how many.

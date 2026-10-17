@@ -21,7 +21,8 @@ const testPlatformName = "core/ai-agent/testplat"
 // platformTestFormat is the test's own format, describing a platform of the
 // test's own: its flow is carried in flow_definition and named by flow_id, the
 // source's top-level id is its own identifier, every member of a node's
-// data.secretValues is a credential, and a socket's selector is read by
+// data.secretValues is a credential, and so is every element of its data.args,
+// the arguments a server is started with, and a socket's selector is read by
 // testMatch.
 func platformTestFormat() Format {
 	f := testFormat()
@@ -45,12 +46,16 @@ func testFlowID(tree json.RawMessage) string {
 	return top.ID
 }
 
+// testArgumentDetail says why the test's format writes an argument empty.
+const testArgumentDetail = "an argument a server is started with can carry a credential"
+
 func testCredentials(tree json.RawMessage) []Credential {
 	var top struct {
 		Nodes []struct {
 			ID   string `json:"id"`
 			Data struct {
 				SecretValues json.RawMessage `json:"secretValues"`
+				Args         json.RawMessage `json:"args"`
 			} `json:"data"`
 		} `json:"nodes"`
 	}
@@ -62,6 +67,12 @@ func testCredentials(tree json.RawMessage) []Credential {
 		for _, e := range ObjectEntries(n.Data.SecretValues) {
 			out = append(out, Credential{Node: n.ID, Field: e.Key,
 				Pointer: Pointer("nodes", strconv.Itoa(i), "data", "secretValues", e.Key)})
+		}
+		var args []json.RawMessage
+		_ = json.Unmarshal(n.Data.Args, &args)
+		for j := range args {
+			out = append(out, Credential{Node: n.ID, Field: "args." + strconv.Itoa(j),
+				Pointer: Pointer("nodes", strconv.Itoa(i), "data", "args", strconv.Itoa(j)), Detail: testArgumentDetail})
 		}
 	}
 	return out
@@ -444,56 +455,78 @@ func TestACatalogHoldingNoPlatformDraftsItAndWiresNothing(t *testing.T) {
 const plantedKey = "sk-plantedKITkey0123456789abcdefXYZ"
 
 // TestNoCredentialValueReachesTheDraft plants a key-shaped value in a field the
-// test's format marks as a credential and imports under both layouts. The planted
-// value is in the source — the search below finds it there, which is what says
-// the search fires — and in nothing the import returns: no drafted file, no
-// decision, no diagnostic. The carried definition is the source with that one
-// value written "" and every other byte kept, and one warning names the node and
-// the field, and not the value.
+// test's format marks as a credential, and, apart, in an argument a server is
+// started with, which the format writes empty too, and imports each under both
+// layouts. The planted value is in the source — the search below finds it there,
+// which is what says the search fires — and in nothing the import returns: no
+// drafted file, no decision, no diagnostic. The carried definition is the source
+// with the values the format locates written "" and every other byte kept, and
+// one warning per value names the node and the field, and not the value.
 //
 // 🔴 PLANTED DEFECT: in carry (platform.go), replace
 // `scrubbed, emptied, err := rewriteSource(src.Bytes, edits, creds)` with
 // `scrubbed, emptied, err := src.Bytes, []Credential(nil), error(nil); _, _ = edits, creds`,
-// and the platform row fails: the planted value is in the drafted Aggregate.
+// and both platform rows fail: the planted value is in the drafted Aggregate.
 func TestNoCredentialValueReachesTheDraft(t *testing.T) {
 	t.Parallel()
-	planted := strings.Replace(platformSource, `"secretValues":{"api_key":""}`, `"secretValues":{"api_key":"`+plantedKey+`"}`, 1)
-	holds := func(text string) bool { return strings.Contains(text, plantedKey) }
-	if !holds(planted) {
-		t.Fatal("the needle: the search does not find the planted value in the planted source, so it finds nothing")
+	const tail = " in the flow the draft carries: no credential from the source reaches the draft"
+	argument := func(n int) aggrega.Diagnostic {
+		return aggrega.Diagnostic{Severity: "warn", Code: "credential-emptied", SourceRef: "finder",
+			Message: "the whole value of args." + strconv.Itoa(n) + " of node finder is written empty in the flow the draft " +
+				"carries, since " + testArgumentDetail + ": no credential from the source reaches the draft"}
 	}
-
-	for _, layout := range []string{"", `{"layout":"nodes"}`} {
-		t.Run("layout "+layout, func(t *testing.T) {
-			out := platformImport(t, platformTestFormat(), platformCatalog(), layout, oneSource(planted))
-			whole, err := json.Marshal(out)
-			if err != nil {
-				t.Fatalf("encode the output: %v", err)
-			}
-			if holds(string(whole)) {
-				t.Errorf("the planted value reaches the import's output:\n%s", whole)
-			}
-			for _, f := range out.Files {
-				if holds(f.Content) {
-					t.Errorf("the planted value reaches %s:\n%s", f.Path, f.Content)
+	for _, plant := range []struct {
+		name, source string
+		// aggregate is the Aggregate the source is drafted as, with what the
+		// format locates written "".
+		aggregate   string
+		diagnostics []aggrega.Diagnostic
+	}{
+		{
+			name:      "a credential field",
+			source:    strings.Replace(platformSource, `"secretValues":{"api_key":""}`, `"secretValues":{"api_key":"`+plantedKey+`"}`, 1),
+			aggregate: renderedPlatformAggregate(),
+			diagnostics: []aggrega.Diagnostic{{Severity: "warn", Code: "credential-emptied", SourceRef: "model-1",
+				Message: "the value of api_key, which node model-1 marks as a credential, is written empty" + tail}},
+		},
+		{
+			name:        "an argument",
+			source:      strings.Replace(platformSource, `{"type":"Finder"}`, `{"type":"Finder","args":["--verbose","--api-key=`+plantedKey+`"]}`, 1),
+			aggregate:   strings.Replace(renderedPlatformAggregate(), `{"type":"Finder"}`, `{"type":"Finder","args":["",""]}`, 1),
+			diagnostics: []aggrega.Diagnostic{argument(0), argument(1)},
+		},
+	} {
+		holds := func(text string) bool { return strings.Contains(text, plantedKey) }
+		if !holds(plant.source) {
+			t.Fatalf("the needle: the search does not find the value planted in %s, so it finds nothing", plant.name)
+		}
+		for _, layout := range []string{"", `{"layout":"nodes"}`} {
+			t.Run(plant.name+", layout "+layout, func(t *testing.T) {
+				out := platformImport(t, platformTestFormat(), platformCatalog(), layout, oneSource(plant.source))
+				whole, err := json.Marshal(out)
+				if err != nil {
+					t.Fatalf("encode the output: %v", err)
 				}
-			}
-			if layout != "" {
-				return
-			}
-			// The source with its one credential value written "" is platformSource,
-			// so the Aggregate is the one drafted from platformSource, byte for byte.
-			if agg := out.Files[len(out.Files)-1].Content; agg != renderedPlatformAggregate() {
-				t.Errorf("the Aggregate is not the source carried with its one credential value emptied:\n%s\nwant\n%s",
-					agg, renderedPlatformAggregate())
-			}
-			want := []aggrega.Diagnostic{{Severity: "warn", Code: "credential-emptied", SourceRef: "model-1",
-				Message: "the value of api_key, which node model-1 marks as a credential, is written empty in the flow the " +
-					"draft carries: no credential from the source reaches the draft"}}
-			if !reflect.DeepEqual(out.Diagnostics, want) {
-				t.Errorf("the import raised %+v, want %+v", out.Diagnostics, want)
-			}
-		})
+				if holds(string(whole)) {
+					t.Errorf("the planted value reaches the import's output:\n%s", whole)
+				}
+				for _, f := range out.Files {
+					if holds(f.Content) {
+						t.Errorf("the planted value reaches %s:\n%s", f.Path, f.Content)
+					}
+				}
+				if layout != "" {
+					return
+				}
+				if agg := out.Files[len(out.Files)-1].Content; agg != plant.aggregate {
+					t.Errorf("the Aggregate is not the source carried with the values the format locates emptied:\n%s\nwant\n%s",
+						agg, plant.aggregate)
+				}
+				if !reflect.DeepEqual(out.Diagnostics, plant.diagnostics) {
+					t.Errorf("the import raised %+v, want %+v", out.Diagnostics, plant.diagnostics)
+				}
+			})
+		}
 	}
 }
 

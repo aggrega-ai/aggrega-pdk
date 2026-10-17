@@ -25,13 +25,14 @@ import (
 // socket: it becomes a Component of its own — referenced or drafted exactly as
 // the node-by-node draft decides it — wired to the first socket, in the order
 // the platform's catalog entry declares its sockets, whose selector the labels
-// of its Component satisfy: the referenced Component's labels, or, for a drafted
-// one, its best candidate's where that candidate is at least a MEDIUM match.
-// Every other node stays inside the flow and becomes no Component, and so does a
-// part no socket admits, or whose labels nothing supplies, or which Reach
-// refuses, each of which the import reports. Where the workspace's catalog holds
-// no Component of that name the platform is drafted all the same, no node
-// becomes a part, and the import says so.
+// of its Component satisfy and which Refuse does not refuse it: the referenced
+// Component's labels, or, for a drafted one, its best candidate's where that
+// candidate is at least a MEDIUM match. Every other node stays inside the flow
+// and becomes no Component, and so does a part no socket admits, or whose labels
+// nothing supplies, or which Reach refuses, or which Refuse refuses every socket
+// its labels satisfy, each of which the import reports. Where the workspace's
+// catalog holds no Component of that name the platform is drafted all the same,
+// no node becomes a part, and the import says so.
 //
 // The source is carried as its own bytes, with every credential value it holds
 // written empty, every value Wire asks for written anew, every carriage return
@@ -54,9 +55,11 @@ type Platform struct {
 	// carried bytes, and the draft says so. Nil reads none.
 	Identifier func(tree json.RawMessage) string
 	// Credentials locates every value the source's tree holds in a field the
-	// format marks as a credential. Each is written empty before the source is
-	// carried, and the import names each one it empties by its node and field,
-	// never by its value. Nil locates none.
+	// format marks as a credential, and every value the format writes empty as
+	// one though it marks it as none, as an argument a server is started with can
+	// carry a key. Each is written empty before the source is carried, and the
+	// import names each one it empties by its node and field, never by its value.
+	// Nil locates none.
 	Credentials func(tree json.RawMessage) []Credential
 	// Match reports whether a set of labels satisfies a socket's selector, in the
 	// grammar the catalog writes selectors in. The package carries no selector
@@ -70,6 +73,16 @@ type Platform struct {
 	// A node it refuses is a part no socket takes, and the import reports it. Nil,
 	// or a node given neither, leaves the node to its scores, a part of its own.
 	Reach func(tree json.RawMessage, node Node) Reach
+	// Refuse says, for a node and a socket of the platform whose selector the
+	// labels of the node's Component satisfy, why the flow cannot reach the part
+	// through a connection of that socket by way of that node, and is empty where
+	// it can — for a format whose platform reaches the connections of a socket
+	// only through nodes of one kind, as a flow may reach a tools connection only
+	// through a node naming it. A socket it refuses is passed over: the part is
+	// wired to the next socket whose selector those labels satisfy, and where none
+	// remains it stays in the flow, and the import reports it with the refusal.
+	// Nil refuses no socket.
+	Refuse func(tree json.RawMessage, node Node, socket string) string
 	// Wire is asked, for each node wired to a socket, how the flow the platform
 	// carries reaches the part: the values of the source it writes anew so that
 	// the flow reaches the part through its connection, and what it reports of
@@ -241,7 +254,11 @@ func importPlatform(in aggrega.ImportInput, served Format, settings importSettin
 				nodeDiags = append(nodeDiags, partNotPlaced(ref, node, p.Component, reason))
 				continue
 			}
-			socket, refusals := placePart(platform, labels[target], target != "", p.Match)
+			var refuse func(socket string) string
+			if p.Refuse != nil {
+				refuse = func(socket string) string { return p.Refuse(tree, node, socket) }
+			}
+			socket, refusals, passed := placePart(platform, labels[target], target != "", p.Match, refuse)
 			for _, r := range refusals {
 				if !unreadable[r.socket] {
 					unreadable[r.socket] = true
@@ -254,7 +271,7 @@ func importPlatform(in aggrega.ImportInput, served Format, settings importSettin
 				}
 			}
 			if socket == "" {
-				reason := unplacedReason(target, p.Component, p.Match != nil)
+				reason := unplacedReason(target, p.Component, p.Match != nil, passed)
 				out.Decisions = append(out.Decisions, keptInFlow(decision, p.Component, reason))
 				nodeDiags = append(nodeDiags, partNotPlaced(ref, node, p.Component, reason))
 				continue
@@ -264,6 +281,7 @@ func importPlatform(in aggrega.ImportInput, served Format, settings importSettin
 				if shared, ok := inst.named[namedPart{socket, reach.Name}]; ok {
 					decision.Rationale += fmt.Sprintf("; wired to the %s socket of %s as %s, through the connection %s, "+
 						"which node %s reaches too", socket, p.Component, shared.key, shared.alias, shared.ref)
+					decision.Rationale += passedOverClause(passed)
 					wired = append(wired, wiredNode{decision: len(out.Decisions), ref: ref,
 						part: Part{Node: node, Socket: socket, Key: shared.key, Name: reach.Name, Alias: shared.alias}})
 					out.Decisions = append(out.Decisions, decision)
@@ -280,6 +298,7 @@ func importPlatform(in aggrega.ImportInput, served Format, settings importSettin
 				decision.Rationale += fmt.Sprintf("; the flow names it %q, which cannot name its connection, so it is "+
 					"named %s in the flow the draft carries", reach.Name, alias)
 			}
+			decision.Rationale += passedOverClause(passed)
 			if reach.Name != "" {
 				inst.named[namedPart{socket, reach.Name}] = sharedPart{key: key, alias: alias, ref: ref}
 			}
@@ -439,32 +458,48 @@ type socketRefusal struct {
 	err    error
 }
 
+// passedOver is one socket whose selector a part's labels satisfy and which the
+// format refused the part, with why.
+type passedOver struct{ socket, why string }
+
 // placePart returns the first socket of the platform, in the order its catalog
-// entry declares them, whose selector the labels satisfy, or "" where none does,
-// with every socket whose selector the matcher refused to read. A part with no
-// Component to read labels off, and any part where there is no matcher, is
-// placed nowhere.
+// entry declares them, whose selector the labels satisfy and which refuse — nil
+// for none — does not refuse, or "" where none does; with every socket whose
+// selector the matcher refused to read, and every socket passed over because
+// refuse refused it. A part with no Component to read labels off, and any part
+// where there is no matcher, is placed nowhere.
 func placePart(platform *aggrega.CatalogComponent, labels map[string]string, known bool,
-	match func(selector string, labels map[string]string) (bool, error)) (string, []socketRefusal) {
+	match func(selector string, labels map[string]string) (bool, error),
+	refuse func(socket string) string) (string, []socketRefusal, []passedOver) {
 	if match == nil || !known {
-		return "", nil
+		return "", nil, nil
 	}
 	var refusals []socketRefusal
+	var passed []passedOver
 	for _, s := range platform.Sockets {
 		ok, err := match(s.Selector, labels)
 		if err != nil {
 			refusals = append(refusals, socketRefusal{socket: s.Name, err: err})
 			continue
 		}
-		if ok {
-			return s.Name, refusals
+		if !ok {
+			continue
 		}
+		if refuse != nil {
+			if why := refuse(s.Name); why != "" {
+				passed = append(passed, passedOver{socket: s.Name, why: why})
+				continue
+			}
+		}
+		return s.Name, refusals, passed
 	}
-	return "", refusals
+	return "", refusals, passed
 }
 
-// unplacedReason says why a part was placed in no socket of the platform.
-func unplacedReason(target, platform string, matching bool) string {
+// unplacedReason says why a part was placed in no socket of the platform: passed
+// are the sockets whose selector its Component satisfies and which the format
+// refused it.
+func unplacedReason(target, platform string, matching bool, passed []passedOver) string {
 	switch {
 	case target == "":
 		return "a mapping row maps its type to no Component the workspace's catalog holds, so no socket of " + platform +
@@ -472,9 +507,27 @@ func unplacedReason(target, platform string, matching bool) string {
 	case !matching:
 		return "it maps to " + target + ", but this importer reads no socket selector, so no socket of " + platform +
 			" takes it"
+	case len(passed) > 0:
+		clauses := make([]string, 0, len(passed))
+		for _, p := range passed {
+			clauses = append(clauses, fmt.Sprintf("the selector of the %s socket of %s, but %s", p.socket, platform, p.why))
+		}
+		return "it maps to " + target + ", which satisfies " + strings.Join(clauses, ", and ") +
+			"; no other socket of " + platform + " takes it"
 	default:
 		return "it maps to " + target + ", which satisfies the selector of no socket " + platform + " declares"
 	}
+}
+
+// passedOverClause says, in a wired part's decision, which sockets its Component
+// satisfies were passed over before the one it is wired to, and why; empty where
+// none was.
+func passedOverClause(passed []passedOver) string {
+	var b strings.Builder
+	for _, p := range passed {
+		fmt.Fprintf(&b, "; not to the %s socket, whose selector its Component satisfies too, since %s", p.socket, p.why)
+	}
+	return b.String()
 }
 
 // notAPart says why a node is not a part of the flow a socket may take.

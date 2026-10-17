@@ -339,6 +339,126 @@ func TestACredentialCarryingAValueIsWrittenAsThatValue(t *testing.T) {
 	}
 }
 
+// refuseSource is a flow of the test's format holding two finders: one naming the
+// server docs, and one naming none.
+const refuseSource = `{"id":"flow-r","nodes":[` +
+	`{"id":"finder","type":"generic","data":{"type":"Finder"}},` +
+	`{"id":"f1","type":"generic","data":{"type":"Finder","server":"docs"}}],` +
+	`"edges":[]}` + "\n"
+
+// testRefusal is why the test's format refuses a finder naming no server the
+// tools socket.
+const testRefusal = "the test's tools are reached only through a node naming a server"
+
+// TestASocketTheFormatRefusesANodeIsPassedOver hands the platform a Refuse that
+// refuses the tools socket to a node naming no server, and drafts refuseSource
+// against a platform whose tools socket is followed by a store socket admitting
+// any tool, and against one declaring no such socket. Both finders' Component
+// satisfies the tools socket's selector:
+//
+//   - the finder naming docs is wired to the tools socket in both, the refusal
+//     being the node's and not the Component's;
+//   - the finder naming none passes the tools socket over: with the store socket
+//     declared it is wired there, and its decision says which socket it passed
+//     over and why; with none it stays in the flow, chooses nothing, and is
+//     reported with the refusal;
+//   - Refuse is asked only about the sockets whose selector a part's Component
+//     satisfies, in the order the platform declares them, and no further than
+//     the socket the part is wired to.
+//
+// 🔴 PLANTED DEFECTS, each in platform.go:
+//
+//   - in placePart, replace `if why := refuse(s.Name); why != "" {` with
+//     `if why := refuse(s.Name); why == "\x00" {`: both rows fail, the finder
+//     naming no server wired to the tools socket;
+//   - in importPlatform, delete the line `decision.Rationale +=
+//     passedOverClause(passed)` that follows the clause naming a renamed server:
+//     the store row fails, its decision not saying the tools socket was passed
+//     over.
+func TestASocketTheFormatRefusesANodeIsPassedOver(t *testing.T) {
+	t.Parallel()
+	store := aggrega.CatalogSocket{Name: "store", Selector: "component.aggrega.ai/category=ai-tool"}
+	for _, tc := range []struct {
+		name    string
+		sockets []aggrega.CatalogSocket
+		uses    string
+		asked   map[string][]string
+	}{
+		{
+			name:    "a later socket takes it",
+			sockets: append(append([]aggrega.CatalogSocket{}, testPlatformEntry.Sockets...), store),
+			uses: "      uses:\n        tools:\n          docs:\n            target: docs\n" +
+				"        store:\n          finder:\n            target: finder\n",
+			asked: map[string][]string{"finder": {"tools", "store"}, "f1": {"tools"}},
+		},
+		{
+			name:    "no other socket takes it",
+			sockets: testPlatformEntry.Sockets,
+			uses:    "      uses:\n        tools:\n          docs:\n            target: docs\n",
+			asked:   map[string][]string{"finder": {"tools"}, "f1": {"tools"}},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			asked := map[string][]string{}
+			format := wiringTestFormat()
+			format.Platform.Refuse = func(tree json.RawMessage, node Node, socket string) string {
+				asked[node.ID] = append(asked[node.ID], socket)
+				if _, data := testNode(tree, node.ID); socket == "tools" && data["server"] == nil {
+					return testRefusal
+				}
+				return ""
+			}
+			out := platformImport(t, format, platformCatalog(tc.sockets...), "", oneSource(refuseSource))
+			agg := out.Files[len(out.Files)-1].Content
+			if !strings.Contains(agg, tc.uses) {
+				t.Errorf("the platform does not draw\n%s\nit reads\n%s", tc.uses, agg)
+			}
+			if !reflect.DeepEqual(asked, tc.asked) {
+				t.Errorf("Refuse was asked about %v, want %v", asked, tc.asked)
+			}
+			if d := decisionOf(t, out, "f1"); d.Chosen == nil {
+				t.Errorf("the finder naming docs was not wired: %q", d.Rationale)
+			}
+
+			d := decisionOf(t, out, "finder")
+			if tc.name == "a later socket takes it" {
+				want := "; wired to the store socket of core/ai-agent/testplat as finder; not to the tools socket, whose " +
+					"selector its Component satisfies too, since " + testRefusal + "; "
+				if d.Chosen == nil || !strings.Contains(d.Rationale, want) {
+					t.Errorf("the finder was decided %+v: %q, want a choice and a rationale holding %q", d.Chosen, d.Rationale,
+						want)
+				}
+				for _, diag := range out.Diagnostics {
+					if diag.Code == "part-not-placed" {
+						t.Errorf("a part was reported as wired to no socket: %+v", diag)
+					}
+				}
+				return
+			}
+			reason := "it maps to core/ai-tool/retrieval, which satisfies the selector of the tools socket of " +
+				"core/ai-agent/testplat, but " + testRefusal + "; no other socket of core/ai-agent/testplat takes it"
+			if d.Chosen != nil || d.Rationale != "kept in the flow core/ai-agent/testplat carries, with no Component of its own: "+reason {
+				t.Errorf("the finder was decided %+v: %q, want no choice and the refusal", d.Chosen, d.Rationale)
+			}
+			want := aggrega.Diagnostic{Severity: "warn", Code: "part-not-placed", SourceRef: "finder",
+				Message: "node finder (Finder) is wired to no socket of core/ai-agent/testplat: " + reason + "; it stays in the flow"}
+			var placed []aggrega.Diagnostic
+			for _, diag := range out.Diagnostics {
+				if diag.Code == "part-not-placed" {
+					placed = append(placed, diag)
+				}
+			}
+			if !reflect.DeepEqual(placed, []aggrega.Diagnostic{want}) {
+				t.Errorf("the parts reported as wired to no socket are %+v, want %+v", placed, want)
+			}
+			if strings.Contains(agg, "\n    finder:\n") || strings.Contains(agg, "\n          finder:\n") {
+				t.Errorf("the refused finder was drafted as a part, or a connection reaches it:\n%s", agg)
+			}
+		})
+	}
+}
+
 // TestVariableName pins the name a platform delivering a connection under
 // variables named for its alias gives the alias.
 func TestVariableName(t *testing.T) {
