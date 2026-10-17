@@ -13,8 +13,8 @@
 // directions of the generated import codec — the export decodes an ImportInput
 // and encodes an ImportOutput — not to implement a real mapping.
 //
-// A real importer maps each node of a parsed source tree to a catalog entity,
-// weighing candidates and recording the decisions behind each choice. This
+// A real importer weighs each node of a parsed source tree against the catalog's
+// entities and records the decision behind what it drafts for the node. This
 // scaffold skips the mapping and simply echoes the request into one emitted
 // entity plus one scaffold file, so the example exercises the codec without a
 // real source-to-entity mapping.
@@ -120,8 +120,8 @@ func importArtifact() int32 {
 		mode = "reference"
 	}
 
-	// A real importer would read the parsed source and map each node to a
-	// catalog entity, recording the decisions behind each choice. This
+	// A real importer would read the parsed source and weigh each node against
+	// the catalog's entities, recording the decision behind each. This
 	// scaffold echoes the input as one drafted entity plus a matching scaffold
 	// file so the example exercises both codec directions without a mapping.
 	body := "kind: Component\nmetadata:\n  name: " + name + "\n"

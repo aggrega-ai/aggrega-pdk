@@ -90,27 +90,107 @@ the standard library's, and the package carries no candidate of its own. Of each
 Component the scorer reads the name, the category its
 `component.aggrega.ai/category` label carries, its labels, and the key names its
 values declare; provides keys and sockets are not weighed. A nil `Catalog` means
-no candidate, so every node is drafted and none is referenced.
+no candidate, so no node is referenced, and every node the draft gives a
+Component of its own is drafted.
 
 What the package gives you: the confidence scorer that weighs a node against the
 catalog view, the decision to reference a component or draft a new one, the
-drafted Component and Aggregate bodies, the `human` and `llm` renderers, and the
-importer's settings — `target_namespace`,
-`reuse_mode`, `reuse_threshold`, `emit_hints`, `render_mode` and
-`mapping_overrides` — with their defaults. `NodeList`, `EdgeList` and
+drafted Component and Aggregate bodies, the platform layout below, the `human` and
+`llm` renderers, and the importer's settings — `target_namespace`,
+`reuse_mode`, `reuse_threshold`, `emit_hints`, `render_mode`,
+`mapping_overrides` and `layout` — with their defaults. `NodeList`, `EdgeList` and
 `ObjectEntries` read the shapes a walker commonly meets in a canonical tree. The
 package builds on the host toolchain as well as for `GOOS=wasip1`, so an importer is
 tested on the host by handing `Import` a parse function of the test's own. Its
 package documentation carries the scoring signals, the tiers and the settings in
 full.
 
+#### A format whose flows a platform runs
+
+A format whose flows run on a platform as they are written — a Langflow flow on
+Langflow, a Flowise chatflow on Flowise — sets `Format.Platform` to an
+`importer.Platform`, and `Import` then drafts each source, by default, as one
+instance of the platform's Component carrying the source, instead of every node as
+a Component of its own. The `layout` setting chooses: `platform`, the default, or
+`nodes`, the node-by-node draft a format with no `Platform` always gets; any other
+value drafts as `platform`, with an `unknown-layout` warning. What a format supplies
+there:
+
+- **The platform and its two values.** `Component` names the catalog Component that
+  runs a flow — its last segment is the instance's key — `DefinitionValue` the value
+  carrying the flow, and `IdentifierValue` the value naming it on the platform. The
+  source is carried as its own bytes, with only the values below written anew, every
+  carriage return written as a line feed, every `{{` escaped for the Aggregate's
+  template reading, and the whole written as a YAML literal block; a platform's sources
+  are JSON documents, read as JSON to find those values.
+- **The identifier.** `Identifier` reads the flow's own identifier off the source's
+  tree. Where it gives none, or one holding a character other than a letter, a digit,
+  `.`, `-`, `_` or `:`, the package derives a name-based UUID from the carried flow.
+- **The credential locator.** `Credentials` returns an `importer.Credential` for every
+  value the source keeps in a field the format marks as a credential, and every value
+  the format writes empty though it marks it as none, each addressed by a JSON Pointer
+  from the source's root (`importer.Pointer` writes one). Each is written empty before
+  the source is carried — or as `Credential.Value`, for a field keeping its credentials
+  inside text of its own — and reported by node and field, never by value.
+- **The selector matcher.** `Match` reports whether a set of labels satisfies a
+  socket's selector. The package carries no selector grammar of its own, so a nil
+  `Match` places no part in any socket; the compiler's importers hand it the
+  compiler's own selector matching.
+- **How a node reaches a part.** A node is a part where a mapping row maps it or its
+  best candidate is at least a medium-tier match, and the part is wired to the first
+  socket of the platform's catalog entry, in the order the entry lists its sockets,
+  whose selector its Component's labels satisfy. `Reach` lets a node name a part
+  rather than be one, as an MCP Tools node names the MCP server it calls: a node given
+  a `Reach.Name` is a part whatever its scores, the nodes of one source giving one name
+  in one socket share one part and one connection, and the connection takes that name
+  as its alias wherever an alias can; `Reach.Refused` keeps the node in the flow,
+  reported with why.
+- **Which sockets refuse a node.** `Refuse` says why the flow cannot reach a part
+  through one socket by way of one node, as Langflow reaches a tools connection only
+  through an MCP Tools node naming it; the part passes that socket over for the next
+  one its Component satisfies, or stays in the flow, reported.
+- **Which sockets draw one connection.** `Single` lists them, each an
+  `importer.SingleSocket` whose `Prefer` labels mark the part that holds the
+  connection where several are placed there — the first part, where none carries them;
+  every other stays in the flow, reported, and `Standing` says how the flow reaches its
+  part as its node is written.
+- **How the flow is rewired.** `Wire` is asked about each wired part, an
+  `importer.Part` carrying the node, the socket, the part's key and its connection's
+  alias, and answers with an `importer.Wiring`: the `Edits` written into the carried
+  source so the flow reaches the part through its connection — a variable's name, an
+  address emptied, a server renamed to its connection's alias — and `Reads` or
+  `Literal`, saying how the flow reaches the part through that connection or other than
+  through it, which the import reports as `part-reads-connection` or
+  `part-address-in-flow`. `importer.Rewrite` writes such edits into JSON text a format
+  holds inside a value of its own, and `importer.VariableName` gives the name a
+  platform delivering a connection under variables named for its alias gives that
+  alias.
+- **The model a node selects.** `Model` reads, off the source's tree, the name of the
+  model a node selects. A part the draft references whose catalog entry declares a
+  value named `model` is written with that name as `values.model`; where the node names
+  none, a comment leaves it for the author and the import reports `model-not-named`.
+- **The lines a target needs.** `TargetAttachments` are attachments of the platform's
+  own instance that its Recipes on one target need declared in the Aggregate. The draft
+  stays alike for every target and shows each, commented out inside the instance, for
+  an author building for that target to uncomment.
+- **What is left for the Release.** `LeftForRelease` names the platform's own inputs no
+  source supplies, and each `Wiring.LeftForRelease` what of a part the Release
+  supplies; the draft lists both in a comment above the platform's instance.
+
+Every node the draft gives no Component stays inside the flow the platform carries,
+and its decision chooses nothing and says so. Where the catalog view holds no
+Component of the platform's name, the platform is drafted all the same, no part is
+wired, and the import warns with `platform-not-in-catalog`. The package
+documentation carries the layout in full.
+
 The compiler's own Langflow and Flowise importers are built this way, one per
 format, and they are the worked example to read: their sources are in the
 compiler's repository (`github.com/aggrega-ai/aggrega-cli`), under
 `plugins/langflow-importer/` and `plugins/flowise-importer/`. Each holds its
-descriptor and export wiring (`main.go`), its walker (`walk.go`), and its format's
-mapping arm and syntactic format (`format.go`), and takes everything else from
-`pkg/importer`.
+descriptor and export wiring (`main.go`), its walker and credential locator
+(`walk.go`), its format's mapping arm, syntactic format and platform (`format.go`),
+how its flow reaches each part (`wire.go`) and the model a node selects
+(`model.go`), and takes everything else from `pkg/importer`.
 
 [`examples/import/`](examples/import) is this kit's teaching importer: a minimal
 scaffold that declares a recognition signature and exercises both directions of
