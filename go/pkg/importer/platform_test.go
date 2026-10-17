@@ -453,8 +453,8 @@ const plantedKey = "sk-plantedKITkey0123456789abcdefXYZ"
 //
 // 🔴 PLANTED DEFECT: in carry (platform.go), replace
 // `scrubbed, emptied, err := scrubCredentials(src.Bytes, creds)` with
-// `scrubbed, emptied, err := src.Bytes, []Credential(nil), error(nil)`, and the
-// platform row fails: the planted value is in the drafted Aggregate.
+// `scrubbed, emptied, err := src.Bytes, []Credential(nil), error(nil); _ = creds`,
+// and the platform row fails: the planted value is in the drafted Aggregate.
 func TestNoCredentialValueReachesTheDraft(t *testing.T) {
 	t.Parallel()
 	planted := strings.Replace(platformSource, `"secretValues":{"api_key":""}`, `"secretValues":{"api_key":"`+plantedKey+`"}`, 1)
