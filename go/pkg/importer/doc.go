@@ -20,9 +20,9 @@
 //   - for a format whose flows a platform runs as they are written, the
 //     [Platform] describing it: the catalog Component that runs a flow, the
 //     values it carries the flow and its identifier in, where the format keeps
-//     a flow's own identifier and its credential values, the matcher that reads
-//     a socket's selector, and how the carried flow reaches each part wired to
-//     the platform.
+//     a flow's own identifier, its credential values and the model a node
+//     selects, the matcher that reads a socket's selector, and how the carried
+//     flow reaches each part wired to the platform.
 //
 // The package gives them the rest. [Import] parses each source through the
 // callback, walks it, scores every node against the Components of the
@@ -109,6 +109,20 @@
 // says which character and where. The platform's own inputs no source supplies,
 // and what of each wired part the Release supplies, are named in a comment
 // above its instance, left for the Release.
+//
+// A part the draft references whose Component declares a value named model —
+// as every model Component of the standard library does, taking the name of the
+// model it serves there — is written with the name of the model its node
+// selects, as the format reads it off the node, through the writer the
+// definition goes through. Where the node names none the draft can write, a
+// comment leaves values.model for the author and the import reports it: a
+// Release cannot write a value. A platform whose Recipes on one target need an
+// attachment of its own declared in the Aggregate — as a target reading every
+// secret the Release alone attaches under one default key needs its secret
+// declared with a key of its own, so it and a connection's credential do not
+// arrive under one key — is drafted alike for every target, and a comment
+// inside its instance shows that target's lines, commented out where they
+// belong, for an author building for it to uncomment.
 //
 // # Settings
 //

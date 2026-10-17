@@ -34,7 +34,10 @@ import (
 // its labels satisfy, or which is placed in a socket of Single whose one
 // connection another part holds, each of which the import reports. Where the
 // workspace's catalog holds no Component of that name the platform is drafted
-// all the same, no node becomes a part, and the import says so.
+// all the same, no node becomes a part, and the import says so. A referenced
+// part whose Component declares a value named model is written with the model
+// its node selects there, as Model reads it, or, where its node names none,
+// with a comment leaving it for the author, which the import reports.
 //
 // The source is carried as its own bytes, with every credential value it holds
 // written empty, every value Wire asks for written anew, every carriage return
@@ -108,11 +111,57 @@ type Platform struct {
 	// the part holding the connection and the connection's alias. An empty how
 	// says nothing. Nil says nothing of any such node.
 	Standing func(tree json.RawMessage, part Part) (through bool, how string)
+	// Model reads, off the source's tree, the name of the model a node selects:
+	// the model the flow asks the part it stands for to serve when it runs. It is
+	// asked about each part wired to a socket whose Component the draft
+	// references and declares a value named model, which takes that name: the
+	// draft writes the name it gives into the part's values.model. Where it gives
+	// none, why completes "the node …" with why the node names no model a draft
+	// can write — that it selects none, or names it through something read only
+	// when the flow runs — and is empty where the format does not read a model
+	// off a node of that type; the draft leaves values.model for the author with
+	// a comment saying so, and the import reports it. why is written into that
+	// comment, so it carries nothing read from the source. A drafted part is not
+	// asked. Nil reads no model, and the draft writes nothing of one.
+	Model func(tree json.RawMessage, node Node) (name, why string)
 	// LeftForRelease names the platform's own inputs a source cannot supply, one
 	// entry each, which the drafted Aggregate leaves for the Release in a comment
 	// above the platform's instance.
 	LeftForRelease []string
+	// TargetAttachments are attachments of the platform's own instance that the
+	// Recipes realizing the platform on one target need declared in the
+	// Aggregate, and those of the other targets do not. The draft is written alike
+	// for every target and declares none of them: where the instance draws a
+	// connection, a comment inside it shows, for each, the lines an author
+	// uncomments for that target.
+	TargetAttachments []TargetAttachment
 }
+
+// TargetAttachment is an attachment of a platform's own instance that its
+// Recipes on one target need declared in the Aggregate, as [Platform] lists
+// them: a secret the Release attaches, declared with the key its Recipes read it
+// under, as a target whose Recipes read every secret the Release alone attaches
+// under one default key needs, so that the secret and a connection's credential
+// do not arrive under one key.
+type TargetAttachment struct {
+	// Target is the target, as the Recipes realizing the platform on it are
+	// named, such as compose.
+	Target string
+	// Slot is the platform's attachment slot, Type the type of the attachment
+	// declared there, and Key the key its values.key names.
+	Slot, Type, Key string
+	// Why completes the comment saying why the target needs the lines. It is
+	// written into the draft, so it carries nothing read from the source.
+	Why string
+}
+
+// modelValue is the value a Component serving a model takes that model's name
+// in, as every model Component of the standard library declares it.
+const modelValue = "model"
+
+// noModelField is why a node names no model the draft can write where the
+// format does not read a model off a node of its type.
+const noModelField = "is of a type whose field naming a model this importer does not read"
 
 // SingleSocket is a socket of a platform that draws a single connection, as
 // [Platform.Single] lists them, and how the part its connection goes to is
@@ -320,12 +369,25 @@ func importPlatform(in aggrega.ImportInput, served Format, settings importSettin
 			if reach.Name != "" {
 				inst.named[namedPart{socket, reach.Name}] = sharedPart{key: key, alias: alias, ref: ref}
 			}
+			part := platformPart{key: key, entity: entity}
+			if asked, model, why := partModel(p, in.Catalog, tree, node, entity); asked {
+				if model != "" {
+					part.model = model
+					decision.Rationale += fmt.Sprintf("; values.%s is written as %q, the model the node selects", modelValue,
+						model)
+				} else {
+					part.modelLeft = why
+					decision.Rationale += fmt.Sprintf("; values.%s is left for the author, since the node %s", modelValue, why)
+					nodeDiags = append(nodeDiags, modelNotNamed(ref, node, key, entity.Name, why))
+				}
+			}
+			part.decision = decision
 			wired = append(wired, wiredNode{decision: len(out.Decisions), ref: ref,
 				part: Part{Node: node, Socket: socket, Key: key, Name: reach.Name, Alias: alias}})
 			out.Decisions = append(out.Decisions, decision)
 			out.Entities = append(out.Entities, entity)
 			inst.connect(socket, alias, key)
-			inst.parts = append(inst.parts, platformPart{key: key, decision: decision, entity: entity})
+			inst.parts = append(inst.parts, part)
 		}
 
 		var edits []Edit
@@ -784,6 +846,59 @@ func keptInFlow(d aggrega.ImportDecision, platform, reason string) aggrega.Impor
 	return d
 }
 
+// partModel reads, for a part wired to a socket of the platform, the model its
+// node selects, where the draft writes one: asked is false unless the format
+// reads models, the part's Component is referenced and the workspace's catalog
+// says that Component declares a value named model. Where asked, model is the
+// name to write there, or, where it is empty, why completes "the node …" with
+// why none is written — the format's reason, or, for a name a YAML literal block
+// cannot carry as written, the character it holds.
+func partModel(p *Platform, view *aggrega.CatalogProjection, tree json.RawMessage, node Node,
+	entity aggrega.EmittedEntity) (asked bool, model, why string) {
+	if p.Model == nil || entity.Mode != "reference" {
+		return false, "", ""
+	}
+	entry := catalogEntry(view, entity.Name)
+	if entry == nil || !declaresValue(entry, modelValue) {
+		return false, "", ""
+	}
+	name, why := p.Model(tree, node)
+	switch {
+	case name == "" && why == "":
+		return true, "", noModelField
+	case name == "":
+		return true, "", why
+	}
+	if problems := blockProblems(name); len(problems) > 0 {
+		return true, "", fmt.Sprintf("names a model whose name holds a %s, which a YAML literal block cannot carry as "+
+			"written", problems[0].what)
+	}
+	return true, name, ""
+}
+
+// declaresValue reports whether a catalog Component's entry lists value among
+// the key names its values declare.
+func declaresValue(entry *aggrega.CatalogComponent, value string) bool {
+	for _, v := range entry.Values {
+		if v == value {
+			return true
+		}
+	}
+	return false
+}
+
+// modelNotNamed reports a referenced part whose values.model the draft leaves
+// for the author, as partModel found it.
+func modelNotNamed(ref string, node Node, key, component, why string) aggrega.Diagnostic {
+	return aggrega.Diagnostic{
+		Severity: "warn",
+		Code:     "model-not-named",
+		Message: fmt.Sprintf("values.%s of %s, the name of the model %s serves, is left for the author, since node %s "+
+			"(%s) %s; a Release cannot write it", modelValue, key, component, ref, node.Type, why),
+		SourceRef: ref,
+	}
+}
+
 // partNotPlaced reports a part of the flow no socket of the platform takes.
 func partNotPlaced(ref string, node Node, platform, reason string) aggrega.Diagnostic {
 	return aggrega.Diagnostic{
@@ -799,8 +914,8 @@ func partNotPlaced(ref string, node Node, platform, reason string) aggrega.Diagn
 // parts they reach.
 type platformInstance struct {
 	key string
-	// definition is the flow as written into the definition value, escaped and
-	// with its credentials emptied; empty where the flow is not carried.
+	// definition is the flow the definition value carries, its credentials
+	// emptied, before draftedText writes it; empty where the flow is not carried.
 	definition string
 	carried    bool
 	identifier string
@@ -824,11 +939,15 @@ type platformInstance struct {
 // key of the part it reaches.
 type connection struct{ alias, target string }
 
-// platformPart is one part of the flow drafted as a Component of its own.
+// platformPart is one part of the flow drafted as a Component of its own: where
+// its Component takes the name of a model, model is the one its node selects,
+// written into its values, or modelLeft why the draft leaves it for the author.
 type platformPart struct {
-	key      string
-	decision aggrega.ImportDecision
-	entity   aggrega.EmittedEntity
+	key       string
+	decision  aggrega.ImportDecision
+	entity    aggrega.EmittedEntity
+	model     string
+	modelLeft string
 }
 
 // newPlatformInstance returns an instance keyed key of the platform whose
@@ -891,16 +1010,15 @@ func (inst *platformInstance) wired() bool {
 
 // carry prepares the flow one source carries into the instance: the values the
 // format writes anew written, its credential values written empty, its carriage
-// returns written as line feeds, its text escaped for the Aggregate's template
-// reading, and its identifier. It returns the diagnostics the preparation
-// raised: one per credential value it emptied, naming the node and the field;
-// one naming how many carriage returns it wrote as line feeds; and, where the
-// flow cannot be carried, why — a value to write or empty that the source's bytes
-// do not hold where its tree does, or a character a YAML literal block cannot
-// carry as written. Where the source gives its flow no identifier a draft can
-// carry, one is derived from the carried bytes — or, where a value could not be
-// located and the flow is not carried, from its nodes' identifiers, so nothing a
-// credential value could reach decides it.
+// returns written as line feeds, and its identifier. It returns the diagnostics
+// the preparation raised: one per credential value it emptied, naming the node
+// and the field; one naming how many carriage returns it wrote as line feeds;
+// and, where the flow cannot be carried, why — a value to write or empty that
+// the source's bytes do not hold where its tree does, or a character a YAML
+// literal block cannot carry as written. Where the source gives its flow no
+// identifier a draft can carry, one is derived from the carried bytes — or,
+// where a value could not be located and the flow is not carried, from its
+// nodes' identifiers, so nothing a credential value could reach decides it.
 func (inst *platformInstance) carry(p *Platform, format string, src aggrega.ImportSource, tree json.RawMessage,
 	nodes []Node, refOf func(string) string, edits []Edit) []aggrega.Diagnostic {
 	var diags []aggrega.Diagnostic
@@ -969,7 +1087,7 @@ func (inst *platformInstance) carry(p *Platform, format string, src aggrega.Impo
 			})
 		}
 	} else {
-		inst.definition = escapeTemplateText(text)
+		inst.definition = text
 		inst.carried = true
 	}
 
@@ -1044,13 +1162,18 @@ func (d *platformDraft) entity() aggrega.EmittedEntity {
 		}
 		b.WriteString("    " + inst.key + ":\n")
 		b.WriteString("      type: " + p.Component + "\n")
+		if inst.wired() {
+			for _, a := range p.TargetAttachments {
+				writeTargetAttachment(&b, inst.key, a)
+			}
+		}
 		b.WriteString("      values:\n")
 		if inst.idNote != "" {
 			b.WriteString("        # " + p.IdentifierValue + " is " + inst.idNote + ".\n")
 		}
 		b.WriteString("        " + p.IdentifierValue + ": '" + inst.identifier + "'\n")
 		if inst.carried {
-			b.WriteString("        " + p.DefinitionValue + ": " + literalBlock(inst.definition, 8))
+			b.WriteString("        " + p.DefinitionValue + ": " + draftedText(inst.definition, 8))
 		} else {
 			b.WriteString("        # " + p.DefinitionValue + " is left unset: the import's diagnostics say why the flow " +
 				"is not carried.\n")
@@ -1074,7 +1197,32 @@ func (d *platformDraft) entity() aggrega.EmittedEntity {
 			}
 			b.WriteString("    " + part.key + ":\n")
 			b.WriteString("      type: " + part.entity.Name + "\n")
+			switch {
+			case part.model != "":
+				b.WriteString("      values:\n")
+				b.WriteString("        " + modelValue + ": " + draftedText(part.model, 8))
+			case part.modelLeft != "":
+				b.WriteString("      # values." + modelValue + ", the name of the model " + part.entity.Name +
+					" serves, is left for the author, since the node this part stands for " + part.modelLeft + ".\n")
+			}
 		}
 	}
 	return aggrega.EmittedEntity{Kind: "Aggregate", Name: d.settings.TargetNamespace + "/flow", Mode: "draft", Body: b.String()}
+}
+
+// writeTargetAttachment writes, inside the platform's instance keyed key, the
+// comment showing the lines that declare a, each commented out in place, so an
+// author building for its target uncomments them where they stand.
+func writeTargetAttachment(b *strings.Builder, key string, a TargetAttachment) {
+	b.WriteString("      # For the " + a.Target + " target only, uncomment the lines below, which declare " + a.Slot +
+		" on " + key + ": " + a.Why + ".\n")
+	for _, line := range []string{
+		"features:",
+		"  " + a.Slot + ":",
+		"    type: " + a.Type,
+		"    values:",
+		"      key: " + a.Key,
+	} {
+		b.WriteString("      # " + line + "\n")
+	}
 }

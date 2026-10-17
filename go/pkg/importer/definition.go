@@ -22,15 +22,30 @@ import (
 // otherwise read as a template action, the YAML literal block the definition is
 // written as, and the identifier a flow is given where its source names none.
 
+// draftedText writes text read from a source as the value of a key whose line
+// sits at keyIndent spaces in a drafted Aggregate: escaped by escapeTemplateText
+// and written as a YAML literal block by literalBlock, so that once the
+// Aggregate's text has been evaluated as a template and read as YAML the value
+// is a string and reads back as text, whatever text holds. Every value an import
+// copies from a source into a drafted Aggregate goes through it — a flow
+// definition, a model's name — but a flow's own identifier, which is copied only
+// where it holds nothing either step would change (carriedIdentifier), and is
+// written single-quoted as it is.
+//
+// The text must hold only what blockProblems admits; the caller checks first.
+func draftedText(text string, keyIndent int) string {
+	return literalBlock(escapeTemplateText(text), keyIndent)
+}
+
 // escapeTemplateText writes text so that it reads back as itself once an
 // Aggregate's text has been evaluated as a template: every "{{" is written as
 // {{"{{"}}, an action whose output is the two braces, and nothing else is
 // changed. A closing "}}" outside an action is plain text to the template
 // engine and is left as written.
 //
-// It is the one place a drafted Aggregate's text is escaped. The escaped text
-// carries double quotes, so it is written where a double quote is an ordinary
-// character, as a literal block scalar is.
+// It is the one place a drafted Aggregate's text is escaped, reached through
+// draftedText. The escaped text carries double quotes, so it is written where a
+// double quote is an ordinary character, as a literal block scalar is.
 func escapeTemplateText(text string) string {
 	return strings.ReplaceAll(text, "{{", `{{"{{"}}`)
 }
