@@ -20,8 +20,9 @@
 //   - for a format whose flows a platform runs as they are written, the
 //     [Platform] describing it: the catalog Component that runs a flow, the
 //     values it carries the flow and its identifier in, where the format keeps
-//     a flow's own identifier and its credential values, and the matcher that
-//     reads a socket's selector.
+//     a flow's own identifier and its credential values, the matcher that reads
+//     a socket's selector, and how the carried flow reaches each part wired to
+//     the platform.
 //
 // The package gives them the rest. [Import] parses each source through the
 // callback, walks it, scores every node against the Components of the
@@ -69,22 +70,33 @@
 // own, referenced or drafted as above, wired to the first socket of the
 // platform's catalog entry whose selector the labels of that Component — or of
 // its best candidate, for a drafted one, where that candidate is at least a
-// MEDIUM match — satisfy. Every other node stays inside the flow and becomes no
-// Component; its decision records the candidates it was weighed against, chooses
-// nothing, and says that the flow keeps it. A part no socket admits stays in the
-// flow too, and the import reports it. Where the
-// workspace's catalog holds no Component of the platform's name, the platform is
-// drafted all the same, no part is wired, and the import warns.
+// MEDIUM match — satisfy. A format may say that a node names a part rather than
+// being one, as an MCP Tools node names the server it calls: such a node is a
+// part whatever its scores, nodes naming one part reach one Component wired
+// once, and its connection is written under the name the flow gives the part
+// wherever a connection's alias can take that name. Every other node stays
+// inside the flow and becomes no Component; its decision records the candidates
+// it was weighed against, chooses nothing, and says that the flow keeps it. A
+// part no socket admits stays in the flow too, and the import reports it. Where
+// the workspace's catalog holds no Component of the platform's name, the
+// platform is drafted all the same, no part is wired, and the import warns.
 //
 // The source is carried as its own bytes with every value in a field the format
 // marks as a credential written empty, each one reported by its node and field
-// and never by its value, and nothing else changed. Every "{{" in it is written
-// {{"{{"}}, which an Aggregate's template reading turns back into the two
-// braces, and it is written as a YAML literal block whose chomping keeps its
-// trailing line breaks. A source holding a character such a block cannot carry
-// as written — a carriage return among them — is not carried, and the import
-// says which character and where. The platform's own inputs no source supplies
-// are named in a comment above its instance, left for the Release.
+// and never by its value, and nothing else changed but what the format writes
+// so that the flow reaches each wired part through its connection: the name of
+// the variable the platform delivers for the connection, written into the field
+// that reads it, or an address the platform writes for itself, written empty.
+// The import reports how the flow reaches each wired part, and a part the flow
+// reaches other than through its connection. Each carriage return is written
+// as a line feed, which a JSON reader reads alike, and the import says how many.
+// Every "{{" is written {{"{{"}}, which an Aggregate's template reading turns
+// back into the two braces, and the source is written as a YAML literal block
+// whose chomping keeps its trailing line breaks. A source holding any other
+// character such a block cannot carry as written is not carried, and the import
+// says which character and where. The platform's own inputs no source supplies,
+// and what of each wired part the Release supplies, are named in a comment
+// above its instance, left for the Release.
 //
 // # Settings
 //

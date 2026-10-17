@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"sort"
 	"strconv"
 	"strings"
@@ -16,10 +17,10 @@ import (
 )
 
 // This file holds the writer of a flow definition into a drafted Aggregate: the
-// emptying of the credential values a source holds, the escape of the text an
-// Aggregate would otherwise read as a template action, the YAML literal block
-// the definition is written as, and the identifier a flow is given where its
-// source names none.
+// emptying of the credential values a source holds and the rewriting of the
+// values a format writes anew, the escape of the text an Aggregate would
+// otherwise read as a template action, the YAML literal block the definition is
+// written as, and the identifier a flow is given where its source names none.
 
 // escapeTemplateText writes text so that it reads back as itself once an
 // Aggregate's text has been evaluated as a template: every "{{" is written as
@@ -131,6 +132,20 @@ func blockProblems(text string) []blockProblem {
 	return problems
 }
 
+// lineFeedsFor writes every carriage return in text — the CR of a CR LF pair,
+// and a CR standing alone — as one line feed, and returns the text and how many
+// carriage returns it wrote. A YAML literal block cannot carry a carriage return
+// as written. In a JSON document one stands only between tokens, where any
+// whitespace reads alike, so a JSON reader reads the written text as the same
+// value.
+func lineFeedsFor(text string) (string, int) {
+	count := strings.Count(text, "\r")
+	if count == 0 {
+		return text, 0
+	}
+	return strings.ReplaceAll(strings.ReplaceAll(text, "\r\n", "\n"), "\r", "\n"), count
+}
+
 // Credential is one value a source holds in a field its format marks as a
 // credential: the node holding the field, the field's name as the format names
 // it, and the JSON Pointer (RFC 6901) addressing the value from the root of the
@@ -139,6 +154,38 @@ type Credential struct {
 	Node    string
 	Field   string
 	Pointer string
+	// Value, where set, is the JSON value written in place of the value instead
+	// of an empty string: the same value with only the credentials it carries
+	// written empty, for a field that keeps them inside text of its own, such as a
+	// server configuration written as JSON text. A value that already reads as
+	// Value is left as written.
+	Value json.RawMessage
+	// Detail, where set, says what of the value is written empty — with Value set
+	// — or why the whole value is — without it. The import's report of the value
+	// carries it.
+	Detail string
+}
+
+// Edit is one value of a JSON document written anew: Value, itself a JSON
+// value, is written in place of every value the JSON Pointer (RFC 6901) Pointer
+// addresses, each repetition of a member the document writes twice included.
+type Edit struct {
+	Pointer string
+	Value   json.RawMessage
+}
+
+// Rewrite writes each edit into the JSON document doc and returns the document
+// with every other byte kept as it is. It locates the values through the JSON
+// decoder the package reads every tree with, so it reads doc as that decoder
+// does; a document opening with a byte-order mark is read from after it.
+//
+// It refuses a pointer that reaches no value in doc, a Value that is not JSON,
+// and a doc that is not one JSON document. Where two edits address one value,
+// the one given first is written; an edit addressing a value inside one another
+// edit replaces goes with it.
+func Rewrite(doc []byte, edits []Edit) ([]byte, error) {
+	out, _, err := rewriteSource(doc, edits, nil)
+	return out, err
 }
 
 // Pointer writes the JSON Pointer (RFC 6901) whose reference tokens are tokens,
@@ -180,10 +227,49 @@ func pointerTokens(pointer string) ([]string, error) {
 // credential whose pointer reaches no value in the bytes is refused with an
 // error, so a source whose bytes cannot be held to its tree is never carried.
 func scrubCredentials(source []byte, credentials []Credential) ([]byte, []Credential, error) {
-	type edit struct{ start, end int }
-	var edits []edit
-	var emptied []Credential
-	for _, c := range credentials {
+	return rewriteSource(source, nil, credentials)
+}
+
+// rewriteSource writes each edit into source and then empties every credential
+// as scrubCredentials does: a credential carrying a Value has it written in
+// place of its value instead of "", and is left as written where its value
+// already reads as that. An edit wins over a credential addressing the same
+// value, and the credential is then not reported as emptied, since what is
+// written there is the edit's. Every other byte is kept. It returns the written
+// bytes and the credentials whose value it changed, in the order given.
+//
+// An edit or a credential whose pointer reaches no value in the bytes is refused
+// with an error, as are an edit whose value is not JSON and bytes that are not
+// one JSON document.
+func rewriteSource(source []byte, edits []Edit, credentials []Credential) ([]byte, []Credential, error) {
+	type write struct {
+		span
+		value []byte
+		// order is the write's position among the edits, which come first, and
+		// then the credentials: where two writes address one value, the earlier
+		// one is written.
+		order int
+	}
+	var writes []write
+	edited := map[span]bool{}
+	for i, e := range edits {
+		if !json.Valid(e.Value) {
+			return nil, nil, fmt.Errorf("the value written at %s is not JSON", e.Pointer)
+		}
+		spans, err := valueSpans(source, e.Pointer)
+		if err != nil {
+			return nil, nil, fmt.Errorf("the value at %s: %w", e.Pointer, err)
+		}
+		if len(spans) == 0 {
+			return nil, nil, fmt.Errorf("the value at %s is not in the source's bytes where its tree holds it", e.Pointer)
+		}
+		for _, s := range spans {
+			writes = append(writes, write{span: s, value: e.Value, order: i})
+			edited[s] = true
+		}
+	}
+	var changed []Credential
+	for i, c := range credentials {
 		spans, err := valueSpans(source, c.Pointer)
 		if err != nil {
 			return nil, nil, fmt.Errorf("the field %s of node %s: %w", c.Field, c.Node, err)
@@ -192,35 +278,52 @@ func scrubCredentials(source []byte, credentials []Credential) ([]byte, []Creden
 			return nil, nil, fmt.Errorf("the field %s of node %s is not in the source's bytes where its tree holds it",
 				c.Field, c.Node)
 		}
-		changed := false
+		value := []byte(`""`)
+		if c.Value != nil {
+			if !json.Valid(c.Value) {
+				return nil, nil, fmt.Errorf("the value written in the field %s of node %s is not JSON", c.Field, c.Node)
+			}
+			value = c.Value
+		}
+		wrote := false
 		for _, s := range spans {
-			if v := string(source[s.start:s.end]); v == `""` || v == "null" {
+			if edited[s] {
 				continue
 			}
-			edits = append(edits, edit(s))
-			changed = true
+			v := source[s.start:s.end]
+			if bytes.Equal(v, value) || (c.Value == nil && string(v) == "null") {
+				continue
+			}
+			writes = append(writes, write{span: s, value: value, order: len(edits) + i})
+			wrote = true
 		}
-		if changed {
-			emptied = append(emptied, c)
+		if wrote {
+			changed = append(changed, c)
 		}
 	}
-	if len(edits) == 0 {
+	if len(writes) == 0 {
 		return source, nil, nil
 	}
-	sort.Slice(edits, func(i, j int) bool { return edits[i].start < edits[j].start })
+	sort.SliceStable(writes, func(i, j int) bool {
+		if writes[i].start != writes[j].start {
+			return writes[i].start < writes[j].start
+		}
+		return writes[i].order < writes[j].order
+	})
 	var out []byte
 	at := 0
-	for _, e := range edits {
-		if e.start < at {
-			// A value inside a value already emptied is gone with it.
+	for _, w := range writes {
+		if w.start < at {
+			// A value inside one already written, or one written already, goes
+			// with the write that replaced it.
 			continue
 		}
-		out = append(out, source[at:e.start]...)
-		out = append(out, `""`...)
-		at = e.end
+		out = append(out, source[at:w.start]...)
+		out = append(out, w.value...)
+		at = w.end
 	}
 	out = append(out, source[at:]...)
-	return out, emptied, nil
+	return out, changed, nil
 }
 
 // span is the byte range of one JSON value in a document.
@@ -236,216 +339,73 @@ var byteOrderMark = []byte{0xEF, 0xBB, 0xBF}
 // the JSON document doc: one per member along the way a key names, so a member
 // an object writes twice yields a span for each. A document opening with a
 // byte-order mark is read from after it.
+//
+// It reads doc through encoding/json's Decoder, the reader every tree is read
+// with here, so the package carries no JSON grammar of its own: a value's bytes
+// are decoded as they stand, its end is the decoder's input offset once it is
+// read and its start that end less its length, and a container the pointer
+// descends into is read the same way from its own bytes, its offset carried.
 func valueSpans(doc []byte, pointer string) ([]span, error) {
 	tokens, err := pointerTokens(pointer)
 	if err != nil {
 		return nil, err
 	}
-	s := jsonScan{doc: doc}
-	i := 0
+	base := 0
 	if bytes.HasPrefix(doc, byteOrderMark) {
-		i = len(byteOrderMark)
+		base = len(byteOrderMark)
 	}
-	end, err := s.find(s.space(i), tokens)
-	if err != nil {
-		return nil, err
-	}
-	if s.space(end) != len(doc) {
+	dec := json.NewDecoder(bytes.NewReader(doc[base:]))
+	var whole json.RawMessage
+	if err := dec.Decode(&whole); err != nil {
 		return nil, errNotJSON
 	}
-	return s.spans, nil
-}
-
-// jsonScan reads the bytes of a JSON document for the spans of the values a
-// pointer addresses.
-type jsonScan struct {
-	doc   []byte
-	spans []span
-}
-
-func (s *jsonScan) space(i int) int {
-	for i < len(s.doc) {
-		switch s.doc[i] {
-		case ' ', '\t', '\n', '\r':
-			i++
-		default:
-			return i
-		}
+	end := base + int(dec.InputOffset())
+	if _, err := dec.Token(); err != io.EOF {
+		return nil, errNotJSON
 	}
-	return i
+	var spans []span
+	collectSpans(whole, end-len(whole), tokens, &spans)
+	return spans, nil
 }
 
-// find reads the value starting at i, recording the span of every value the
-// remaining tokens address inside it, and returns the position after it.
-func (s *jsonScan) find(i int, tokens []string) (int, error) {
+// collectSpans records the span of every value the tokens address inside raw,
+// one JSON value of the document starting at the offset at. A token naming a
+// member of an object is matched against each member's key as the key reads, so
+// a key spelled with an escape matches what it spells; one naming an element of
+// an array is its position, written in decimal. A token reaching into a value
+// that is neither yields nothing.
+func collectSpans(raw json.RawMessage, at int, tokens []string, spans *[]span) {
 	if len(tokens) == 0 {
-		end, err := s.skip(i)
-		if err != nil {
-			return 0, err
-		}
-		s.spans = append(s.spans, span{i, end})
-		return end, nil
+		*spans = append(*spans, span{at, at + len(raw)})
+		return
 	}
-	if i >= len(s.doc) {
-		return 0, errNotJSON
+	dec := json.NewDecoder(bytes.NewReader(raw))
+	open, err := dec.Token()
+	if err != nil {
+		return
 	}
-	switch s.doc[i] {
-	case '{':
-		return s.object(i, tokens)
-	case '[':
-		return s.array(i, tokens)
-	default:
-		return s.skip(i)
+	delim, ok := open.(json.Delim)
+	if !ok || (delim != '{' && delim != '[') {
+		return
 	}
-}
-
-// object reads the object at i, descending into each member the first token
-// names.
-func (s *jsonScan) object(i int, tokens []string) (int, error) {
-	i = s.space(i + 1)
-	if i < len(s.doc) && s.doc[i] == '}' {
-		return i + 1, nil
-	}
-	for {
-		keyEnd, err := s.skipString(i)
-		if err != nil {
-			return 0, err
-		}
-		var key string
-		if err := json.Unmarshal(s.doc[i:keyEnd], &key); err != nil {
-			return 0, errNotJSON
-		}
-		i = s.space(keyEnd)
-		if i >= len(s.doc) || s.doc[i] != ':' {
-			return 0, errNotJSON
-		}
-		i = s.space(i + 1)
-		if key == tokens[0] {
-			i, err = s.find(i, tokens[1:])
-		} else {
-			i, err = s.skip(i)
-		}
-		if err != nil {
-			return 0, err
-		}
-		i = s.space(i)
-		if i >= len(s.doc) {
-			return 0, errNotJSON
-		}
-		switch s.doc[i] {
-		case ',':
-			i = s.space(i + 1)
-		case '}':
-			return i + 1, nil
-		default:
-			return 0, errNotJSON
-		}
-	}
-}
-
-// array reads the array at i, descending into the element whose position the
-// first token writes.
-func (s *jsonScan) array(i int, tokens []string) (int, error) {
-	i = s.space(i + 1)
-	if i < len(s.doc) && s.doc[i] == ']' {
-		return i + 1, nil
-	}
-	for index := 0; ; index++ {
-		var err error
-		if tokens[0] == strconv.Itoa(index) {
-			i, err = s.find(i, tokens[1:])
-		} else {
-			i, err = s.skip(i)
-		}
-		if err != nil {
-			return 0, err
-		}
-		i = s.space(i)
-		if i >= len(s.doc) {
-			return 0, errNotJSON
-		}
-		switch s.doc[i] {
-		case ',':
-			i = s.space(i + 1)
-		case ']':
-			return i + 1, nil
-		default:
-			return 0, errNotJSON
-		}
-	}
-}
-
-// skip returns the position after the value at i.
-func (s *jsonScan) skip(i int) (int, error) {
-	if i >= len(s.doc) {
-		return 0, errNotJSON
-	}
-	switch c := s.doc[i]; {
-	case c == '"':
-		return s.skipString(i)
-	case c == '{' || c == '[':
-		close := byte('}')
-		if c == '[' {
-			close = ']'
-		}
-		i = s.space(i + 1)
-		if i < len(s.doc) && s.doc[i] == close {
-			return i + 1, nil
-		}
-		for {
-			var err error
-			if c == '{' {
-				if i, err = s.skipString(i); err != nil {
-					return 0, err
-				}
-				i = s.space(i)
-				if i >= len(s.doc) || s.doc[i] != ':' {
-					return 0, errNotJSON
-				}
-				i = s.space(i + 1)
+	for index := 0; dec.More(); index++ {
+		name := strconv.Itoa(index)
+		if delim == '{' {
+			key, err := dec.Token()
+			if err != nil {
+				return
 			}
-			if i, err = s.skip(i); err != nil {
-				return 0, err
-			}
-			i = s.space(i)
-			if i >= len(s.doc) {
-				return 0, errNotJSON
-			}
-			switch s.doc[i] {
-			case ',':
-				i = s.space(i + 1)
-			case close:
-				return i + 1, nil
-			default:
-				return 0, errNotJSON
-			}
+			name, _ = key.(string)
 		}
-	default:
-		start := i
-		for i < len(s.doc) && strings.IndexByte("+-0123456789.eEtrufalsn", s.doc[i]) >= 0 {
-			i++
+		var value json.RawMessage
+		if err := dec.Decode(&value); err != nil {
+			return
 		}
-		if i == start {
-			return 0, errNotJSON
-		}
-		return i, nil
-	}
-}
-
-// skipString returns the position after the string at i.
-func (s *jsonScan) skipString(i int) (int, error) {
-	if i >= len(s.doc) || s.doc[i] != '"' {
-		return 0, errNotJSON
-	}
-	for i++; i < len(s.doc); i++ {
-		switch s.doc[i] {
-		case '\\':
-			i++
-		case '"':
-			return i + 1, nil
+		if name == tokens[0] {
+			end := at + int(dec.InputOffset())
+			collectSpans(value, end-len(value), tokens[1:], spans)
 		}
 	}
-	return 0, errNotJSON
 }
 
 // flowIDNamespace is the namespace every identifier derived for a flow is a

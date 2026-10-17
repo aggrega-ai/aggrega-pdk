@@ -4,6 +4,7 @@
 package importer
 
 import (
+	"encoding/json"
 	"reflect"
 	"regexp"
 	"strings"
@@ -189,6 +190,117 @@ func TestScrubCredentialsEmptiesOnlyTheValuesItLocates(t *testing.T) {
 				t.Error("the scrub accepted it")
 			}
 		})
+	}
+}
+
+// TestValueSpansAreReadThroughTheDecoder reads, for each shape a pointer meets in
+// a document, the exact byte spans valueSpans returns — every span checked
+// against the bytes it covers: a member reached through objects and an array
+// element, a member the document writes twice (a span for each), a key spelled
+// with an escape, a document opening with a byte-order mark, irregular spacing
+// around every token, a number and a literal as the addressed value, and a token
+// reaching into a value that is neither an object nor an array (no span). A
+// pointer reaching nothing yields no span; bytes that are not one JSON document
+// are refused.
+//
+// 🔴 PLANTED DEFECT: in collectSpans (definition.go), replace
+// `if name == tokens[0] {` with `if name == tokens[0] && len(*spans) == 0 {`:
+// the row of the member written twice fails, its second span lost.
+func TestValueSpansAreReadThroughTheDecoder(t *testing.T) {
+	t.Parallel()
+	bom := string(byteOrderMark)
+	for _, tc := range []struct {
+		name, doc, pointer string
+		want               []string
+	}{
+		{name: "through objects and an array", doc: `{"a":{"list":[1,{"k":"v1"},3]}}`,
+			pointer: Pointer("a", "list", "1", "k"), want: []string{`"v1"`}},
+		{name: "a member written twice", doc: `{"k":"one" , "x":0, "k" : "two"}`, pointer: Pointer("k"),
+			want: []string{`"one"`, `"two"`}},
+		{name: "a key spelled with an escape", doc: `{"password":"sk"}`, pointer: Pointer("password"),
+			want: []string{`"sk"`}},
+		{name: "a byte-order mark", doc: bom + `{"k":{"inner":true}}`, pointer: Pointer("k"),
+			want: []string{`{"inner":true}`}},
+		{name: "irregular spacing", doc: " \n{ \"n\" :\t[ 0 ,\r\n 42.5e1 ] }\n", pointer: Pointer("n", "1"),
+			want: []string{`42.5e1`}},
+		{name: "a literal", doc: `{"n":null}`, pointer: Pointer("n"), want: []string{`null`}},
+		{name: "the whole document", doc: "  [1]  ", pointer: "", want: []string{`[1]`}},
+		{name: "into a string", doc: `{"s":"text"}`, pointer: Pointer("s", "x")},
+		{name: "a pointer reaching nothing", doc: `{"s":"text"}`, pointer: Pointer("t")},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			spans, err := valueSpans([]byte(tc.doc), tc.pointer)
+			if err != nil {
+				t.Fatalf("the document was refused: %v", err)
+			}
+			var got []string
+			for _, s := range spans {
+				got = append(got, tc.doc[s.start:s.end])
+			}
+			if !reflect.DeepEqual(got, tc.want) {
+				t.Errorf("valueSpans covered %q, want %q", got, tc.want)
+			}
+		})
+	}
+	for _, doc := range []string{`{"k":`, `{"k":1} {"k":2}`, `{"k":1} trailing`, bom + bom + `{}`, ``} {
+		if _, err := valueSpans([]byte(doc), Pointer("k")); err == nil {
+			t.Errorf("the bytes %q were read as one JSON document", doc)
+		}
+	}
+}
+
+// TestRewriteWritesEachEditAndKeepsEveryOtherByte rewrites a document written
+// with irregular spacing: each edit's value replaces every value its pointer
+// addresses, the edit given first wins where two address one value, an edit
+// inside a value another replaces goes with it, and every other byte is kept. An
+// edit whose value is not JSON, and one reaching nothing, are refused.
+func TestRewriteWritesEachEditAndKeepsEveryOtherByte(t *testing.T) {
+	t.Parallel()
+	doc := "{ \"url\" : \"http://planted.example\",\n  \"k\":\"a\", \"k\":\"b\", \"obj\":{\"in\":1}, \"keep\" : [1, 2] }"
+	got, err := Rewrite([]byte(doc), []Edit{
+		{Pointer: Pointer("url"), Value: json.RawMessage(`""`)},
+		{Pointer: Pointer("k"), Value: json.RawMessage(`"NAME"`)},
+		{Pointer: Pointer("k"), Value: json.RawMessage(`"LOST"`)},
+		{Pointer: Pointer("obj"), Value: json.RawMessage(`true`)},
+		{Pointer: Pointer("obj", "in"), Value: json.RawMessage(`2`)},
+	})
+	if err != nil {
+		t.Fatalf("the rewrite was refused: %v", err)
+	}
+	want := "{ \"url\" : \"\",\n  \"k\":\"NAME\", \"k\":\"NAME\", \"obj\":true, \"keep\" : [1, 2] }"
+	if string(got) != want {
+		t.Errorf("the rewrite wrote\n%s\nwant\n%s", got, want)
+	}
+	if same, err := Rewrite([]byte(doc), nil); err != nil || string(same) != doc {
+		t.Errorf("a rewrite of no edit changed the document (%v)", err)
+	}
+	for _, e := range []Edit{
+		{Pointer: Pointer("url"), Value: json.RawMessage(`not json`)},
+		{Pointer: Pointer("absent"), Value: json.RawMessage(`""`)},
+	} {
+		if _, err := Rewrite([]byte(doc), []Edit{e}); err == nil {
+			t.Errorf("the edit %+v was written", e)
+		}
+	}
+}
+
+// TestLineFeedsForWritesEachCarriageReturnAsALineFeed reads how many carriage
+// returns lineFeedsFor writes and what it writes them as: a CR LF pair as one
+// line feed, a lone CR as one, and a text holding none unchanged.
+func TestLineFeedsForWritesEachCarriageReturnAsALineFeed(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		text, want string
+		count      int
+	}{
+		{text: "a\r\nb\r\n", want: "a\nb\n", count: 2},
+		{text: "a\rb", want: "a\nb", count: 1},
+		{text: "a\r\r\nb", want: "a\n\nb", count: 2},
+		{text: "a\nb", want: "a\nb", count: 0},
+	} {
+		if got, count := lineFeedsFor(tc.text); got != tc.want || count != tc.count {
+			t.Errorf("lineFeedsFor(%q) = %q, %d; want %q, %d", tc.text, got, count, tc.want, tc.count)
+		}
 	}
 }
 

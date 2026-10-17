@@ -452,8 +452,8 @@ const plantedKey = "sk-plantedKITkey0123456789abcdefXYZ"
 // the field, and not the value.
 //
 // 🔴 PLANTED DEFECT: in carry (platform.go), replace
-// `scrubbed, emptied, err := scrubCredentials(src.Bytes, creds)` with
-// `scrubbed, emptied, err := src.Bytes, []Credential(nil), error(nil); _ = creds`,
+// `scrubbed, emptied, err := rewriteSource(src.Bytes, edits, creds)` with
+// `scrubbed, emptied, err := src.Bytes, []Credential(nil), error(nil); _, _ = edits, creds`,
 // and the platform row fails: the planted value is in the drafted Aggregate.
 func TestNoCredentialValueReachesTheDraft(t *testing.T) {
 	t.Parallel()
@@ -497,20 +497,21 @@ func TestNoCredentialValueReachesTheDraft(t *testing.T) {
 	}
 }
 
-// TestAFlowABlockCannotCarryIsNotCarried imports a source written with carriage
-// returns: the platform is drafted with no definition and a comment saying so,
-// one warning names the character, how often and where it first appears, and
-// the rest of the draft is made as before.
+// TestAFlowABlockCannotCarryIsNotCarried imports a source holding a line
+// separator, U+2028, inside a string: a YAML reader takes it for a line break,
+// which would end the literal block mid-text, so the platform is drafted with no
+// definition and a comment saying so, one warning names the character, how often
+// and where it first appears, and the rest of the draft is made as before.
 func TestAFlowABlockCannotCarryIsNotCarried(t *testing.T) {
 	t.Parallel()
-	crlf := strings.ReplaceAll(`{"id":"flow-9",
-"nodes":[{"id":"model-1","type":"generic","data":{"type":"OpenAIModel"}}],
+	source := `{"id":"flow-9",
+"nodes":[{"id":"model-1","type":"generic","data":{"type":"OpenAIModel","prompt":"one` + " " + `two"}}],
 "edges":[]}
-`, "\n", "\r\n")
-	out := platformImport(t, platformTestFormat(), platformCatalog(), "", oneSource(crlf))
+`
+	out := platformImport(t, platformTestFormat(), platformCatalog(), "", oneSource(source))
 	want := []aggrega.Diagnostic{{Severity: "warn", Code: "definition-not-carried",
-		Message: "the flow is not carried in values.flow_definition: it holds a carriage return (3 in all, the first at " +
-			"line 1, column 16), which a YAML literal block cannot carry as written"}}
+		Message: "the flow is not carried in values.flow_definition: it holds a line-break character U+2028 (1 in all, " +
+			"the first at line 2, column 85), which a YAML literal block cannot carry as written"}}
 	if !reflect.DeepEqual(out.Diagnostics, want) {
 		t.Errorf("the import raised %+v, want %+v", out.Diagnostics, want)
 	}
