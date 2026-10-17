@@ -16,7 +16,12 @@
 //   - the syntactic format the host parses a source of the format as;
 //   - the import export, which decodes the request, hands it to [Import] with
 //     the [Format] holding the three above and a callback asking the host to
-//     parse a source, and encodes what [Import] returns.
+//     parse a source, and encodes what [Import] returns;
+//   - for a format whose flows a platform runs as they are written, the
+//     [Platform] describing it: the catalog Component that runs a flow, the
+//     values it carries the flow and its identifier in, where the format keeps
+//     a flow's own identifier and its credential values, and the matcher that
+//     reads a socket's selector.
 //
 // The package gives them the rest. [Import] parses each source through the
 // callback, walks it, scores every node against the Components of the
@@ -53,6 +58,34 @@
 // drafted node records how strongly its best candidate matched, and a HIGH or
 // MEDIUM match is written into the drafts as an inline hint.
 //
+// # The platform layout
+//
+// A format describing a [Platform] is drafted, by default, as the platform
+// carrying each source: one instance of the platform's Component per source,
+// its definition value holding the source as written and its identifier value
+// the flow's own identifier, or one derived from the carried bytes where the
+// source gives none. A node a mapping row maps, or whose best candidate is at
+// least a MEDIUM match, is a part of the flow: it becomes a Component of its
+// own, referenced or drafted as above, wired to the first socket of the
+// platform's catalog entry whose selector the labels of that Component — or of
+// its best candidate, for a drafted one, where that candidate is at least a
+// MEDIUM match — satisfy. Every other node stays inside the flow and becomes no
+// Component; its decision records the candidates it was weighed against, chooses
+// nothing, and says that the flow keeps it. A part no socket admits stays in the
+// flow too, and the import reports it. Where the
+// workspace's catalog holds no Component of the platform's name, the platform is
+// drafted all the same, no part is wired, and the import warns.
+//
+// The source is carried as its own bytes with every value in a field the format
+// marks as a credential written empty, each one reported by its node and field
+// and never by its value, and nothing else changed. Every "{{" in it is written
+// {{"{{"}}, which an Aggregate's template reading turns back into the two
+// braces, and it is written as a YAML literal block whose chomping keeps its
+// trailing line breaks. A source holding a character such a block cannot carry
+// as written — a carriage return among them — is not carried, and the import
+// says which character and where. The platform's own inputs no source supplies
+// are named in a comment above its instance, left for the Release.
+//
 // # Settings
 //
 // The importer reads the settings document an import attachment hands it. The
@@ -72,6 +105,10 @@
 //   - mapping_overrides: format, then node type, then a mapping with the keys
 //     component, category, traits and vendor, taking precedence over the
 //     importer's own mapping arm.
+//   - layout: platform (the default), the platform carrying each source, or
+//     nodes, every node drafted as a Component of its own. A format describing
+//     no platform is drafted node by node whatever it says, and a value that is
+//     neither is drafted as platform with a warning.
 //
 // # Building and testing
 //

@@ -36,6 +36,14 @@ type importSettings struct {
 	// MappingOverrides extends or overrides the served format's mapping arm,
 	// keyed by format then node type, with override precedence over the arm.
 	MappingOverrides mappingOverrides `json:"mapping_overrides"`
+	// Layout selects how a source of a format whose flows run on a platform is
+	// drafted. platform, the default, drafts one instance of the platform's
+	// Component carrying the source in its definition value, with each part of the
+	// flow a socket of the platform admits drafted as a Component wired to that
+	// socket; nodes drafts every node of the source as a Component of its own. A
+	// format that describes no platform is drafted node by node whatever this
+	// says.
+	Layout string `json:"layout"`
 }
 
 // mappingOverrides is the operator-supplied extension of a mapping arm:
@@ -77,6 +85,8 @@ const (
 	reuseModeAutoApply = "auto-apply-above-threshold"
 	renderModeHuman    = "human"
 	renderModeLLM      = "llm"
+	layoutPlatform     = "platform"
+	layoutNodes        = "nodes"
 	defaultNamespace   = "imported"
 	defaultThreshold   = 0.85
 )
@@ -102,7 +112,17 @@ func parseSettings(raw json.RawMessage) importSettings {
 	if s.RenderMode == "" {
 		s.RenderMode = renderModeHuman
 	}
+	if s.Layout == "" {
+		s.Layout = layoutPlatform
+	}
 	return s
+}
+
+// nodeLayout reports whether the settings ask for the node-by-node draft. Any
+// other value, the default included, asks for the platform draft; a value that
+// is neither layout is reported where the platform draft is made.
+func (s importSettings) nodeLayout() bool {
+	return s.Layout == layoutNodes
 }
 
 // emitInlineHints reports whether inline resemblance comments are written, which

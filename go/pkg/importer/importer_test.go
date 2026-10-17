@@ -549,11 +549,12 @@ func TestDraftAndAggregateRendering(t *testing.T) {
 // it does not set keeps its default.
 func TestSettingsDefaults(t *testing.T) {
 	type view struct {
-		namespace, reuseMode, renderMode string
-		threshold                        float64
-		hints                            bool
+		namespace, reuseMode, renderMode, layout string
+		threshold                                float64
+		hints, nodes                             bool
 	}
-	defaults := view{namespace: "imported", reuseMode: "hints-only", renderMode: "human", threshold: 0.85, hints: true}
+	defaults := view{namespace: "imported", reuseMode: "hints-only", renderMode: "human", layout: "platform", threshold: 0.85,
+		hints: true}
 	for _, tc := range []struct {
 		name, doc string
 		want      view
@@ -562,15 +563,24 @@ func TestSettingsDefaults(t *testing.T) {
 		{name: "empty object", doc: `{}`, want: defaults},
 		{name: "not JSON", doc: `{"target_namespace":`, want: defaults},
 		{name: "a namespace", doc: `{"target_namespace":"north"}`,
-			want: view{namespace: "north", reuseMode: "hints-only", renderMode: "human", threshold: 0.85, hints: true}},
+			want: view{namespace: "north", reuseMode: "hints-only", renderMode: "human", layout: "platform", threshold: 0.85,
+				hints: true}},
 		{name: "auto-apply at a threshold, no hints, llm",
-			doc:  `{"reuse_mode":"auto-apply-above-threshold","reuse_threshold":0.9,"emit_hints":false,"render_mode":"llm"}`,
-			want: view{namespace: "imported", reuseMode: "auto-apply-above-threshold", renderMode: "llm", threshold: 0.9, hints: false}},
+			doc: `{"reuse_mode":"auto-apply-above-threshold","reuse_threshold":0.9,"emit_hints":false,"render_mode":"llm"}`,
+			want: view{namespace: "imported", reuseMode: "auto-apply-above-threshold", renderMode: "llm", layout: "platform",
+				threshold: 0.9, hints: false}},
+		{name: "the platform layout, named", doc: `{"layout":"platform"}`, want: defaults},
+		{name: "the nodes layout", doc: `{"layout":"nodes"}`,
+			want: view{namespace: "imported", reuseMode: "hints-only", renderMode: "human", layout: "nodes", threshold: 0.85,
+				hints: true, nodes: true}},
+		{name: "a layout that is neither, kept for the warning", doc: `{"layout":"graph"}`,
+			want: view{namespace: "imported", reuseMode: "hints-only", renderMode: "human", layout: "graph", threshold: 0.85,
+				hints: true}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			s := parseSettings(json.RawMessage(tc.doc))
-			got := view{namespace: s.TargetNamespace, reuseMode: s.ReuseMode, renderMode: s.RenderMode,
-				threshold: s.ReuseThreshold, hints: s.emitInlineHints()}
+			got := view{namespace: s.TargetNamespace, reuseMode: s.ReuseMode, renderMode: s.RenderMode, layout: s.Layout,
+				threshold: s.ReuseThreshold, hints: s.emitInlineHints(), nodes: s.nodeLayout()}
 			if got != tc.want {
 				t.Errorf("the settings read %+v, want %+v", got, tc.want)
 			}

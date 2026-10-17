@@ -28,6 +28,11 @@ type Format struct {
 	// tree the parse callback returned for one source. A tree it does not
 	// recognise yields no nodes, which [Import] reports as a warning.
 	Walk func(tree json.RawMessage) ([]Node, []Edge)
+	// Platform describes the platform a flow of the format runs on, for a format
+	// whose sources are flows a platform runs as they are written. A format
+	// carrying one is drafted as that platform carrying each source, unless the
+	// layout setting asks for nodes; nil drafts every source node by node.
+	Platform *Platform
 }
 
 // Node is one node a walker lifted from a source tree: its identifier, the type
@@ -90,16 +95,21 @@ type Mapping struct {
 // yields no nodes as a warning; the import carries on with the other sources. A
 // request naming a format other than served.Name has no walker and no mapping
 // arm here, so each of its sources yields no nodes.
+//
+// Where served describes a Platform and the layout setting does not ask for
+// nodes, each source is drafted as that platform carrying it instead, as
+// [Platform] describes; the scoring and the dispositions above decide which of
+// its nodes become Components of their own.
 func Import(in aggrega.ImportInput, served Format, parse func(syntax string, source []byte) (json.RawMessage, error)) aggrega.ImportOutput {
 	settings := parseSettings(in.Settings)
+	if served.Platform != nil && in.Format == served.Name && !settings.nodeLayout() {
+		return importPlatform(in, served, settings, parse)
+	}
 	format := in.Format
 	table := newMappingTable(settings.MappingOverrides, format, served)
 	catalog := candidatesFrom(in.Catalog)
 
-	sources := in.Sources
-	if len(sources) == 0 {
-		sources = []aggrega.ImportSource{{Name: "", Bytes: in.Bytes}}
-	}
+	sources := sourcesOf(in)
 	multiSource := len(sources) > 1
 
 	var out aggrega.ImportOutput
@@ -109,22 +119,12 @@ func Import(in aggrega.ImportInput, served Format, parse func(syntax string, sou
 	for _, src := range sources {
 		tree, err := parse(served.Syntax, src.Bytes)
 		if err != nil {
-			out.Diagnostics = append(out.Diagnostics, aggrega.Diagnostic{
-				Severity:  "halt",
-				Code:      "parse-failed",
-				Message:   fmt.Sprintf("could not parse source %q as %s: %s", src.Name, format, err.Error()),
-				SourceRef: src.Name,
-			})
+			out.Diagnostics = append(out.Diagnostics, parseFailed(src, format, err))
 			continue
 		}
 		nodes, edges := walk(served, format, tree)
 		if len(nodes) == 0 {
-			out.Diagnostics = append(out.Diagnostics, aggrega.Diagnostic{
-				Severity:  "warn",
-				Code:      "no-nodes",
-				Message:   fmt.Sprintf("source %q carried no recognisable %s nodes", src.Name, format),
-				SourceRef: src.Name,
-			})
+			out.Diagnostics = append(out.Diagnostics, noNodes(src, format))
 			continue
 		}
 
@@ -157,6 +157,36 @@ func Import(in aggrega.ImportInput, served Format, parse func(syntax string, sou
 
 	out.Files = render(settings, out.Entities, out.Decisions)
 	return out
+}
+
+// sourcesOf returns the sources an import request carries: its named sources,
+// or, where it carries none, its primary bytes as one source with no name.
+func sourcesOf(in aggrega.ImportInput) []aggrega.ImportSource {
+	if len(in.Sources) == 0 {
+		return []aggrega.ImportSource{{Name: "", Bytes: in.Bytes}}
+	}
+	return in.Sources
+}
+
+// parseFailed reports a source the parse callback could not parse, which halts
+// the import.
+func parseFailed(src aggrega.ImportSource, format string, err error) aggrega.Diagnostic {
+	return aggrega.Diagnostic{
+		Severity:  "halt",
+		Code:      "parse-failed",
+		Message:   fmt.Sprintf("could not parse source %q as %s: %s", src.Name, format, err.Error()),
+		SourceRef: src.Name,
+	}
+}
+
+// noNodes reports a source whose tree the walker lifted no node from.
+func noNodes(src aggrega.ImportSource, format string) aggrega.Diagnostic {
+	return aggrega.Diagnostic{
+		Severity:  "warn",
+		Code:      "no-nodes",
+		Message:   fmt.Sprintf("source %q carried no recognisable %s nodes", src.Name, format),
+		SourceRef: src.Name,
+	}
 }
 
 // walk lifts the nodes and edges out of one parsed source through the served
