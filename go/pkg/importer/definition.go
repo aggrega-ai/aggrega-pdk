@@ -110,7 +110,12 @@ func blockProblems(text string) []blockProblem {
 	found := map[string]*blockProblem{}
 	line, column := 1, 1
 	for i := 0; i < len(text); {
-		r, size := utf8.DecodeRuneInString(text[i:])
+		// A byte below utf8.RuneSelf is the character it encodes, as decoding it
+		// would find.
+		r, size := rune(text[i]), 1
+		if r >= utf8.RuneSelf {
+			r, size = utf8.DecodeRuneInString(text[i:])
+		}
 		what := ""
 		switch {
 		case r == utf8.RuneError && size <= 1:
@@ -254,6 +259,9 @@ func scrubCredentials(source []byte, credentials []Credential) ([]byte, []Creden
 // written there is the edit's. Every other byte is kept. It returns the written
 // bytes and the credentials whose value it changed, in the order given.
 //
+// Every edit and credential is located in one reading of source, as a
+// jsonDocument reads it, however many there are.
+//
 // An edit or a credential whose pointer reaches no value in the bytes is refused
 // with an error, as are an edit whose value is not JSON and bytes that are not
 // one JSON document.
@@ -266,13 +274,22 @@ func rewriteSource(source []byte, edits []Edit, credentials []Credential) ([]byt
 		// one is written.
 		order int
 	}
+	doc := newJSONDocument(source)
+	pointers := make([]string, 0, len(edits)+len(credentials))
+	for _, e := range edits {
+		pointers = append(pointers, e.Pointer)
+	}
+	for _, c := range credentials {
+		pointers = append(pointers, c.Pointer)
+	}
+	doc.prepare(pointers)
 	var writes []write
 	edited := map[span]bool{}
 	for i, e := range edits {
 		if !json.Valid(e.Value) {
 			return nil, nil, fmt.Errorf("the value written at %s is not JSON", e.Pointer)
 		}
-		spans, err := valueSpans(source, e.Pointer)
+		spans, err := doc.spans(e.Pointer)
 		if err != nil {
 			return nil, nil, fmt.Errorf("the value at %s: %w", e.Pointer, err)
 		}
@@ -286,7 +303,7 @@ func rewriteSource(source []byte, edits []Edit, credentials []Credential) ([]byt
 	}
 	var changed []Credential
 	for i, c := range credentials {
-		spans, err := valueSpans(source, c.Pointer)
+		spans, err := doc.spans(c.Pointer)
 		if err != nil {
 			return nil, nil, fmt.Errorf("the field %s of node %s: %w", c.Field, c.Node, err)
 		}
@@ -352,76 +369,270 @@ var errNotJSON = errors.New("the source's bytes do not read as JSON")
 var byteOrderMark = []byte{0xEF, 0xBB, 0xBF}
 
 // valueSpans returns the byte span of every value the JSON Pointer addresses in
-// the JSON document doc: one per member along the way a key names, so a member
-// an object writes twice yields a span for each. A document opening with a
-// byte-order mark is read from after it.
-//
-// It reads doc through encoding/json's Decoder, the reader every tree is read
-// with here, so the package carries no JSON grammar of its own: a value's bytes
-// are decoded as they stand, its end is the decoder's input offset once it is
-// read and its start that end less its length, and a container the pointer
-// descends into is read the same way from its own bytes, its offset carried.
+// the JSON document doc, as [jsonDocument.spans] reads them.
 func valueSpans(doc []byte, pointer string) ([]span, error) {
+	return newJSONDocument(doc).spans(pointer)
+}
+
+// jsonDocument is one JSON document read for the byte spans of the values JSON
+// Pointers address in it. The document is read as one JSON value once, and each
+// container a pointer descends into is listed once: every container on the way
+// of the pointers handed to prepare in the one reading prepare makes, and any
+// other when the first pointer descends into it. So the spans of every pointer
+// into one document cost one reading of it, however many pointers there are.
+//
+// It reads through encoding/json's Decoder, the reader every tree is read with
+// here, so the package carries no JSON grammar of its own: a value's bytes are
+// decoded as they stand, its end is the decoder's input offset once it is read,
+// and its start that end less its length — or, for a container read through its
+// tokens, the offset of its opening token.
+type jsonDocument struct {
+	bytes []byte
+	// read records that the document has been read: root is then the span of
+	// its value, or err says why its bytes are not one JSON document.
+	read bool
+	root span
+	err  error
+	// listed are the members of each container listed so far, by the offset its
+	// value starts at.
+	listed map[int]containerMembers
+}
+
+// containerMembers are the members of one object or array, in the order the
+// document writes them: each one's name — an object member's key as the key
+// reads, so a key spelled with an escape reads as what it spells, or an array
+// element's position written in decimal — and the span of its value.
+type containerMembers struct {
+	names []string
+	spans []span
+}
+
+// valueLength is a decoded JSON value's length in bytes. The Decoder hands a
+// value's own bytes to the value's UnmarshalJSON, so decoding into a
+// valueLength measures a value without copying it.
+type valueLength int
+
+// UnmarshalJSON records the length of data, the bytes of one JSON value.
+func (n *valueLength) UnmarshalJSON(data []byte) error {
+	*n = valueLength(len(data))
+	return nil
+}
+
+// newJSONDocument returns doc, to be read for the spans of the values pointers
+// address in it.
+func newJSONDocument(doc []byte) *jsonDocument {
+	return &jsonDocument{bytes: doc, listed: map[int]containerMembers{}}
+}
+
+// spans returns the byte span of every value the JSON Pointer addresses in the
+// document: one per member along the way a key names, so a member an object
+// writes twice yields a span for each. A pointer that does not read as one is
+// refused as such, whatever the document holds; bytes that are not one JSON
+// document are refused for every other pointer.
+func (d *jsonDocument) spans(pointer string) ([]span, error) {
 	tokens, err := pointerTokens(pointer)
 	if err != nil {
 		return nil, err
 	}
+	if !d.read {
+		d.root, d.err = readDocument(d.bytes)
+		d.read = true
+	}
+	if d.err != nil {
+		return nil, d.err
+	}
+	var spans []span
+	d.collectSpans(d.root, tokens, &spans)
+	return spans, nil
+}
+
+// readDocument reads doc as one JSON value and returns its span. A document
+// opening with a byte-order mark is read from after it; bytes that are not one
+// JSON value, and bytes after it, are refused.
+func readDocument(doc []byte) (span, error) {
 	base := 0
 	if bytes.HasPrefix(doc, byteOrderMark) {
 		base = len(byteOrderMark)
 	}
 	dec := json.NewDecoder(bytes.NewReader(doc[base:]))
-	var whole json.RawMessage
-	if err := dec.Decode(&whole); err != nil {
-		return nil, errNotJSON
+	var n valueLength
+	if err := dec.Decode(&n); err != nil {
+		return span{}, errNotJSON
 	}
 	end := base + int(dec.InputOffset())
 	if _, err := dec.Token(); err != io.EOF {
-		return nil, errNotJSON
+		return span{}, errNotJSON
 	}
-	var spans []span
-	collectSpans(whole, end-len(whole), tokens, &spans)
-	return spans, nil
+	return span{end - int(n), end}, nil
 }
 
-// collectSpans records the span of every value the tokens address inside raw,
-// one JSON value of the document starting at the offset at. A token naming a
-// member of an object is matched against each member's key as the key reads, so
-// a key spelled with an escape matches what it spells; one naming an element of
-// an array is its position, written in decimal. A token reaching into a value
-// that is neither yields nothing.
-func collectSpans(raw json.RawMessage, at int, tokens []string, spans *[]span) {
-	if len(tokens) == 0 {
-		*spans = append(*spans, span{at, at + len(raw)})
+// pathTrie is the containers on the way of a set of JSON Pointers: under each
+// member name, the containers on the way below that member.
+type pathTrie map[string]pathTrie
+
+// prepare reads the document for the pointers it will be asked about, in one
+// reading: it reads the document as one JSON value, as readDocument does, and
+// lists, as membersOf would, every container on the way of a pointer — reading
+// a container on the way through its tokens, and so in the same reading as the
+// container holding it, and decoding every other member whole. A pointer that
+// does not read as one is passed over; spans refuses it when asked. Where the
+// document is not one JSON value, every pointer is refused, as readDocument
+// refuses it; where a value on the way is not a container, the container
+// holding it is listed when a pointer descends into it, and where the document's
+// value itself is not one, it is read when the first pointer is asked about.
+func (d *jsonDocument) prepare(pointers []string) {
+	if d.read {
 		return
 	}
-	dec := json.NewDecoder(bytes.NewReader(raw))
+	way, descends := pathTrie{}, false
+	for _, p := range pointers {
+		tokens, err := pointerTokens(p)
+		if err != nil || len(tokens) == 0 {
+			continue
+		}
+		descends = true
+		node := way
+		for _, t := range tokens[:len(tokens)-1] {
+			next, ok := node[t]
+			if !ok {
+				next = pathTrie{}
+				node[t] = next
+			}
+			node = next
+		}
+	}
+	if !descends {
+		return
+	}
+	base := 0
+	if bytes.HasPrefix(d.bytes, byteOrderMark) {
+		base = len(byteOrderMark)
+	}
+	dec := json.NewDecoder(bytes.NewReader(d.bytes[base:]))
+	// Numbers read as tokens are kept as written, so that reading one never
+	// refuses a number its own decoding accepts.
+	dec.UseNumber()
+	root, known, err := d.stream(dec, base, way)
+	if err == nil {
+		if _, end := dec.Token(); end != io.EOF {
+			err = errNotJSON
+		}
+	}
+	switch {
+	case err != nil:
+		d.read, d.err, d.listed = true, errNotJSON, map[int]containerMembers{}
+	case known:
+		d.read, d.root = true, root
+	}
+}
+
+// stream reads the next value from dec, whose input starts at offset base of the
+// document, and returns its span. Where way is nil the value is decoded whole.
+// Otherwise it is a container on the way of a pointer: its tokens are read, each
+// member is read as stream reads the member's way, and the container's members
+// are listed — unless the span of one of them could not be read, in which case
+// membersOf lists it when a pointer descends into it. known is false where the
+// value's span could not be read: a value on the way that is not a container,
+// which the decoder hands over as a token rather than as its bytes.
+func (d *jsonDocument) stream(dec *json.Decoder, base int, way pathTrie) (at span, known bool, err error) {
+	if way == nil {
+		var n valueLength
+		if err := dec.Decode(&n); err != nil {
+			return span{}, false, err
+		}
+		end := base + int(dec.InputOffset())
+		return span{end - int(n), end}, true, nil
+	}
 	open, err := dec.Token()
 	if err != nil {
-		return
+		return span{}, false, err
 	}
 	delim, ok := open.(json.Delim)
-	if !ok || (delim != '{' && delim != '[') {
-		return
+	if !ok {
+		return span{}, false, nil
 	}
+	start := base + int(dec.InputOffset()) - 1
+	var members containerMembers
+	listed := true
 	for index := 0; dec.More(); index++ {
 		name := strconv.Itoa(index)
 		if delim == '{' {
 			key, err := dec.Token()
 			if err != nil {
-				return
+				return span{}, false, err
 			}
 			name, _ = key.(string)
 		}
-		var value json.RawMessage
-		if err := dec.Decode(&value); err != nil {
-			return
+		member, known, err := d.stream(dec, base, way[name])
+		if err != nil {
+			return span{}, false, err
 		}
+		if !known {
+			listed = false
+			continue
+		}
+		members.names = append(members.names, name)
+		members.spans = append(members.spans, member)
+	}
+	if _, err := dec.Token(); err != nil {
+		return span{}, false, err
+	}
+	if listed {
+		d.listed[start] = members
+	}
+	return span{start, base + int(dec.InputOffset())}, true, nil
+}
+
+// collectSpans records the span of every value the tokens address inside the
+// value spanning at: that value itself where no token is left; otherwise every
+// member of it, in turn, whose name is the first token. A token reaching into a
+// value that is neither an object nor an array yields nothing.
+func (d *jsonDocument) collectSpans(at span, tokens []string, spans *[]span) {
+	if len(tokens) == 0 {
+		*spans = append(*spans, at)
+		return
+	}
+	members := d.membersOf(at)
+	for i, name := range members.names {
 		if name == tokens[0] {
-			end := at + int(dec.InputOffset())
-			collectSpans(value, end-len(value), tokens[1:], spans)
+			d.collectSpans(members.spans[i], tokens[1:], spans)
 		}
 	}
+}
+
+// membersOf returns the members of the value spanning at, listing them the
+// first time a pointer descends into it: its opening token, then each member's
+// key, for an object, and its value. A value that is neither an object nor an
+// array has none.
+func (d *jsonDocument) membersOf(at span) containerMembers {
+	if members, listed := d.listed[at.start]; listed {
+		return members
+	}
+	var members containerMembers
+	dec := json.NewDecoder(bytes.NewReader(d.bytes[at.start:at.end]))
+	open, err := dec.Token()
+	delim, _ := open.(json.Delim)
+	if err == nil && (delim == '{' || delim == '[') {
+		for index := 0; dec.More(); index++ {
+			name := strconv.Itoa(index)
+			if delim == '{' {
+				key, err := dec.Token()
+				if err != nil {
+					break
+				}
+				name, _ = key.(string)
+			}
+			var n valueLength
+			if err := dec.Decode(&n); err != nil {
+				break
+			}
+			end := at.start + int(dec.InputOffset())
+			members.names = append(members.names, name)
+			members.spans = append(members.spans, span{end - int(n), end})
+		}
+	}
+	d.listed[at.start] = members
+	return members
 }
 
 // flowIDNamespace is the namespace every identifier derived for a flow is a
