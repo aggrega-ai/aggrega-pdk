@@ -124,6 +124,13 @@
 // inside its instance shows that target's lines, commented out where they
 // belong, for an author building for it to uncomment.
 //
+// Where the attach_egress_allowlist setting is true, each instance carries
+// core/egress-allowlist under features, the decision of each wired part says
+// that attachment admits its connection, and the import reports the attachment
+// and what of it the Release sets. The draft never sets the Feature's
+// infrastructure, the operator's affirmation that the cluster enforces network
+// policy included.
+//
 // # Settings
 //
 // The importer reads the settings document an import attachment hands it. The
@@ -151,6 +158,13 @@
 //     nodes, every node drafted as a Component of its own. A format describing
 //     no platform is drafted node by node whatever it says, and a value that is
 //     neither is drafted as platform with a warning.
+//   - attach_egress_allowlist: whether each platform instance the platform
+//     layout drafts carries core/egress-allowlist, attached as egress-allowlist,
+//     so the platform connects only to the components it is wired to; default
+//     false. The draft sets none of the Feature's infrastructure and names, in
+//     the comment above the instance, the two members the Release sets:
+//     infra.control_plane_present and infra.admitted_destinations. A draft made
+//     node by node attaches nothing, and the import warns where this is true.
 //
 // # Building and testing
 //

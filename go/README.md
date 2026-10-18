@@ -98,7 +98,7 @@ catalog view, the decision to reference a component or draft a new one, the
 drafted Component and Aggregate bodies, the platform layout below, the `human` and
 `llm` renderers, and the importer's settings — `target_namespace`,
 `reuse_mode`, `reuse_threshold`, `emit_hints`, `render_mode`,
-`mapping_overrides`, `layout` and `empty_unmarked_credentials` — with their defaults. `NodeList`, `EdgeList` and
+`mapping_overrides`, `layout`, `empty_unmarked_credentials` and `attach_egress_allowlist` — with their defaults. `NodeList`, `EdgeList` and
 `ObjectEntries` read the shapes a walker commonly meets in a canonical tree. The
 package builds on the host toolchain as well as for `GOOS=wasip1`, so an importer is
 tested on the host by handing `Import` a parse function of the test's own. Its
@@ -184,7 +184,13 @@ there:
 Every node the draft gives no Component stays inside the flow the platform carries,
 and its decision chooses nothing and says so. Where the catalog view holds no
 Component of the platform's name, the platform is drafted all the same, no part is
-wired, and the import warns with `platform-not-in-catalog`. The package
+wired, and the import warns with `platform-not-in-catalog`. With the
+`attach_egress_allowlist` setting `true`, every importer built on the package attaches
+`core/egress-allowlist` to each platform instance it drafts, under the key
+`egress-allowlist`, and sets none of the Feature's infrastructure: the comment above
+the instance names `infra.control_plane_present` and `infra.admitted_destinations` for
+the Release, and the import reports the attachment as `feature-attached`. A draft made
+node by node attaches nothing, and warns with `feature-not-attached`. The package
 documentation carries the layout in full.
 
 The compiler's own Langflow and Flowise importers are built this way, one per

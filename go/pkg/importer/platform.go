@@ -37,7 +37,10 @@ import (
 // all the same, no node becomes a part, and the import says so. A referenced
 // part whose Component declares a value named model is written with the model
 // its node selects there, as Model reads it, or, where its node names none,
-// with a comment leaving it for the author, which the import reports.
+// with a comment leaving it for the author, which the import reports. Where the
+// attach_egress_allowlist setting is true, each instance also carries
+// core/egress-allowlist under features, with nothing of its infrastructure set,
+// and the comment above it names what of that the Release sets.
 //
 // The source is carried as its own bytes, with every credential value it holds
 // written empty, every value Wire asks for written anew, every carriage return
@@ -442,6 +445,13 @@ func importPlatform(in aggrega.ImportInput, served Format, settings importSettin
 					SourceRef: w.ref,
 				})
 			}
+		}
+		if settings.AttachEgressAllowlist {
+			for _, w := range wired {
+				out.Decisions[w.decision].Rationale += fmt.Sprintf("; the %s attachment of %s admits its connection to %s",
+					egressAllowlistKey, inst.key, w.part.Key)
+			}
+			out.Diagnostics = append(out.Diagnostics, egressAllowlistAttached(inst.key, src.Name))
 		}
 		draft.instances = append(draft.instances, inst)
 	}
@@ -907,6 +917,21 @@ func modelNotNamed(ref string, node Node, key, component, why string) aggrega.Di
 	}
 }
 
+// egressAllowlistAttached reports that the attach_egress_allowlist setting
+// attached core/egress-allowlist to the platform instance keyed key, drafted
+// from the source named source, and what of it the Release sets.
+func egressAllowlistAttached(key, source string) aggrega.Diagnostic {
+	return aggrega.Diagnostic{
+		Severity: "info",
+		Code:     "feature-attached",
+		Message: fmt.Sprintf("%s carries %s, attached as %s, which lets it connect only to the components it is wired "+
+			"to; the import sets none of its infrastructure: the Release sets %s on that attachment, without which "+
+			"the build halts, and %s for each connection whose target the cluster does not run", key, egressAllowlist,
+			egressAllowlistKey, egressAffirmation, egressRanges),
+		SourceRef: source,
+	}
+}
+
 // partNotPlaced reports a part of the flow no socket of the platform takes.
 func partNotPlaced(ref string, node Node, platform, reason string) aggrega.Diagnostic {
 	return aggrega.Diagnostic{
@@ -1156,8 +1181,9 @@ func (d *platformDraft) entity() aggrega.EmittedEntity {
 	b.WriteString("  description: " + draftDescription(d.format) + "\n")
 	b.WriteString("spec:\n")
 	b.WriteString("  components:\n")
+	attach := d.settings.AttachEgressAllowlist
 	for _, inst := range d.instances {
-		if len(p.LeftForRelease) > 0 || len(inst.left) > 0 || inst.wired() {
+		if len(p.LeftForRelease) > 0 || len(inst.left) > 0 || inst.wired() || attach {
 			b.WriteString("    # Left for the Release, since the source cannot supply it:\n")
 			for _, item := range p.LeftForRelease {
 				b.WriteString("    #   - " + item + "\n")
@@ -1169,12 +1195,29 @@ func (d *platformDraft) entity() aggrega.EmittedEntity {
 				b.WriteString("    #   - the credential each connection under uses presents to the part it reaches, " +
 					"attached on that connection\n")
 			}
+			if attach {
+				b.WriteString("    #   - " + egressAffirmation + " of the " + egressAllowlistKey + " attachment, the " +
+					"affirmation that the cluster's network plugin enforces network policy, without which the build halts\n")
+				b.WriteString("    #   - " + egressRanges + " of the " + egressAllowlistKey + " attachment, an address " +
+					"range for each connection whose target the cluster does not run, such as a hosted model, without " +
+					"which the build halts naming that connection\n")
+				b.WriteString("    #   - aggrega.ai/namespace on the boundary holding " + inst.key + ", where the target " +
+					"emits its workloads into no namespace: the attachment's network policy is placed in its workload's " +
+					"namespace, and the build halts without one\n")
+			}
 		}
 		b.WriteString("    " + inst.key + ":\n")
 		b.WriteString("      type: " + p.Component + "\n")
+		if attach {
+			b.WriteString("      features:\n")
+			b.WriteString("        # Lets " + inst.key + " connect only to the components it is wired to, through a " +
+				"network policy; compose has no network policy, so a compose build halts naming it.\n")
+			b.WriteString("        " + egressAllowlistKey + ":\n")
+			b.WriteString("          type: " + egressAllowlist + "\n")
+		}
 		if inst.wired() {
 			for _, a := range p.TargetAttachments {
-				writeTargetAttachment(&b, inst.key, a)
+				writeTargetAttachment(&b, inst.key, a, attach)
 			}
 		}
 		b.WriteString("      values:\n")
@@ -1222,17 +1265,28 @@ func (d *platformDraft) entity() aggrega.EmittedEntity {
 
 // writeTargetAttachment writes, inside the platform's instance keyed key, the
 // comment showing the lines that declare a, each commented out in place, so an
-// author building for its target uncomments them where they stand.
-func writeTargetAttachment(b *strings.Builder, key string, a TargetAttachment) {
-	b.WriteString("      # For the " + a.Target + " target only, uncomment the lines below, which declare " + a.Slot +
-		" on " + key + ": " + a.Why + ".\n")
-	for _, line := range []string{
+// author building for its target uncomments them where they stand. Where
+// inFeatures is set the instance already declares features, so the lines are
+// written inside that block, without a second features key.
+func writeTargetAttachment(b *strings.Builder, key string, a TargetAttachment, inFeatures bool) {
+	indent, lines := "      ", []string{
 		"features:",
 		"  " + a.Slot + ":",
 		"    type: " + a.Type,
 		"    values:",
 		"      key: " + a.Key,
-	} {
-		b.WriteString("      # " + line + "\n")
+	}
+	if inFeatures {
+		indent, lines = "        ", []string{
+			a.Slot + ":",
+			"  type: " + a.Type,
+			"  values:",
+			"    key: " + a.Key,
+		}
+	}
+	b.WriteString(indent + "# For the " + a.Target + " target only, uncomment the lines below, which declare " + a.Slot +
+		" on " + key + ": " + a.Why + ".\n")
+	for _, line := range lines {
+		b.WriteString(indent + "# " + line + "\n")
 	}
 }

@@ -55,6 +55,18 @@ type importSettings struct {
 	// format that describes no platform is drafted node by node whatever this
 	// says.
 	Layout string `json:"layout"`
+	// AttachEgressAllowlist governs whether each platform instance the platform
+	// draft writes carries core/egress-allowlist, the Feature that lets a
+	// component connect only to what it is wired to, attached under the key
+	// egress-allowlist. The draft never sets the Feature's infrastructure: an
+	// Aggregate's attachment carries none, so its comment names, for the Release,
+	// the affirmation the Feature's realization halts without and the address
+	// ranges a target the cluster does not run is reached at. False, the default,
+	// attaches nothing, a value that is not a JSON boolean reading as false. A
+	// draft that writes no platform — the node-by-node draft, or a format that
+	// describes none — attaches nothing whatever this says, and where it is true
+	// the import warns that nothing was attached.
+	AttachEgressAllowlist bool `json:"attach_egress_allowlist"`
 }
 
 // mappingOverrides is the operator-supplied extension of a mapping arm:
@@ -135,6 +147,18 @@ func parseSettings(raw json.RawMessage) importSettings {
 func (s importSettings) nodeLayout() bool {
 	return s.Layout == layoutNodes
 }
+
+// egressAllowlist is the Feature the attach_egress_allowlist setting attaches
+// to a drafted platform, and egressAllowlistKey the key it is attached under:
+// the Feature's own name, less the namespace an attachment's key cannot carry.
+// egressAffirmation and egressRanges are the two members of the Feature's
+// infrastructure a draft names for the Release and never sets.
+const (
+	egressAllowlist    = "core/egress-allowlist"
+	egressAllowlistKey = "egress-allowlist"
+	egressAffirmation  = "infra.control_plane_present"
+	egressRanges       = "infra.admitted_destinations"
+)
 
 // emitInlineHints reports whether inline resemblance comments are written, which
 // defaults to true when the setting is unset.

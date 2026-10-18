@@ -99,7 +99,10 @@ type Mapping struct {
 // Where served describes a Platform and the layout setting does not ask for
 // nodes, each source is drafted as that platform carrying it instead, as
 // [Platform] describes; the scoring and the dispositions above decide which of
-// its nodes become Components of their own.
+// its nodes become Components of their own. The attach_egress_allowlist setting
+// attaches core/egress-allowlist to each platform instance that draft writes; a
+// draft made node by node attaches nothing, and warns so where the setting is
+// true.
 func Import(in aggrega.ImportInput, served Format, parse func(syntax string, source []byte) (json.RawMessage, error)) aggrega.ImportOutput {
 	settings := parseSettings(in.Settings)
 	if served.Platform != nil && in.Format == served.Name && !settings.nodeLayout() {
@@ -113,6 +116,9 @@ func Import(in aggrega.ImportInput, served Format, parse func(syntax string, sou
 	multiSource := len(sources) > 1
 
 	var out aggrega.ImportOutput
+	if settings.AttachEgressAllowlist {
+		out.Diagnostics = append(out.Diagnostics, egressAllowlistNotAttached(served.Platform != nil && format == served.Name))
+	}
 	agg := newAggregateBuilder(settings, format)
 	usedNames := map[string]bool{}
 
@@ -186,6 +192,23 @@ func noNodes(src aggrega.ImportSource, format string) aggrega.Diagnostic {
 		Code:      "no-nodes",
 		Message:   fmt.Sprintf("source %q carried no recognisable %s nodes", src.Name, format),
 		SourceRef: src.Name,
+	}
+}
+
+// egressAllowlistNotAttached reports that the attach_egress_allowlist setting
+// attached nothing, since the draft is made node by node and writes no platform
+// to attach it to: because the layout setting asks for nodes, where nodesAsked
+// is true, and otherwise because the format describes no platform.
+func egressAllowlistNotAttached(nodesAsked bool) aggrega.Diagnostic {
+	why := "the format describes no platform"
+	if nodesAsked {
+		why = "the layout setting is " + layoutNodes
+	}
+	return aggrega.Diagnostic{
+		Severity: "warn",
+		Code:     "feature-not-attached",
+		Message: fmt.Sprintf("the attach_egress_allowlist setting attaches %s to the platform a draft carries the flow in, "+
+			"and this draft writes no platform, since %s, so nothing is attached", egressAllowlist, why),
 	}
 }
 
