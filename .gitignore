@@ -1,3 +1,4 @@
 # Built example artifacts: an example's build.sh writes its .wasm here when
 # AGGREGA_PDK_WASM_OUT is unset.
 /testdata/
+search-refusals.log
