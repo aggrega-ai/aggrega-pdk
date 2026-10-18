@@ -1107,20 +1107,20 @@ func (inst *platformInstance) carry(p *Platform, format string, src aggrega.Impo
 // emptiedMessage reports a credential value written empty, by its node — written
 // ref — and its field, never by its value: with the credential's Value set, the
 // parts inside the value its Detail names; with only its Detail set, the whole
-// value, and why.
+// value, and why. It says what is written of that one value and nothing of the
+// rest of the flow, which can hold a credential in a place no format marks.
 func emptiedMessage(c Credential, ref string) string {
 	const carried = " in the flow the draft carries"
-	const none = ": no credential from the source reaches the draft"
 	switch {
 	case c.Value != nil:
-		return fmt.Sprintf("%s of node %s is written with its %s empty%s%s", c.Field, ref,
-			firstOf(c.Detail, "credential values"), carried, none)
+		return fmt.Sprintf("%s of node %s is written with its %s empty%s", c.Field, ref,
+			firstOf(c.Detail, "credential values"), carried)
 	case c.Detail != "":
-		return fmt.Sprintf("the whole value of %s of node %s is written empty%s, since %s%s", c.Field, ref, carried,
-			c.Detail, none)
+		return fmt.Sprintf("the whole value of %s of node %s is written empty%s, since %s", c.Field, ref, carried,
+			c.Detail)
 	default:
-		return fmt.Sprintf("the value of %s, which node %s marks as a credential, is written empty%s%s", c.Field, ref,
-			carried, none)
+		return fmt.Sprintf("the value of %s, which node %s marks as a credential, is written empty%s", c.Field, ref,
+			carried)
 	}
 }
 

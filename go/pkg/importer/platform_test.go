@@ -469,11 +469,11 @@ const plantedKey = "sk-plantedKITkey0123456789abcdefXYZ"
 // and both platform rows fail: the planted value is in the drafted Aggregate.
 func TestNoCredentialValueReachesTheDraft(t *testing.T) {
 	t.Parallel()
-	const tail = " in the flow the draft carries: no credential from the source reaches the draft"
+	const tail = " in the flow the draft carries"
 	argument := func(n int) aggrega.Diagnostic {
 		return aggrega.Diagnostic{Severity: "warn", Code: "credential-emptied", SourceRef: "finder",
 			Message: "the whole value of args." + strconv.Itoa(n) + " of node finder is written empty in the flow the draft " +
-				"carries, since " + testArgumentDetail + ": no credential from the source reaches the draft"}
+				"carries, since " + testArgumentDetail}
 	}
 	for _, plant := range []struct {
 		name, source string

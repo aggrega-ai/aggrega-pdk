@@ -322,13 +322,13 @@ func TestACredentialCarryingAValueIsWrittenAsThatValue(t *testing.T) {
 		}
 	}
 	out := platformImport(t, format, platformCatalog(), "", oneSource(source))
-	const tail = " in the flow the draft carries: no credential from the source reaches the draft"
+	const tail = " in the flow the draft carries"
 	want := []aggrega.Diagnostic{
 		{Severity: "warn", Code: "credential-emptied", SourceRef: "n1",
 			Message: "config of node n1 is written with its server address empty" + tail},
 		{Severity: "warn", Code: "credential-emptied", SourceRef: "n1",
 			Message: "the whole value of loose of node n1 is written empty in the flow the draft carries, since it does not " +
-				"read as a JSON object: no credential from the source reaches the draft"},
+				"read as a JSON object"},
 	}
 	if !reflect.DeepEqual(out.Diagnostics, want) {
 		t.Errorf("the import raised %+v, want %+v", out.Diagnostics, want)
