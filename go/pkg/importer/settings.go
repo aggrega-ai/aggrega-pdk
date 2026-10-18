@@ -28,6 +28,17 @@ type importSettings struct {
 	// in the drafted files. The structured hints in the decision record are always
 	// emitted; this only suppresses the inline comment noise.
 	EmitHints *bool `json:"emit_hints"`
+	// EmptyUnmarkedCredentials governs whether the flow a platform carries has
+	// written empty the inputs its format marks as no credential and that can
+	// carry one all the same — request headers, query parameters, a request
+	// written as a command line, an input named for a key. False, the default,
+	// carries each as written, a value that is not a JSON boolean reading as
+	// false. What a format marks as a credential is written empty whatever this
+	// says, and so is what a format writes empty because it belongs to a part of
+	// the flow — an MCP server's members, or what a node the platform's
+	// connection reaches would send in place of what that connection supplies;
+	// [Platform.Credentials] is handed this and tells the two apart.
+	EmptyUnmarkedCredentials bool `json:"empty_unmarked_credentials"`
 	// RenderMode selects which renderer turns the shared decision record into
 	// files: human (the default) chunks it into per-entity drafts with inline
 	// hints; llm serves the whole decision record as one document for a richer

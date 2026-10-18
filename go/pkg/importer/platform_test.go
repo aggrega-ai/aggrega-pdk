@@ -49,7 +49,7 @@ func testFlowID(tree json.RawMessage) string {
 // testArgumentDetail says why the test's format writes an argument empty.
 const testArgumentDetail = "an argument a server is started with can carry a credential"
 
-func testCredentials(tree json.RawMessage) []Credential {
+func testCredentials(tree json.RawMessage, _ bool) []Credential {
 	var top struct {
 		Nodes []struct {
 			ID   string `json:"id"`

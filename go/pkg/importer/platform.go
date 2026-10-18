@@ -62,10 +62,17 @@ type Platform struct {
 	// Credentials locates every value the source's tree holds in a field the
 	// format marks as a credential, and every value the format writes empty as
 	// one though it marks it as none, as an argument a server is started with can
-	// carry a key. Each is written empty before the source is carried, and the
-	// import names each one it empties by its node and field, never by its value.
-	// Nil locates none.
-	Credentials func(tree json.RawMessage) []Credential
+	// carry a key. emptyUnmarked is the empty_unmarked_credentials setting: where
+	// it is false, Credentials locates, of the values the format marks as none,
+	// only those it writes empty because they belong to a part of the flow — an
+	// MCP server's members, or what a node the platform's connection reaches
+	// would send in place of what that connection supplies — and leaves every
+	// other one, such as a request's headers or query parameters, to be carried
+	// as written. Each
+	// value located is written empty before the source is carried, and the import
+	// names each one it empties by its node and field, never by its value. Nil
+	// locates none.
+	Credentials func(tree json.RawMessage, emptyUnmarked bool) []Credential
 	// Match reports whether a set of labels satisfies a socket's selector, in the
 	// grammar the catalog writes selectors in. The package carries no selector
 	// grammar of its own; nil places no part in any socket.
@@ -397,7 +404,8 @@ func importPlatform(in aggrega.ImportInput, served Format, settings importSettin
 				edits = append(edits, wired[i].wiring.Edits...)
 			}
 		}
-		out.Diagnostics = append(out.Diagnostics, inst.carry(p, format, src, tree, nodes, refOf, edits)...)
+		out.Diagnostics = append(out.Diagnostics, inst.carry(p, format, src, tree, nodes, refOf, edits,
+			settings.EmptyUnmarkedCredentials)...)
 		for _, h := range held {
 			pl := placements[h.placement]
 			reason := heldOutReason(p, inst.carried, tree, pl, holders[pl.heldBy])
@@ -1019,12 +1027,14 @@ func (inst *platformInstance) wired() bool {
 // identifier a draft can carry, one is derived from the carried bytes — or,
 // where a value could not be located and the flow is not carried, from its
 // nodes' identifiers, so nothing a credential value could reach decides it.
+// emptyUnmarked is the empty_unmarked_credentials setting, which the format's
+// credential locator is handed.
 func (inst *platformInstance) carry(p *Platform, format string, src aggrega.ImportSource, tree json.RawMessage,
-	nodes []Node, refOf func(string) string, edits []Edit) []aggrega.Diagnostic {
+	nodes []Node, refOf func(string) string, edits []Edit, emptyUnmarked bool) []aggrega.Diagnostic {
 	var diags []aggrega.Diagnostic
 	var creds []Credential
 	if p.Credentials != nil {
-		creds = p.Credentials(tree)
+		creds = p.Credentials(tree, emptyUnmarked)
 	}
 	own := ""
 	if p.Identifier != nil {

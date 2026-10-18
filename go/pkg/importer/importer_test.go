@@ -551,7 +551,7 @@ func TestSettingsDefaults(t *testing.T) {
 	type view struct {
 		namespace, reuseMode, renderMode, layout string
 		threshold                                float64
-		hints, nodes                             bool
+		hints, nodes, emptyUnmarked              bool
 	}
 	defaults := view{namespace: "imported", reuseMode: "hints-only", renderMode: "human", layout: "platform", threshold: 0.85,
 		hints: true}
@@ -576,11 +576,19 @@ func TestSettingsDefaults(t *testing.T) {
 		{name: "a layout that is neither, kept for the warning", doc: `{"layout":"graph"}`,
 			want: view{namespace: "imported", reuseMode: "hints-only", renderMode: "human", layout: "graph", threshold: 0.85,
 				hints: true}},
+		{name: "unmarked credentials written empty", doc: `{"empty_unmarked_credentials":true}`,
+			want: view{namespace: "imported", reuseMode: "hints-only", renderMode: "human", layout: "platform", threshold: 0.85,
+				hints: true, emptyUnmarked: true}},
+		{name: "unmarked credentials carried, named", doc: `{"empty_unmarked_credentials":false}`, want: defaults},
+		{name: "unmarked credentials given as text, not a boolean", doc: `{"empty_unmarked_credentials":"true","layout":"nodes"}`,
+			want: view{namespace: "imported", reuseMode: "hints-only", renderMode: "human", layout: "nodes", threshold: 0.85,
+				hints: true, nodes: true}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			s := parseSettings(json.RawMessage(tc.doc))
 			got := view{namespace: s.TargetNamespace, reuseMode: s.ReuseMode, renderMode: s.RenderMode, layout: s.Layout,
-				threshold: s.ReuseThreshold, hints: s.emitInlineHints(), nodes: s.nodeLayout()}
+				threshold: s.ReuseThreshold, hints: s.emitInlineHints(), nodes: s.nodeLayout(),
+				emptyUnmarked: s.EmptyUnmarkedCredentials}
 			if got != tc.want {
 				t.Errorf("the settings read %+v, want %+v", got, tc.want)
 			}

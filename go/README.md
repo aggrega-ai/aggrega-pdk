@@ -98,7 +98,7 @@ catalog view, the decision to reference a component or draft a new one, the
 drafted Component and Aggregate bodies, the platform layout below, the `human` and
 `llm` renderers, and the importer's settings — `target_namespace`,
 `reuse_mode`, `reuse_threshold`, `emit_hints`, `render_mode`,
-`mapping_overrides` and `layout` — with their defaults. `NodeList`, `EdgeList` and
+`mapping_overrides`, `layout` and `empty_unmarked_credentials` — with their defaults. `NodeList`, `EdgeList` and
 `ObjectEntries` read the shapes a walker commonly meets in a canonical tree. The
 package builds on the host toolchain as well as for `GOOS=wasip1`, so an importer is
 tested on the host by handing `Import` a parse function of the test's own. Its
@@ -131,7 +131,11 @@ there:
   the format writes empty though it marks it as none, each addressed by a JSON Pointer
   from the source's root (`importer.Pointer` writes one). Each is written empty before
   the source is carried — or as `Credential.Value`, for a field keeping its credentials
-  inside text of its own — and reported by node and field, never by value.
+  inside text of its own — and reported by node and field, never by value. It is handed
+  the `empty_unmarked_credentials` setting: where that is `false`, the default, it
+  leaves out the values the format marks as none and writes empty only because a key
+  can sit in them, such as a request's headers, and keeps those belonging to a part of
+  the flow, such as an MCP server's address.
 - **The selector matcher.** `Match` reports whether a set of labels satisfies a
   socket's selector. The package carries no selector grammar of its own, so a nil
   `Match` places no part in any socket; the compiler's importers hand it the

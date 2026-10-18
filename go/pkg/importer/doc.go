@@ -138,6 +138,10 @@
 //     HIGH match; default 0.85.
 //   - emit_hints: whether hints are written into the drafts as comments;
 //     default true. The decision record carries them either way.
+//   - empty_unmarked_credentials: whether the flow a platform carries has the
+//     inputs its format marks as no credential, and that can carry one, written
+//     empty; default false, which carries them as written. What a format marks
+//     as a credential is written empty either way.
 //   - render_mode: human (the default), one file per drafted Component plus
 //     the Aggregate, or llm, the whole decision record as one JSON document.
 //   - mapping_overrides: format, then node type, then a mapping with the keys

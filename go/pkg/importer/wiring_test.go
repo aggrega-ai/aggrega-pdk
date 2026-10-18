@@ -301,6 +301,56 @@ func TestAFlowWrittenWithCarriageReturnsIsCarriedWithLineFeeds(t *testing.T) {
 	}
 }
 
+// TestTheEmptyUnmarkedCredentialsSettingReachesTheCredentialLocator imports one
+// source through the platform layout with the empty_unmarked_credentials setting
+// absent, false and true: the format's credential locator is handed false, false
+// and true, once each, and what it locates is written empty — a value it locates
+// only when handed true is carried as written otherwise, and one it always
+// locates never is.
+func TestTheEmptyUnmarkedCredentialsSettingReachesTheCredentialLocator(t *testing.T) {
+	t.Parallel()
+	const (
+		marked   = "sk-plantedKITmarked0123456789abcdef"
+		unmarked = "sk-plantedKITunmarked0123456789abcd"
+		source   = `{"id":"flow-u","nodes":[{"id":"n1","type":"generic","data":{"type":"ChatOutput",` +
+			`"marked":"` + marked + `","unmarked":"` + unmarked + `"}}],"edges":[]}` + "\n"
+	)
+	for _, tc := range []struct {
+		name, settings string
+		want           bool
+	}{
+		{name: "absent", settings: "", want: false},
+		{name: "false", settings: `{"empty_unmarked_credentials":false}`, want: false},
+		{name: "true", settings: `{"empty_unmarked_credentials":true}`, want: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var handed []bool
+			format := platformTestFormat()
+			format.Platform.Credentials = func(_ json.RawMessage, emptyUnmarked bool) []Credential {
+				handed = append(handed, emptyUnmarked)
+				out := []Credential{{Node: "n1", Field: "marked", Pointer: Pointer("nodes", "0", "data", "marked")}}
+				if emptyUnmarked {
+					out = append(out, Credential{Node: "n1", Field: "unmarked",
+						Pointer: Pointer("nodes", "0", "data", "unmarked"), Detail: "it can carry a key"})
+				}
+				return out
+			}
+			out := platformImport(t, format, platformCatalog(), tc.settings, oneSource(source))
+			if !reflect.DeepEqual(handed, []bool{tc.want}) {
+				t.Errorf("the credential locator was handed %v, want [%v]", handed, tc.want)
+			}
+			agg := out.Files[len(out.Files)-1].Content
+			if strings.Contains(agg, marked) {
+				t.Errorf("the value the locator always locates is carried:\n%s", agg)
+			}
+			if carried := strings.Contains(agg, unmarked); carried == tc.want {
+				t.Errorf("the value located only under true is carried: %v, want %v:\n%s", carried, !tc.want, agg)
+			}
+		})
+	}
+}
+
 // TestACredentialCarryingAValueIsWrittenAsThatValue empties, through the
 // platform layout, a credential a format locates with a Value — the value with
 // only the credentials inside it emptied — and one with only a Detail: the first
@@ -312,7 +362,7 @@ func TestACredentialCarryingAValueIsWrittenAsThatValue(t *testing.T) {
 	const source = `{"id":"flow-c","nodes":[{"id":"n1","type":"generic","data":{"type":"ChatOutput",` +
 		`"config":"{\"url\":\"http://planted.example\",\"note\":\"kept\"}","loose":"{url: planted}","done":"{}"}}],"edges":[]}` + "\n"
 	format := platformTestFormat()
-	format.Platform.Credentials = func(json.RawMessage) []Credential {
+	format.Platform.Credentials = func(json.RawMessage, bool) []Credential {
 		return []Credential{
 			{Node: "n1", Field: "config", Pointer: Pointer("nodes", "0", "data", "config"),
 				Value: json.RawMessage(`"{\"url\":\"\",\"note\":\"kept\"}"`), Detail: "server address"},
