@@ -1153,7 +1153,7 @@ func (d *platformDraft) entity() aggrega.EmittedEntity {
 	b.WriteString("metadata:\n")
 	b.WriteString("  name: " + d.settings.TargetNamespace + "/flow\n")
 	b.WriteString("  version: 0.1.0\n")
-	b.WriteString("  description: Draft aggregate imported from a " + d.format + " source.\n")
+	b.WriteString("  description: " + draftDescription(d.format) + "\n")
 	b.WriteString("spec:\n")
 	b.WriteString("  components:\n")
 	for _, inst := range d.instances {

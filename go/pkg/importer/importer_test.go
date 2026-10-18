@@ -472,7 +472,7 @@ kind: Aggregate
 metadata:
   name: imported/flow
   version: 0.1.0
-  description: Draft aggregate imported from a testflow source.
+  description: Draft Aggregate imported from a source in the testflow format.
 spec:
   components:
     # resembles core/ai-model/openai (score 0.9200); reference it by setting type: core/ai-model/openai

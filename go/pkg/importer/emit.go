@@ -338,6 +338,14 @@ func (a *aggregateBuilder) addEdge(consumer, producer string) {
 	a.usesByKey[consumer] = append(a.usesByKey[consumer], producer)
 }
 
+// draftDescription is the metadata.description of an Aggregate an import drafts
+// from a source of format, in either layout. It names the format after the
+// article rather than in its place, so the sentence reads as English whatever
+// the format is called.
+func draftDescription(format string) string {
+	return "Draft Aggregate imported from a source in the " + format + " format."
+}
+
 // entity renders the aggregate as a draft EmittedEntity carrying hand-built YAML.
 func (a *aggregateBuilder) entity() aggrega.EmittedEntity {
 	var b strings.Builder
@@ -346,7 +354,7 @@ func (a *aggregateBuilder) entity() aggrega.EmittedEntity {
 	b.WriteString("metadata:\n")
 	b.WriteString("  name: " + a.settings.TargetNamespace + "/flow\n")
 	b.WriteString("  version: 0.1.0\n")
-	b.WriteString("  description: Draft aggregate imported from a " + a.format + " source.\n")
+	b.WriteString("  description: " + draftDescription(a.format) + "\n")
 	b.WriteString("spec:\n")
 	b.WriteString("  components:\n")
 	for _, key := range a.order {
