@@ -16,7 +16,8 @@ import (
 // package's exports for an importer that drafts from its sources itself to what
 // Import itself does: the same sources read off a request, the same parse-failed
 // and no-nodes diagnostics, the same target_namespace reading, the same instance
-// keys and the same Aggregate description.
+// keys, the same Aggregate description and the same escape of a text copied into
+// a drafted Aggregate.
 func TestTheConventionsAnImporterDraftingItsOwnSharesAreImportsOwn(t *testing.T) {
 	t.Parallel()
 	primary := aggrega.ImportInput{Format: "f", Bytes: []byte("x")}
@@ -58,6 +59,12 @@ func TestTheConventionsAnImporterDraftingItsOwnSharesAreImportsOwn(t *testing.T)
 
 	if got := DraftDescription("mcp"); got != "Draft Aggregate imported from a source in the mcp format." {
 		t.Errorf("DraftDescription(mcp) = %q", got)
+	}
+
+	for _, text := range []string{`{"prompt":"{{question}}"}`, `no braces at all`, `{{{language}}}`} {
+		if got, want := EscapeTemplateText(text), escapeTemplateText(text); got != want {
+			t.Errorf("EscapeTemplateText(%q) = %q, want the escape a drafted flow is written with, %q", text, got, want)
+		}
 	}
 }
 

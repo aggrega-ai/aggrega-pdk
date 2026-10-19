@@ -50,6 +50,19 @@ func escapeTemplateText(text string) string {
 	return strings.ReplaceAll(text, "{{", `{{"{{"}}`)
 }
 
+// EscapeTemplateText writes text read from a source so that it reads back as
+// itself once a drafted Aggregate's text has been evaluated as a template, as
+// [Import] writes every text it copies into a drafted Aggregate: every "{{" is
+// written as {{"{{"}}, an action whose output is the two braces, and nothing
+// else is changed. An importer drafting an Aggregate of its own writes each
+// value it copies from a source through it, so a value carrying two opening
+// braces is carried as written by every importer. The escaped text carries
+// double quotes, so it is written where a double quote is an ordinary
+// character or escaped there, as a double-quoted scalar escapes it.
+func EscapeTemplateText(text string) string {
+	return escapeTemplateText(text)
+}
+
 // literalBlock writes text as a YAML literal block scalar, the value of a key
 // whose line sits at keyIndent spaces: the header — the block indicator with
 // the chomping indicator that reads the text's own trailing line breaks back,
