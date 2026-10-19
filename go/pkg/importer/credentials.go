@@ -18,7 +18,29 @@ import (
 // This file holds the one decision an import makes over the credential values a
 // format locates: which of them the empty_credentials setting writes empty, and
 // which are carried as written, each named in a warning that never shows the
-// value.
+// value; and the one test of a value that is wholly a variable reference, which
+// holds no value of its own.
+
+// IsVariableReference reports whether text is one variable reference and
+// nothing else — ${NAME}, ${env:NAME}, ${input:id}, ${workspaceFolder} and the
+// other forms an MCP client expands in a server's configuration — and so holds
+// no value of its own. A reference carrying a default, ${NAME:-default}, holds
+// the default, and text holding anything beside the reference holds that;
+// neither is a variable reference here.
+//
+// A flow a platform draft carries is judged by it: a located value that is
+// wholly a variable reference is left as written under every value of the
+// empty_credentials setting and named in no warning. An importer drafting
+// values of its own reads references in its format's grammar, this one where
+// its format's is the MCP clients', and hands [CarryCredentials] only the
+// values that grammar says hold one.
+func IsVariableReference(text string) bool {
+	if len(text) < 4 || !strings.HasPrefix(text, "${") || !strings.HasSuffix(text, "}") {
+		return false
+	}
+	inner := text[2 : len(text)-1]
+	return !strings.ContainsAny(inner, "${}\n\r") && !strings.Contains(inner, ":-")
+}
 
 // CredentialClass is what a format says of a credential value its locator
 // returns, and so which value of the empty_credentials setting writes it empty.
@@ -135,7 +157,9 @@ func levelEmptying(class CredentialClass) string {
 // Value would write — under credential-carried, naming the node, the field and
 // the setting value that writes it empty, and never any part of the value. A
 // value the setting carries is never located in doc's bytes, so it never stops
-// doc being written.
+// doc being written. It judges every located value by its class alone: the
+// importer reads its own format's variable references and hands none of them
+// here, as [IsVariableReference] says.
 //
 // Where the setting holds a value it does not take, nothing is written: the
 // document returned is nil and the diagnostics hold one halting diagnostic
@@ -147,7 +171,7 @@ func CarryCredentials(settings json.RawMessage, doc []byte, where string, locate
 	if halt != nil {
 		return nil, []aggrega.Diagnostic{*halt}, nil
 	}
-	return carryCredentials(removal, doc, doc, nil, located, where, nil, sourceWriter{})
+	return carryCredentials(removal, doc, doc, nil, located, where, nil, sourceWriter{}, false)
 }
 
 // sourceWriter is how the values an import writes empty are written into a
@@ -254,19 +278,27 @@ func (e credentialNotLocated) Unwrap() error { return e.err }
 // values: each edit written first, as [Rewrite] writes it; each located value an
 // edit writes — at its pointer, or at a value holding it — left to the edit,
 // neither written empty nor carried, since the edit is what the value is written
-// as; each other value of a class removal empties written empty, located in the
-// source's bytes; and each other value carried as written, judged off tree,
-// never located in the bytes. refOf names a node in a report, nil naming it as
-// located. writer writes the edits and the values to empty into the source's
-// bytes, as [sourceWriter.write] does. It returns the written bytes and the
-// diagnostics, as [CarryCredentials] describes them. A value to write empty that
-// the bytes do not hold, or that the format's own writer could not write so the
-// source reads back as its tree with exactly that value written, is refused with
-// a credentialNotLocated error; an edit the bytes do not hold, or bytes that are
-// not one JSON document, with another error.
+// as; with references set, each other value that is wholly a variable reference
+// in tree, as wholeReference reads one, left as written and named in no report,
+// since it holds no value; each other value of a class removal empties written
+// empty, located in the source's bytes; and each other value carried as written,
+// judged off tree, never located in the bytes. refOf names a node in a report,
+// nil naming it as located. writer writes the edits and the values to empty into
+// the source's bytes, as [sourceWriter.write] does. It returns the written bytes
+// and the diagnostics, as [CarryCredentials] describes them. A value to write
+// empty that the bytes do not hold, or that the format's own writer could not
+// write so the source reads back as its tree with exactly that value written, is
+// refused with a credentialNotLocated error; an edit the bytes do not hold, or
+// bytes that are not one JSON document, with another error.
+//
+// references is set for a flow a platform draft carries, whose values the kit
+// reads in the one grammar [IsVariableReference] states, and unset for
+// [CarryCredentials], whose importer has read its own format's references
+// already: a format whose interpolation reads another grammar — one reading
+// ${NAME-default} as its default — hands such a value here as one holding text.
 func carryCredentials(removal credentialRemoval, source []byte, tree json.RawMessage, edits []Edit,
 	located []Credential, where string, refOf func(string) string,
-	writer sourceWriter) ([]byte, []aggrega.Diagnostic, error) {
+	writer sourceWriter, references bool) ([]byte, []aggrega.Diagnostic, error) {
 	if refOf == nil {
 		refOf = func(node string) string { return node }
 	}
@@ -281,6 +313,7 @@ func carryCredentials(removal credentialRemoval, source []byte, tree json.RawMes
 	type verdict int
 	const (
 		wired verdict = iota
+		referenced
 		emptied
 		carried
 	)
@@ -291,6 +324,8 @@ func carryCredentials(removal credentialRemoval, source []byte, tree json.RawMes
 		switch {
 		case editWrites(editTokens, c.Pointer):
 			verdicts[i] = wired
+		case references && wholeReference(tree, c):
+			verdicts[i] = referenced
 		case removal.empties(c.Class):
 			verdicts[i] = emptied
 			toEmpty = append(toEmpty, c)
@@ -346,6 +381,25 @@ func editWrites(edits [][]string, pointer string) bool {
 		}
 	}
 	return false
+}
+
+// wholeReference reports whether the value a located credential addresses in
+// tree is wholly a variable reference: its pointer reaches a value there, and
+// every value it reaches is a JSON string [IsVariableReference] reads as one. A
+// member written twice, once as a reference and once with a value, holds that
+// value.
+func wholeReference(tree json.RawMessage, c Credential) bool {
+	spans, err := valueSpans(tree, c.Pointer)
+	if err != nil || len(spans) == 0 {
+		return false
+	}
+	for _, s := range spans {
+		var text string
+		if json.Unmarshal(tree[s.start:s.end], &text) != nil || !IsVariableReference(text) {
+			return false
+		}
+	}
+	return true
 }
 
 // holdsValue reports whether the value a located credential addresses in tree

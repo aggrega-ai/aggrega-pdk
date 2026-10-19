@@ -80,7 +80,10 @@ type Platform struct {
 	// the source is carried, and every other value located is carried as
 	// written; the import names each value it empties and each it carries
 	// holding something by its node and field, never by its value. A value Wire
-	// or Reached writes is theirs, neither emptied nor carried. Nil locates none.
+	// or Reached writes is theirs, neither emptied nor carried, and a value that
+	// is wholly a variable reference ([IsVariableReference]) is left as written,
+	// named in no report, so the locator returns it as any other. Nil locates
+	// none.
 	Credentials func(tree json.RawMessage) []Credential
 	// Match reports whether a set of labels satisfies a socket's selector, in the
 	// grammar the catalog writes selectors in. The package carries no selector
@@ -1169,7 +1172,8 @@ const carriedWhere = "in the flow the draft carries"
 
 // carry prepares the flow one source carries into the instance: the values the
 // format writes anew written, its credential values written empty or carried as
-// removal — the empty_credentials setting — decides, its carriage returns
+// removal — the empty_credentials setting — decides, each that is wholly a
+// variable reference ([IsVariableReference]) left as written, its carriage returns
 // written as line feeds, and its identifier. It returns the diagnostics the
 // preparation raised: one per credential value it emptied and one per value it
 // carried holding something, each naming the node and the field; one naming how
@@ -1206,7 +1210,8 @@ func (inst *platformInstance) carry(p *Platform, format, syntax string, src aggr
 		definitionAt = "parameters." + p.Module.Parameter
 	}
 	writer := sourceWriter{empty: p.EmptyInSource, reparse: reparse}
-	scrubbed, credentialDiags, err := carryCredentials(removal, src.Bytes, tree, edits, creds, carriedWhere, refOf, writer)
+	scrubbed, credentialDiags, err := carryCredentials(removal, src.Bytes, tree, edits, creds, carriedWhere, refOf, writer,
+		true)
 	if err != nil {
 		why := "so what the draft writes for its parts could not be written"
 		var unlocated credentialNotLocated

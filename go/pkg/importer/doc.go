@@ -99,8 +99,11 @@
 // none, so each value is carried as written and named in a credential-carried
 // warning, by its node and field and never by its value, which also names the
 // setting value that writes it empty; each value the setting writes empty is
-// reported under credential-emptied. [CarryCredentials] is the same decision for
-// an importer that drafts values of its own. Nothing else is changed but what
+// reported under credential-emptied. A value that is wholly a variable reference
+// ([IsVariableReference]) holds no value, and is left as written under every
+// setting and named in no warning. [CarryCredentials] is the same decision for
+// an importer that drafts values of its own, which hands it only the values its
+// format's own reading of a reference says hold one. Nothing else is changed but what
 // the format writes so that the flow reaches each wired part through its
 // connection — the name of the variable the platform delivers for the
 // connection, written into the field that reads it, an address the platform

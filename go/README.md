@@ -140,9 +140,17 @@ there:
   carried as written and, where it holds something, reported as `credential-carried`
   with the setting value that writes it empty — by node and field, never by value. Any
   other setting value halts the import, which drafts nothing. A value `Wire` or
-  `Reached` writes is theirs, neither emptied nor carried. An importer that drafts
-  values of its own rather than carrying a source calls `importer.CarryCredentials`
-  with the values its own locator finds, for the same decision under the same codes.
+  `Reached` writes is theirs, neither emptied nor carried. A located value that is one
+  variable reference and nothing else — `${NAME}`, `${env:NAME}`, `${input:id}`, as
+  `importer.IsVariableReference` reads one — holds no value: the package leaves it as
+  written under every setting value and reports it nowhere, so the locator returns it
+  like any other; a locator writing `Credential.Value` keeps each part of the value
+  that is one reference as written, since the package sees only the whole value. An
+  importer that drafts values of its own rather than carrying a source calls
+  `importer.CarryCredentials` with the values its own locator finds, for the same
+  decision under the same codes; it reads references in its format's own grammar,
+  `importer.IsVariableReference` where that is the MCP clients', and hands the
+  package none of them.
 - **A source that is not JSON.** `EmptyInSource` writes the values the setting writes
   empty in the source's own bytes, for a format whose sources are written in another
   syntax, as a Dify DSL is written in YAML. The package hands it only the values whose

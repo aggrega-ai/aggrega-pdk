@@ -219,7 +219,9 @@ func lineFeedsFor(text string) (string, int) {
 // from the root of the source's tree, and its class — what the format says of
 // the field, which decides which value of the empty_credentials setting writes
 // it empty. A value the setting does not write empty is carried as written and
-// named in a warning.
+// named in a warning. In a flow a platform draft carries, a value that is wholly
+// a variable reference, as [IsVariableReference] reads one, holds no value: it
+// is left as written under every setting and named in no warning.
 type Credential struct {
 	Node    string
 	Field   string
@@ -233,7 +235,10 @@ type Credential struct {
 	// credentials it carries written empty, for a field that keeps them inside
 	// text of its own, such as a server configuration written as JSON text. A
 	// value that already reads as Value is left as written, and holds nothing to
-	// carry.
+	// carry. The decision sees only the value as a whole, so the locator writing
+	// Value keeps as written each part inside it that is wholly a variable
+	// reference, as [IsVariableReference] reads one, since such a part holds no
+	// value.
 	Value json.RawMessage
 	// Detail, where set, says what of the value is written empty — with Value set
 	// — or why the whole value is — without it. The import's report of a value
