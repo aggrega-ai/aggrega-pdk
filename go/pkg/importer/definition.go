@@ -43,24 +43,41 @@ func draftedText(text string, keyIndent int) string {
 // changed. A closing "}}" outside an action is plain text to the template
 // engine and is left as written.
 //
-// It is the one place a drafted Aggregate's text is escaped, reached through
-// draftedText. The escaped text carries double quotes, so it is written where a
-// double quote is an ordinary character, as a literal block scalar is.
+// It is the escape a carried flow is written with, reached through draftedText.
+// The escaped text carries double quotes, so it is written where a double quote
+// is an ordinary character, as a literal block scalar is.
+//
+// It is a deliberate near-duplicate of EscapeTemplateText, the two told apart by
+// the quoting context their output is written in; do not unify them. A literal
+// block holds a double quote as an ordinary character, so the flow escape keeps
+// {{"{{"}}, the spelling the Aggregate's documentation teaches an author for a
+// value carrying double braces of its own, and the bytes a carried flow is
+// written with. EscapeTemplateText's raw-string action would read back alike
+// here, but writing it would change every carried flow's bytes for no reader's
+// gain.
 func escapeTemplateText(text string) string {
 	return strings.ReplaceAll(text, "{{", `{{"{{"}}`)
 }
 
 // EscapeTemplateText writes text read from a source so that it reads back as
-// itself once a drafted Aggregate's text has been evaluated as a template, as
-// [Import] writes every text it copies into a drafted Aggregate: every "{{" is
-// written as {{"{{"}}, an action whose output is the two braces, and nothing
-// else is changed. An importer drafting an Aggregate of its own writes each
-// value it copies from a source through it, so a value carrying two opening
-// braces is carried as written by every importer. The escaped text carries
-// double quotes, so it is written where a double quote is an ordinary
-// character or escaped there, as a double-quoted scalar escapes it.
+// itself once a drafted Aggregate's text has been evaluated as a template: every
+// "{{" is written as {{`{{`}}, an action whose output is the two braces, and
+// nothing else is changed. An importer drafting an Aggregate of its own writes
+// each value it copies from a source through it, so a value carrying two opening
+// braces is carried as written by every importer. The action quotes the braces
+// with a raw string rather than with double quotes, so the escaped text holds no
+// double quote and no backslash: it can be written inside a double-quoted
+// scalar, whose escapes the template engine would otherwise read first, since
+// it evaluates the Aggregate's text before the text is read as YAML.
+//
+// It is a deliberate near-duplicate of the escape a carried flow is written
+// with, the two told apart by the quoting context their output is written in;
+// do not unify them. The flow escape's {{"{{"}} holds double quotes, which a
+// double-quoted scalar writes as \", so the template engine would meet a
+// backslash inside the action and refuse the Aggregate; the raw-string action
+// holds in every scalar style.
 func EscapeTemplateText(text string) string {
-	return escapeTemplateText(text)
+	return strings.ReplaceAll(text, "{{", "{{`{{`}}")
 }
 
 // literalBlock writes text as a YAML literal block scalar, the value of a key

@@ -7,7 +7,9 @@ import (
 	"encoding/json"
 	"errors"
 	"reflect"
+	"strings"
 	"testing"
+	"text/template"
 
 	"github.com/aggrega-ai/aggrega-pdk-go/pkg/aggrega"
 )
@@ -16,8 +18,8 @@ import (
 // package's exports for an importer that drafts from its sources itself to what
 // Import itself does: the same sources read off a request, the same parse-failed
 // and no-nodes diagnostics, the same target_namespace reading, the same instance
-// keys, the same Aggregate description and the same escape of a text copied into
-// a drafted Aggregate.
+// keys and the same Aggregate description; and the escape of a text copied into
+// a drafted Aggregate written as a raw-string action.
 func TestTheConventionsAnImporterDraftingItsOwnSharesAreImportsOwn(t *testing.T) {
 	t.Parallel()
 	primary := aggrega.ImportInput{Format: "f", Bytes: []byte("x")}
@@ -62,9 +64,53 @@ func TestTheConventionsAnImporterDraftingItsOwnSharesAreImportsOwn(t *testing.T)
 	}
 
 	for _, text := range []string{`{"prompt":"{{question}}"}`, `no braces at all`, `{{{language}}}`} {
-		if got, want := EscapeTemplateText(text), escapeTemplateText(text); got != want {
-			t.Errorf("EscapeTemplateText(%q) = %q, want the escape a drafted flow is written with, %q", text, got, want)
+		if got, want := EscapeTemplateText(text), strings.ReplaceAll(text, "{{", "{{`{{`}}"); got != want {
+			t.Errorf("EscapeTemplateText(%q) = %q, want every opening pair written as a raw-string action, %q", text,
+				got, want)
 		}
+	}
+}
+
+// TestEscapeTemplateTextReadsBackInsideADoubleQuotedScalar writes texts holding
+// double braces, double quotes and backslashes through EscapeTemplateText and
+// then as a double-quoted scalar, evaluates the result as a Go template — as an
+// Aggregate's text is evaluated before it is read as YAML — and reads the scalar
+// back: each reads back as the text it was. JSON's string escapes are a subset of
+// a YAML double-quoted scalar's, so the scalar is read back as JSON.
+//
+// 🔴 PLANTED DEFECT: make EscapeTemplateText return escapeTemplateText(text), the
+// double-quoted action: the scalar escapes its quotes with backslashes the
+// template engine refuses, and every row holding "{{" fails.
+func TestEscapeTemplateTextReadsBackInsideADoubleQuotedScalar(t *testing.T) {
+	t.Parallel()
+	for _, text := range []string{
+		`tutors {{ students }} in code`,
+		`{{{language}}} and a "quote"`,
+		`ends with {{`,
+		`a back\slash and {{x}}`,
+		`no braces at all`,
+	} {
+		t.Run(text, func(t *testing.T) {
+			quoted, err := json.Marshal(EscapeTemplateText(text))
+			if err != nil {
+				t.Fatalf("quote the escaped text: %v", err)
+			}
+			tmpl, err := template.New("aggregate").Parse(string(quoted))
+			if err != nil {
+				t.Fatalf("the quoted escaped text %s does not parse as a template: %v", quoted, err)
+			}
+			var b strings.Builder
+			if err := tmpl.Execute(&b, nil); err != nil {
+				t.Fatalf("the quoted escaped text %s does not run as a template: %v", quoted, err)
+			}
+			var got string
+			if err := json.Unmarshal([]byte(b.String()), &got); err != nil {
+				t.Fatalf("the evaluated scalar %s does not read back: %v", b.String(), err)
+			}
+			if got != text {
+				t.Errorf("the scalar reads back as %q, want %q", got, text)
+			}
+		})
 	}
 }
 
