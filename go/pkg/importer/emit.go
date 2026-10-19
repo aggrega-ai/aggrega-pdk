@@ -378,7 +378,7 @@ func (a *aggregateBuilder) entity() aggrega.EmittedEntity {
 	for _, key := range a.order {
 		if a.settings.emitInlineHints() {
 			if hint := a.hintByKey[key]; hint != "" && (a.tierByKey[key] == tierHigh || a.tierByKey[key] == tierMedium) {
-				b.WriteString("    # " + hint + "\n")
+				b.WriteString(CommentLine("    ", hint))
 			}
 		}
 		b.WriteString("    " + key + ":\n")

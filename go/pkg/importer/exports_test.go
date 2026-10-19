@@ -71,6 +71,36 @@ func TestTheConventionsAnImporterDraftingItsOwnSharesAreImportsOwn(t *testing.T)
 	}
 }
 
+// TestCommentLineReadsBackAsWrittenOnceEvaluated writes comment lines holding
+// "{{" and requires each to be one line at its indent that, evaluated as a
+// template as the compiler evaluates an Aggregate, reads back as the line written
+// as it is; a line holding none is written as it is.
+//
+// 🔴 PLANTED DEFECT: in CommentLine (definition.go), return the line unescaped:
+// every row holding "{{" fails to parse as a template.
+func TestCommentLineReadsBackAsWrittenOnceEvaluated(t *testing.T) {
+	t.Parallel()
+	for _, text := range []string{`the model {{ x }}.`, `ends with {{`, `{{{a}}} and {{b}}`, `no braces at all`} {
+		t.Run(text, func(t *testing.T) {
+			line := CommentLine("    ", text)
+			if !strings.HasPrefix(line, "    # ") || strings.Count(line, "\n") != 1 || !strings.HasSuffix(line, "\n") {
+				t.Fatalf("CommentLine wrote %q, want one comment line at the indent", line)
+			}
+			tmpl, err := template.New("aggregate").Parse(line)
+			if err != nil {
+				t.Fatalf("the line %q does not parse as a template: %v", line, err)
+			}
+			var b strings.Builder
+			if err := tmpl.Execute(&b, nil); err != nil {
+				t.Fatalf("the line %q does not run as a template: %v", line, err)
+			}
+			if want := "    # " + text + "\n"; b.String() != want {
+				t.Errorf("the line reads back as %q, want %q", b.String(), want)
+			}
+		})
+	}
+}
+
 // TestEscapeTemplateTextReadsBackInsideADoubleQuotedScalar writes texts holding
 // double braces, double quotes and backslashes through EscapeTemplateText and
 // then as a double-quoted scalar, evaluates the result as a Go template — as an

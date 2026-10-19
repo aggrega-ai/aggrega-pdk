@@ -1324,34 +1324,34 @@ func (d *platformDraft) entity() aggrega.EmittedEntity {
 	attach := d.settings.AttachEgressAllowlist
 	for _, inst := range d.instances {
 		if len(p.LeftForRelease) > 0 || len(inst.left) > 0 || inst.wired() || attach {
-			b.WriteString("    # Left for the Release, since the source cannot supply it:\n")
+			b.WriteString(CommentLine("    ", "Left for the Release, since the source cannot supply it:"))
 			for _, item := range p.LeftForRelease {
-				b.WriteString("    #   - " + item + "\n")
+				b.WriteString(CommentLine("    ", "  - "+item))
 			}
 			for _, item := range inst.left {
-				b.WriteString("    #   - " + item + "\n")
+				b.WriteString(CommentLine("    ", "  - "+item))
 			}
 			if inst.wired() {
-				b.WriteString("    #   - the credential each connection under uses presents to the part it reaches, " +
-					"attached on that connection\n")
+				b.WriteString(CommentLine("    ", "  - the credential each connection under uses presents to the part it reaches, "+
+					"attached on that connection"))
 			}
 			if attach {
-				b.WriteString("    #   - " + egressAffirmation + " of the " + egressAllowlistKey + " attachment, the " +
-					"affirmation that the cluster's network plugin enforces network policy, without which the build halts\n")
-				b.WriteString("    #   - " + egressRanges + " of the " + egressAllowlistKey + " attachment, an address " +
-					"range for each connection whose target the cluster does not run, such as a hosted model, without " +
-					"which the build halts naming that connection\n")
-				b.WriteString("    #   - aggrega.ai/namespace on the boundary holding " + inst.key + ", where the target " +
-					"emits its workloads into no namespace: the attachment's network policy is placed in its workload's " +
-					"namespace, and the build halts without one\n")
+				b.WriteString(CommentLine("    ", "  - "+egressAffirmation+" of the "+egressAllowlistKey+" attachment, the "+
+					"affirmation that the cluster's network plugin enforces network policy, without which the build halts"))
+				b.WriteString(CommentLine("    ", "  - "+egressRanges+" of the "+egressAllowlistKey+" attachment, an address "+
+					"range for each connection whose target the cluster does not run, such as a hosted model, without "+
+					"which the build halts naming that connection"))
+				b.WriteString(CommentLine("    ", "  - aggrega.ai/namespace on the boundary holding "+inst.key+", where the target "+
+					"emits its workloads into no namespace: the attachment's network policy is placed in its workload's "+
+					"namespace, and the build halts without one"))
 			}
 		}
 		b.WriteString("    " + inst.key + ":\n")
 		b.WriteString("      type: " + p.Component + "\n")
 		if attach {
 			b.WriteString("      features:\n")
-			b.WriteString("        # Lets " + inst.key + " connect only to the components it is wired to, through a " +
-				"network policy; compose has no network policy, so a compose build halts naming it.\n")
+			b.WriteString(CommentLine("        ", "Lets "+inst.key+" connect only to the components it is wired to, through a "+
+				"network policy; compose has no network policy, so a compose build halts naming it."))
 			b.WriteString("        " + egressAllowlistKey + ":\n")
 			b.WriteString("          type: " + egressAllowlist + "\n")
 		}
@@ -1362,14 +1362,14 @@ func (d *platformDraft) entity() aggrega.EmittedEntity {
 		}
 		b.WriteString("      values:\n")
 		if inst.idNote != "" {
-			b.WriteString("        # " + p.IdentifierValue + " is " + inst.idNote + ".\n")
+			b.WriteString(CommentLine("        ", p.IdentifierValue+" is "+inst.idNote+"."))
 		}
 		b.WriteString("        " + p.IdentifierValue + ": '" + inst.identifier + "'\n")
 		if inst.carried {
 			b.WriteString("        " + p.DefinitionValue + ": " + draftedText(inst.definition, 8))
 		} else {
-			b.WriteString("        # " + p.DefinitionValue + " is left unset: the import's diagnostics say why the flow " +
-				"is not carried.\n")
+			b.WriteString(CommentLine("        ", p.DefinitionValue+" is left unset: the import's diagnostics say why the flow "+
+				"is not carried."))
 		}
 		if inst.wired() {
 			b.WriteString("      uses:\n")
@@ -1386,7 +1386,7 @@ func (d *platformDraft) entity() aggrega.EmittedEntity {
 		}
 		for _, part := range inst.parts {
 			if d.settings.emitInlineHints() && part.decision.SwapHint != "" && hintIsInline(part.decision.Chosen) {
-				b.WriteString("    # " + part.decision.SwapHint + "\n")
+				b.WriteString(CommentLine("    ", part.decision.SwapHint))
 			}
 			b.WriteString("    " + part.key + ":\n")
 			b.WriteString("      type: " + part.entity.Name + "\n")
@@ -1395,8 +1395,8 @@ func (d *platformDraft) entity() aggrega.EmittedEntity {
 				b.WriteString("      values:\n")
 				b.WriteString("        " + modelValue + ": " + draftedText(part.model, 8))
 			case part.modelLeft != "":
-				b.WriteString("      # values." + modelValue + ", the name of the model " + part.entity.Name +
-					" serves, is left for the author, since the node this part stands for " + part.modelLeft + ".\n")
+				b.WriteString(CommentLine("      ", "values."+modelValue+", the name of the model "+part.entity.Name+
+					" serves, is left for the author, since the node this part stands for "+part.modelLeft+"."))
 			}
 		}
 	}
@@ -1424,9 +1424,9 @@ func writeTargetAttachment(b *strings.Builder, key string, a TargetAttachment, i
 			"    key: " + a.Key,
 		}
 	}
-	b.WriteString(indent + "# For the " + a.Target + " target only, uncomment the lines below, which declare " + a.Slot +
-		" on " + key + ": " + a.Why + ".\n")
+	b.WriteString(CommentLine(indent, "For the "+a.Target+" target only, uncomment the lines below, which declare "+
+		a.Slot+" on "+key+": "+a.Why+"."))
 	for _, line := range lines {
-		b.WriteString(indent + "# " + line + "\n")
+		b.WriteString(CommentLine(indent, line))
 	}
 }

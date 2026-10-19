@@ -80,6 +80,23 @@ func EscapeTemplateText(text string) string {
 	return strings.ReplaceAll(text, "{{", "{{`{{`}}")
 }
 
+// CommentLine writes one comment line of a drafted Aggregate: indent, the hash
+// and a space, text escaped as EscapeTemplateText escapes a value, and a line
+// feed. The compiler evaluates an Aggregate's whole text as a template before
+// reading it as YAML, its comments included, so a comment holding "{{" written
+// as it is would halt the build; escaped, it reads back as written. It is the
+// one writer of an Aggregate's comment lines, for the kit's own drafts and for
+// every importer drafting an Aggregate of its own.
+//
+// The escape is applied to the whole line rather than to each text a source
+// supplies inside it: the line's own words hold no "{{", so the two read back
+// alike, and each text read from a source is written first through the drafts'
+// comment writer, which keeps it on its line. A Release is not evaluated as a
+// template, so its comments are written as they are.
+func CommentLine(indent, text string) string {
+	return indent + "# " + EscapeTemplateText(text) + "\n"
+}
+
 // literalBlock writes text as a YAML literal block scalar, the value of a key
 // whose line sits at keyIndent spaces: the header — the block indicator with
 // the chomping indicator that reads the text's own trailing line breaks back,

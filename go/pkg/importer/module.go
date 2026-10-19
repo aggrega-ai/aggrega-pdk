@@ -139,12 +139,12 @@ func (d *platformDraft) moduleEntity() aggrega.EmittedEntity {
 	b.WriteString("spec:\n")
 	b.WriteString("  aggregates:\n")
 	for _, inst := range d.instances {
-		b.WriteString("    # An import sees the Components of the workspace's catalog and none of its Aggregates, so it " +
-			"does not check that the catalog holds " + m.Aggregate + ".\n")
+		b.WriteString(CommentLine("    ", "An import sees the Components of the workspace's catalog and none of its Aggregates, so it "+
+			"does not check that the catalog holds "+m.Aggregate+"."))
 		if len(p.LeftForRelease) > 0 {
-			b.WriteString("    # Left for the Release, since the source cannot supply it:\n")
+			b.WriteString(CommentLine("    ", "Left for the Release, since the source cannot supply it:"))
 			for _, item := range p.LeftForRelease {
-				b.WriteString("    #   - " + item + "\n")
+				b.WriteString(CommentLine("    ", "  - "+item))
 			}
 		}
 		b.WriteString("    " + inst.key + ":\n")
@@ -153,8 +153,8 @@ func (d *platformDraft) moduleEntity() aggrega.EmittedEntity {
 			b.WriteString("      parameters:\n")
 			b.WriteString("        " + m.Parameter + ": " + draftedText(inst.definition, 8))
 		} else {
-			b.WriteString("      # parameters." + m.Parameter + " is left unset: the import's diagnostics say why the " +
-				"flow is not carried.\n")
+			b.WriteString(CommentLine("      ", "parameters."+m.Parameter+" is left unset: the import's diagnostics say why the "+
+				"flow is not carried."))
 		}
 	}
 	return aggrega.EmittedEntity{Kind: "Aggregate", Name: d.settings.TargetNamespace + "/flow", Mode: "draft", Body: b.String()}

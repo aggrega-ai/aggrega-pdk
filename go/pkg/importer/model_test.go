@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"text/template"
 
 	"github.com/aggrega-ai/aggrega-pdk-go/pkg/aggrega"
 )
@@ -162,6 +163,37 @@ func TestAReferencedPartIsWrittenWithTheModelItsNodeSelects(t *testing.T) {
 	}
 }
 
+// TestAReasonHoldingDoubleBracesReadsBackInThePlatformsComment drafts a flow
+// whose model node names no model for a reason holding "{{", which the platform
+// draft writes into the comment leaving values.model for the author, and requires
+// the Aggregate to run as a template — as the compiler evaluates an Aggregate's
+// whole text, its comments included — and the comment to read back with the
+// reason as the format gives it.
+//
+// 🔴 PLANTED DEFECT: in CommentLine (definition.go), return the line unescaped:
+// the Aggregate no longer runs as a template, and the case fails on it.
+func TestAReasonHoldingDoubleBracesReadsBackInThePlatformsComment(t *testing.T) {
+	t.Parallel()
+	format := platformTestFormat()
+	format.Platform.Model = testModel
+	source := `{"id":"flow-b","nodes":[{"id":"m3","type":"generic","data":{"type":"OpenAIModel",` +
+		`"modelWhy":"names {{ a variable }} the import does not read"}}],"edges":[]}` + "\n"
+	out := platformImport(t, format, platformCatalog(), referenceSettings, oneSource(source))
+	agg := out.Files[len(out.Files)-1].Content
+	tmpl, err := template.New("aggregate").Parse(agg)
+	if err != nil {
+		t.Fatalf("the drafted Aggregate does not parse as a template: %v\n%s", err, agg)
+	}
+	var evaluated strings.Builder
+	if err := tmpl.Execute(&evaluated, nil); err != nil {
+		t.Fatalf("the drafted Aggregate does not run as a template: %v\n%s", err, agg)
+	}
+	if want := "since the node this part stands for names {{ a variable }} the import does not read.\n"; !strings.Contains(
+		evaluated.String(), want) {
+		t.Errorf("the evaluated Aggregate does not say %q:\n%s", want, evaluated.String())
+	}
+}
+
 // TestTheLinesATargetNeedsAreShownCommentedInThePlatform drafts a flow whose
 // platform declares an attachment one target's Recipes need: where the
 // platform's instance draws a connection, a comment inside it, after its type,
@@ -169,8 +201,8 @@ func TestAReferencedPartIsWrittenWithTheModelItsNodeSelects(t *testing.T) {
 // belongs; where it draws none, no line is shown.
 //
 // 🔴 PLANTED DEFECT: in writeTargetAttachment (platform.go), replace
-// `b.WriteString("      # " + line + "\n")` with
-// `b.WriteString("      " + line + "\n")`: the wired row fails, the lines
+// `b.WriteString(CommentLine(indent, line))` with
+// `b.WriteString(indent + line + "\n")`: the wired row fails, the lines
 // written uncommented.
 func TestTheLinesATargetNeedsAreShownCommentedInThePlatform(t *testing.T) {
 	t.Parallel()
