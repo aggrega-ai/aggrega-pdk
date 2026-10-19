@@ -323,7 +323,7 @@ func importPlatform(in aggrega.ImportInput, served Format, settings importSettin
 			}
 			return id
 		}
-		inst := newPlatformInstance(uniqueKey(usedNames, kebab(path.Base(p.Component))), platform)
+		inst := newPlatformInstance(UniqueKey(usedNames, path.Base(p.Component)), platform)
 		out.Entities = append(out.Entities, aggrega.EmittedEntity{
 			Kind: "Component", Name: p.Component, Mode: "reference", SourceRef: src.Name,
 		})
@@ -377,7 +377,7 @@ func importPlatform(in aggrega.ImportInput, served Format, settings importSettin
 					continue
 				}
 			}
-			key := uniqueKey(usedNames, kebab(firstOf(reach.Name, node.ID)))
+			key := UniqueKey(usedNames, firstOf(reach.Name, node.ID))
 			alias := inst.aliasFor(socket, reach.Name, key)
 			decision.Rationale += fmt.Sprintf("; wired to the %s socket of %s as %s", socket, p.Component, key)
 			if alias != key {

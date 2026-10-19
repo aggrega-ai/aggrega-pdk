@@ -135,6 +135,15 @@ func parseSettings(raw json.RawMessage) importSettings {
 	return s
 }
 
+// TargetNamespace returns the namespace the target_namespace setting names in
+// the settings document an import is handed, read as [Import] reads it: the
+// value set, or imported where the document sets none, sets it empty, or is not
+// valid JSON. An importer drafting entities of its own names them under it, so
+// one setting names every importer's drafts.
+func TargetNamespace(settings json.RawMessage) string {
+	return parseSettings(settings).TargetNamespace
+}
+
 // nodeLayout reports whether the settings ask for the node-by-node draft. Any
 // other value, the default included, asks for the platform draft; a value that
 // is neither layout is reported where the platform draft is made.

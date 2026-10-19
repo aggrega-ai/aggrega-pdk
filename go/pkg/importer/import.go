@@ -140,7 +140,7 @@ func Import(in aggrega.ImportInput, served Format, parse func(syntax string, sou
 			if multiSource {
 				ref = src.Name + "#" + node.ID
 			}
-			key := uniqueKey(usedNames, kebab(node.ID))
+			key := UniqueKey(usedNames, node.ID)
 			idToKey[node.ID] = key
 
 			decision, entity := decideNode(settings, table, catalog, node, ref)
@@ -163,6 +163,32 @@ func Import(in aggrega.ImportInput, served Format, parse func(syntax string, sou
 
 	out.Files = render(settings, out.Entities, out.Decisions)
 	return out
+}
+
+// Sources returns the sources an import request carries, as [Import] reads
+// them: its named sources, or, where it carries none, its primary bytes as one
+// source with no name. An importer that drafts from its sources itself rather
+// than through [Import] reads them through this, so every importer built on the
+// package reads one request as one list of sources.
+func Sources(in aggrega.ImportInput) []aggrega.ImportSource {
+	return sourcesOf(in)
+}
+
+// ParseFailed is the diagnostic [Import] reports for a source the parse
+// callback could not parse, which halts the import: code parse-failed, naming
+// the source, the format and the callback's error. An importer that parses its
+// sources itself reports such a source with it, under the same code and in the
+// same words.
+func ParseFailed(src aggrega.ImportSource, format string, err error) aggrega.Diagnostic {
+	return parseFailed(src, format, err)
+}
+
+// NoNodes is the warning [Import] reports for a source whose tree held nothing
+// the importer drafts from: code no-nodes, naming the source and the format. An
+// importer that walks its sources itself reports such a source with it, under
+// the same code and in the same words.
+func NoNodes(src aggrega.ImportSource, format string) aggrega.Diagnostic {
+	return noNodes(src, format)
 }
 
 // sourcesOf returns the sources an import request carries: its named sources,

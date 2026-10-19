@@ -235,6 +235,24 @@ func renderLLM(decisions []aggrega.ImportDecision) []aggrega.ScaffoldFile {
 	return []aggrega.ScaffoldFile{{Path: "import-decisions.json", Content: string(raw)}}
 }
 
+// UniqueKey returns the key a drafted Aggregate gives the instance drafted from
+// the source item named name, as [Import] keys a node: name lowercased with
+// every run of other characters than letters and digits written as one hyphen,
+// and a numeric suffix where used already holds that key — node where nothing
+// is left of the name. It records the key in used, so a later call sees it
+// taken. An importer drafting instances of its own keys them through it, so a
+// key is written one way by every importer.
+func UniqueKey(used map[string]bool, name string) string {
+	return uniqueKey(used, kebab(name))
+}
+
+// DraftDescription is the metadata.description of an Aggregate an import drafts
+// from a source of format. An importer drafting an Aggregate of its own
+// describes it with it, so every importer's draft reads alike.
+func DraftDescription(format string) string {
+	return draftDescription(format)
+}
+
 // uniqueKey returns key, or key with a numeric suffix, so no two components share
 // a key. It records the returned key so a later call sees it taken.
 func uniqueKey(used map[string]bool, key string) string {
