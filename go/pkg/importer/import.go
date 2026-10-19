@@ -191,6 +191,40 @@ func NoNodes(src aggrega.ImportSource, format string) aggrega.Diagnostic {
 	return noNodes(src, format)
 }
 
+// Decide is the decision [Import] makes for one node, for an importer that
+// walks its sources itself rather than through [Import]: the node is scored
+// against the Components of the catalog view the request carries, through the
+// mapping arm served describes with the mapping_overrides setting layered over
+// it for the request's format, and is referenced where the reuse mode is
+// auto-apply-above-threshold and its best candidate is a HIGH match at or above
+// the reuse threshold, and drafted as a new Component otherwise. ref names the
+// node in the decision and in the entity, as [Import] names a node by its
+// identifier, prefixed by its source's name where a request carries several.
+//
+// It returns the decision, the entity — a reference to the chosen Component or
+// the drafted Component — and whether a mapping row, of the setting or of the
+// arm, maps the node's type. A request naming a format other than served.Name
+// is decided with no arm, as [Import] decides it.
+func Decide(in aggrega.ImportInput, served Format, node Node, ref string) (aggrega.ImportDecision, aggrega.EmittedEntity, bool) {
+	settings := parseSettings(in.Settings)
+	table := newMappingTable(settings.MappingOverrides, in.Format, served)
+	_, mapped := table.lookup(node.Type)
+	decision, entity := decideNode(settings, table, candidatesFrom(in.Catalog), node, ref)
+	return decision, entity, mapped
+}
+
+// Render writes the entities and the decisions an import made as the files
+// [Import] writes for them, under the render_mode and emit_hints settings the
+// settings document holds: by default the drafted Aggregate as aggregate.yaml and
+// each drafted Component under components/, a HIGH or MEDIUM match's hint
+// written above it; with render_mode llm, the decisions alone as one JSON
+// document. An entity of any other kind writes no file here. An importer
+// drafting entities of its own renders them through it, so a draft is laid out
+// one way by every importer.
+func Render(settings json.RawMessage, entities []aggrega.EmittedEntity, decisions []aggrega.ImportDecision) []aggrega.ScaffoldFile {
+	return render(parseSettings(settings), entities, decisions)
+}
+
 // sourcesOf returns the sources an import request carries: its named sources,
 // or, where it carries none, its primary bytes as one source with no name.
 func sourcesOf(in aggrega.ImportInput) []aggrega.ImportSource {

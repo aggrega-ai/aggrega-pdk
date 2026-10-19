@@ -60,3 +60,58 @@ func TestTheConventionsAnImporterDraftingItsOwnSharesAreImportsOwn(t *testing.T)
 		t.Errorf("DraftDescription(mcp) = %q", got)
 	}
 }
+
+// TestADecisionAndARenderingMadeNodeByNodeAreImportsOwn holds Decide and Render to
+// what Import does with the same nodes: each node decided alone yields the
+// decision and the entity Import yields for it, under each reuse mode and with an
+// override in place, Render writes Import's files from Import's entities and
+// decisions, in each render mode, and Decide says whether a row — of the arm or of
+// the override — maps the node's type.
+//
+// 🔴 PLANTED DEFECT: in Decide (import.go), build the mapping table without the
+// overrides: the overridden node is reported unmapped and decided with no table
+// signal, and the case fails on it.
+func TestADecisionAndARenderingMadeNodeByNodeAreImportsOwn(t *testing.T) {
+	t.Parallel()
+	nodes := []Node{
+		{ID: "a", Type: "postgres"},
+		{ID: "b", Type: "custom/image"},
+		{ID: "c", Type: "unmapped"},
+	}
+	served := Format{
+		Name:     "f",
+		Syntax:   "yaml",
+		Mappings: map[string]Mapping{"postgres": {Component: "core/datastore/postgres", Category: "datastore", Vendor: "postgres"}},
+		Walk:     func(json.RawMessage) ([]Node, []Edge) { return nodes, nil },
+	}
+	catalog := &aggrega.CatalogProjection{Components: []aggrega.CatalogComponent{
+		{Name: "core/datastore/postgres", Labels: map[string]string{categoryLabel: "datastore"}},
+		{Name: "core/datastore/redis", Labels: map[string]string{categoryLabel: "datastore", "datastore.aggrega.ai/engine": "kv"}},
+	}}
+	override := `"mapping_overrides":{"f":{"custom/image":{"component":"core/datastore/redis","category":"datastore",` +
+		`"traits":{"datastore.aggrega.ai/engine":"kv"},"vendor":"redis"}}}`
+	for _, settings := range []string{
+		`{}`,
+		`{"reuse_mode":"auto-apply-above-threshold",` + override + `}`,
+		`{` + override + `,"render_mode":"llm"}`,
+	} {
+		in := aggrega.ImportInput{Format: "f", Bytes: []byte("x"), Settings: json.RawMessage(settings), Catalog: catalog}
+		whole := Import(in, served, func(string, []byte) (json.RawMessage, error) { return json.RawMessage(`{}`), nil })
+		if len(whole.Decisions) != len(nodes) || len(whole.Entities) != len(nodes)+1 {
+			t.Fatalf("settings %s: Import made %d decisions and %d entities", settings, len(whole.Decisions), len(whole.Entities))
+		}
+		for i, n := range nodes {
+			decision, entity, mapped := Decide(in, served, n, n.ID)
+			if !reflect.DeepEqual(decision, whole.Decisions[i]) || !reflect.DeepEqual(entity, whole.Entities[i]) {
+				t.Errorf("settings %s: Decide of %s = %+v / %+v, want Import's %+v / %+v", settings, n.ID, decision, entity,
+					whole.Decisions[i], whole.Entities[i])
+			}
+			if want := n.ID == "a" || (n.ID == "b" && settings != `{}`); mapped != want {
+				t.Errorf("settings %s: Decide reports node %s mapped %v, want %v", settings, n.ID, mapped, want)
+			}
+		}
+		if got := Render(in.Settings, whole.Entities, whole.Decisions); !reflect.DeepEqual(got, whole.Files) {
+			t.Errorf("settings %s: Render wrote %+v, want Import's %+v", settings, got, whole.Files)
+		}
+	}
+}
