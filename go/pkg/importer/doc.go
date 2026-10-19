@@ -119,6 +119,27 @@
 // and what of each wired part the Release supplies, are named in a comment
 // above its instance, left for the Release.
 //
+// Those values are located in a source's bytes read as JSON, unless its format
+// writes them in its own syntax: a format whose sources are not JSON documents writes
+// each value the empty_credentials setting writes empty in the source's bytes,
+// and the import carries the result only where the host's parser reads it back
+// as the source's tree with exactly those values emptied — and otherwise
+// carries nothing of the source, saying why. A source the setting leaves as
+// written is carried byte for byte, its format never asked.
+//
+// A platform running as a whole installation the catalog assembles as one
+// Aggregate is drafted in the module form: the drafted Aggregate composes one
+// entry of that Aggregate per source, under aggregates, carrying the source in
+// the Aggregate's parameter that takes it. The module wires every connection of
+// the platform itself, so no part of the flow is wired and no Component is
+// drafted; every node stays in the flow, and what the format says the platform
+// configures for itself — a model and its provider, a tool, a knowledge base, a
+// plugin — is reported in the node's decision and in a
+// part-configured-in-platform warning. No identifier is written; the platform's
+// inputs no source supplies are named in a comment above the entry, and so is
+// that an import sees the Components of the workspace's catalog and none of its
+// Aggregates, so it does not check that the catalog holds the module.
+//
 // A part the draft references whose Component declares a value named model —
 // as every model Component of the standard library does, taking the name of the
 // model it serves there — is written with the name of the model its node

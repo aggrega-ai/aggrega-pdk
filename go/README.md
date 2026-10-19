@@ -122,7 +122,7 @@ there:
   source is carried as its own bytes, with only the values below written anew, every
   carriage return written as a line feed, every `{{` escaped for the Aggregate's
   template reading, and the whole written as a YAML literal block; a platform's sources
-  are JSON documents, read as JSON to find those values.
+  are read as JSON to find those values, unless the format writes them itself, below.
 - **The identifier.** `Identifier` reads the flow's own identifier off the source's
   tree. Where it gives none, or one holding a character other than a letter, a digit,
   `.`, `-`, `_` or `:`, the package derives a name-based UUID from the carried flow.
@@ -143,6 +143,14 @@ there:
   `Reached` writes is theirs, neither emptied nor carried. An importer that drafts
   values of its own rather than carrying a source calls `importer.CarryCredentials`
   with the values its own locator finds, for the same decision under the same codes.
+- **A source that is not JSON.** `EmptyInSource` writes the values the setting writes
+  empty in the source's own bytes, for a format whose sources are written in another
+  syntax, as a Dify DSL is written in YAML. The package hands it only the values whose
+  tree holds something to write, parses what it returns through the host's parser,
+  and carries it only where that reads back as the source's tree with exactly those
+  values written; otherwise the source is not carried, reported as
+  `definition-not-carried`. A source the setting leaves as written is carried byte for
+  byte, and `EmptyInSource` is never asked.
 - **The selector matcher.** `Match` reports whether a set of labels satisfies a
   socket's selector. The package carries no selector grammar of its own, so a nil
   `Match` places no part in any socket; the compiler's importers hand it the
@@ -193,6 +201,17 @@ there:
 - **What is left for the Release.** `LeftForRelease` names the platform's own inputs no
   source supplies, and each `Wiring.LeftForRelease` what of a part the Release
   supplies; the draft lists both in a comment above the platform's instance.
+- **A platform that is a whole installation.** `Module`, an `importer.Module`, names
+  the catalog Aggregate assembling the platform, `Component` among its parts, and the
+  `Parameter` of it that takes the flow. Each source is then drafted in the module
+  form: one entry of that Aggregate under `aggregates`, carrying the source in that
+  parameter, with no identifier, no part drafted and nothing wired, since the module
+  wires every connection of the platform itself. `Configured` says what a node names
+  that the platform configures for itself — a model and its provider, a tool, a
+  knowledge base, a plugin — which the import reports in the node's decision and as
+  `part-configured-in-platform`. The comment above the entry names `LeftForRelease`,
+  and that the import, which sees the catalog's Components and none of its Aggregates,
+  does not check that the catalog holds the module.
 
 Every node the draft gives no Component stays inside the flow the platform carries,
 and its decision chooses nothing and says so. Where the catalog view holds no

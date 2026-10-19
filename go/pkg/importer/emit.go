@@ -188,9 +188,9 @@ func render(settings importSettings, entities []aggrega.EmittedEntity, decisions
 
 // renderHuman writes one file per drafted component and one aggregate file,
 // threading each node's resemblance hint into the drafted file as an inline
-// comment when inline hints are enabled. A referenced component emits no body
-// file — it names an existing entity — so only its reference in the aggregate
-// records it.
+// comment when inline hints are enabled. A referenced entity — a Component, or
+// an Aggregate the draft composes — emits no body file, since it names an
+// existing entity, so only its reference in the drafted Aggregate records it.
 func renderHuman(settings importSettings, entities []aggrega.EmittedEntity, decisions []aggrega.ImportDecision) []aggrega.ScaffoldFile {
 	byDecisionRef := map[string]aggrega.ImportDecision{}
 	for _, d := range decisions {
@@ -200,7 +200,7 @@ func renderHuman(settings importSettings, entities []aggrega.EmittedEntity, deci
 	var files []aggrega.ScaffoldFile
 	for _, e := range entities {
 		switch {
-		case e.Kind == "Aggregate":
+		case e.Kind == "Aggregate" && e.Mode == "draft":
 			files = append(files, aggrega.ScaffoldFile{Path: "aggregate.yaml", Content: e.Body})
 		case e.Kind == "Component" && e.Mode == "draft":
 			content := e.Body

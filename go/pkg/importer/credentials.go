@@ -6,7 +6,10 @@ package importer
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
+	"reflect"
 	"strings"
 
 	"github.com/aggrega-ai/aggrega-pdk-go/pkg/aggrega"
@@ -144,7 +147,99 @@ func CarryCredentials(settings json.RawMessage, doc []byte, where string, locate
 	if halt != nil {
 		return nil, []aggrega.Diagnostic{*halt}, nil
 	}
-	return carryCredentials(removal, doc, doc, nil, located, where, nil)
+	return carryCredentials(removal, doc, doc, nil, located, where, nil, sourceWriter{})
+}
+
+// sourceWriter is how the values an import writes empty are written into a
+// source's own bytes: located there read as JSON, where empty is nil; otherwise
+// written by the format's empty — [Platform.EmptyInSource] — and held to the
+// source's tree through reparse, the host's parser.
+type sourceWriter struct {
+	empty   func(source []byte, credentials []Credential) ([]byte, error)
+	reparse func(source []byte) (json.RawMessage, error)
+}
+
+// write writes each edit into source and then each credential, as
+// rewriteSourceAt does, returning the written bytes and, for each credential in
+// the order given, whether it changed its value. With an empty of the format's
+// own, which edits nothing, it decides off tree which credentials hold a value
+// to write — one neither "", nor null, nor already its Value — hands exactly
+// those to empty, and keeps what empty returns only where it reads back, through
+// reparse, as tree with exactly those values written: a credentialNotLocated
+// error otherwise, so the source is not carried. With none to write, source is
+// returned as it is and empty is not asked.
+func (w sourceWriter) write(source []byte, tree json.RawMessage, edits []Edit,
+	credentials []Credential) ([]byte, []bool, error) {
+	if w.empty == nil {
+		return rewriteSourceAt(source, edits, credentials)
+	}
+	if len(edits) > 0 {
+		return nil, nil, errors.New("its format writes values anew only in a source read as JSON")
+	}
+	want, changed, err := rewriteSourceAt(tree, nil, credentials)
+	if err != nil {
+		return nil, nil, err
+	}
+	var asked []Credential
+	for i, c := range credentials {
+		if changed[i] {
+			asked = append(asked, c)
+		}
+	}
+	if len(asked) == 0 {
+		return source, changed, nil
+	}
+	out, err := w.empty(source, asked)
+	if err != nil {
+		return nil, nil, credentialNotLocated{fmt.Errorf("its credential values could not be written empty in its own "+
+			"bytes: %w", err)}
+	}
+	if !sameTree(w.reparse, out, want) {
+		return nil, nil, credentialNotLocated{errors.New("its bytes with its credential values written empty do not " +
+			"read back as its tree with exactly those values emptied")}
+	}
+	return out, changed, nil
+}
+
+// sameTree reports whether source, parsed through reparse, reads as the tree
+// want: the same value, compared member by member and numbers by their digits,
+// whatever order or spacing either writes it in. A source reparse refuses reads
+// as no tree.
+func sameTree(reparse func([]byte) (json.RawMessage, error), source []byte, want json.RawMessage) bool {
+	if reparse == nil {
+		return false
+	}
+	got, err := reparse(source)
+	if err != nil {
+		return false
+	}
+	a, okA := decodedTree(got)
+	b, okB := decodedTree(want)
+	return okA && okB && reflect.DeepEqual(a, b)
+}
+
+// readAlike reports whether a and b, each parsed through reparse, read as the
+// same tree.
+func readAlike(reparse func([]byte) (json.RawMessage, error), a, b []byte) bool {
+	if reparse == nil {
+		return false
+	}
+	want, err := reparse(b)
+	return err == nil && sameTree(reparse, a, want)
+}
+
+// decodedTree decodes one JSON document, its numbers kept as written.
+func decodedTree(raw json.RawMessage) (any, bool) {
+	dec := json.NewDecoder(bytes.NewReader(raw))
+	dec.UseNumber()
+	var v any
+	if err := dec.Decode(&v); err != nil {
+		return nil, false
+	}
+	if _, err := dec.Token(); err != io.EOF {
+		return nil, false
+	}
+	return v, true
 }
 
 // credentialNotLocated is the refusal of a credential value the setting writes
@@ -162,12 +257,16 @@ func (e credentialNotLocated) Unwrap() error { return e.err }
 // as; each other value of a class removal empties written empty, located in the
 // source's bytes; and each other value carried as written, judged off tree,
 // never located in the bytes. refOf names a node in a report, nil naming it as
-// located. It returns the written bytes and the diagnostics, as
-// [CarryCredentials] describes them. A value to write empty that the bytes do not
-// hold is refused with a credentialNotLocated error; an edit the bytes do not
-// hold, or bytes that are not one JSON document, with another error.
+// located. writer writes the edits and the values to empty into the source's
+// bytes, as [sourceWriter.write] does. It returns the written bytes and the
+// diagnostics, as [CarryCredentials] describes them. A value to write empty that
+// the bytes do not hold, or that the format's own writer could not write so the
+// source reads back as its tree with exactly that value written, is refused with
+// a credentialNotLocated error; an edit the bytes do not hold, or bytes that are
+// not one JSON document, with another error.
 func carryCredentials(removal credentialRemoval, source []byte, tree json.RawMessage, edits []Edit,
-	located []Credential, where string, refOf func(string) string) ([]byte, []aggrega.Diagnostic, error) {
+	located []Credential, where string, refOf func(string) string,
+	writer sourceWriter) ([]byte, []aggrega.Diagnostic, error) {
 	if refOf == nil {
 		refOf = func(node string) string { return node }
 	}
@@ -200,7 +299,7 @@ func carryCredentials(removal credentialRemoval, source []byte, tree json.RawMes
 			verdicts[i] = carried
 		}
 	}
-	out, changed, err := rewriteSourceAt(source, edits, toEmpty)
+	out, changed, err := writer.write(source, tree, edits, toEmpty)
 	if err != nil {
 		return nil, nil, err
 	}

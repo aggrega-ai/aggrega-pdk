@@ -48,8 +48,14 @@ import (
 // where the empty_credentials setting asks for it — and every other one carried
 // as written and named in a warning — every carriage return written as a line
 // feed, and nothing else changed, so a source with nothing of these to change is
-// carried byte for byte. A source is read as JSON to find those values, so a
-// platform's sources are JSON documents.
+// carried byte for byte. A source is read as JSON to find those values, unless
+// EmptyInSource writes them, so a platform's sources are JSON documents where it
+// is nil.
+//
+// Where Module is set, the platform runs as a whole installation the catalog
+// assembles as one Aggregate, and each source is drafted in the module form
+// instead: one entry of that Aggregate per source, carrying the source in its
+// parameter, with no part of the flow wired, as [Module] describes.
 type Platform struct {
 	// Component is the name of the catalog Component that runs a flow of the
 	// format, such as core/ai-agent/langflow. The last segment of the name is the
@@ -156,6 +162,53 @@ type Platform struct {
 	// connection, a comment inside it shows, for each, the lines an author
 	// uncomments for that target.
 	TargetAttachments []TargetAttachment
+	// Module, where set, is the catalog Aggregate the platform runs as a whole
+	// installation in, Component among the parts it composes and wires: each source
+	// is drafted as an entry of it rather than as an instance of Component, as
+	// [Module] describes. Nil drafts an instance of Component.
+	Module *Module
+	// Configured says, for a node of a source drafted in the module form, what the
+	// node names that the platform configures for itself rather than reaching
+	// through a socket — a model and the provider serving it, a tool's provider, a
+	// knowledge base, a plugin — as a noun phrase completing "node … names", empty
+	// where it names nothing of the kind. The import reports each in the node's
+	// decision and in a warning, so it carries only what the format reads off the
+	// node, and never a credential value. Nil reports none.
+	Configured func(tree json.RawMessage, node Node) string
+	// EmptyInSource writes empty, in the source's own bytes, each value of
+	// credentials, for a format whose sources are not JSON documents: each value
+	// addressed by its pointer is written as the empty string — or as its Value,
+	// where that is set — and every other byte is kept. The import asks it only
+	// where the empty_credentials setting writes values empty, and only about the
+	// values whose tree holds something to write; it re-reads what it returns
+	// through the host's parser, and carries the result only where that reads back
+	// as the source's tree with exactly those values written so. Otherwise it
+	// carries nothing of the source, and says why. A source the setting leaves as
+	// written is never handed to it, and is carried byte for byte. An error it
+	// returns is reported, so it names no value. Nil locates the values in the
+	// source's bytes read as JSON.
+	EmptyInSource func(source []byte, credentials []Credential) ([]byte, error)
+}
+
+// Module is the catalog Aggregate a platform running as a whole installation is
+// drafted as — the module form of the platform draft. The drafted Aggregate
+// composes one entry of it per source, keyed by the last segment of its name,
+// whose parameter named Parameter carries the source, written as the platform
+// draft writes a flow: as its own bytes, with only what the empty_credentials
+// setting writes empty changed. The module wires every connection of the
+// platform itself, so no node of the flow is wired to a socket and no part is
+// drafted; each node stays in the flow, and what [Platform.Configured] says the
+// platform configures for itself is reported. No identifier is written, the
+// platform's LeftForRelease is named in a comment above the entry, and so is
+// that the catalog the import is handed lists Components only, so the import
+// does not check that the workspace's catalog holds Aggregate. An entry of a
+// composed Aggregate takes parameters and no Feature, so the
+// attach_egress_allowlist setting attaches nothing to it, and the import says so.
+type Module struct {
+	// Aggregate is the name of the catalog Aggregate, such as core/dify.
+	Aggregate string
+	// Parameter is the parameter of Aggregate that carries the flow.
+	Parameter string
 }
 
 // TargetAttachment is an attachment of a platform's own instance that its
@@ -297,6 +350,10 @@ func importPlatform(in aggrega.ImportInput, served Format, settings importSettin
 			Message: fmt.Sprintf("the layout setting %q is neither %s nor %s, so the source is drafted as %s",
 				settings.Layout, layoutPlatform, layoutNodes, layoutPlatform),
 		})
+	}
+	reparse := func(source []byte) (json.RawMessage, error) { return parse(served.Syntax, source) }
+	if p.Module != nil {
+		return importModule(in, served, settings, removal, parse, out)
 	}
 
 	draft := &platformDraft{settings: settings, format: format, platform: p}
@@ -446,7 +503,8 @@ func importPlatform(in aggrega.ImportInput, served Format, settings importSettin
 				edits = append(edits, w.Edits...)
 			}
 		}
-		out.Diagnostics = append(out.Diagnostics, inst.carry(p, format, src, tree, nodes, refOf, edits, removal)...)
+		out.Diagnostics = append(out.Diagnostics, inst.carry(p, format, served.Syntax, src, tree, nodes, refOf, edits,
+			removal, reparse)...)
 		for _, h := range held {
 			pl := placements[h.placement]
 			reason := heldOutReason(p, inst.carried, tree, pl, holders[pl.heldBy])
@@ -1117,13 +1175,19 @@ const carriedWhere = "in the flow the draft carries"
 // carried holding something, each naming the node and the field; one naming how
 // many carriage returns it wrote as line feeds; and, where the flow cannot be
 // carried, why — a value to write anew, or one the setting writes empty, that
-// the source's bytes do not hold where its tree does, or a character a YAML
-// literal block cannot carry as written. Where the source gives its flow no
-// identifier a draft can carry, one is derived from the carried bytes — or,
-// where a value could not be located and the flow is not carried, from its
-// nodes' identifiers, so nothing a credential value could reach decides it.
-func (inst *platformInstance) carry(p *Platform, format string, src aggrega.ImportSource, tree json.RawMessage,
-	nodes []Node, refOf func(string) string, edits []Edit, removal credentialRemoval) []aggrega.Diagnostic {
+// the source's bytes do not hold where its tree does, a source not read as JSON
+// whose bytes with those values written do not read back as its tree with
+// exactly those values written, or a character a YAML literal block cannot carry
+// as written. syntax is the syntax the source is parsed as and reparse parses
+// bytes as it: a source of a syntax other than JSON whose carriage returns are
+// written as line feeds is carried only where it reads back as the same tree.
+// Where the source gives its flow no identifier a draft can carry, one is
+// derived from the carried bytes — or, where a value could not be located and
+// the flow is not carried, from its nodes' identifiers, so nothing a credential
+// value could reach decides it.
+func (inst *platformInstance) carry(p *Platform, format, syntax string, src aggrega.ImportSource, tree json.RawMessage,
+	nodes []Node, refOf func(string) string, edits []Edit, removal credentialRemoval,
+	reparse func([]byte) (json.RawMessage, error)) []aggrega.Diagnostic {
 	var diags []aggrega.Diagnostic
 	var creds []Credential
 	if p.Credentials != nil {
@@ -1137,7 +1201,12 @@ func (inst *platformInstance) carry(p *Platform, format string, src aggrega.Impo
 	if src.Name != "" {
 		flow = fmt.Sprintf("the flow of source %q", src.Name)
 	}
-	scrubbed, credentialDiags, err := carryCredentials(removal, src.Bytes, tree, edits, creds, carriedWhere, refOf)
+	definitionAt := "values." + p.DefinitionValue
+	if p.Module != nil {
+		definitionAt = "parameters." + p.Module.Parameter
+	}
+	writer := sourceWriter{empty: p.EmptyInSource, reparse: reparse}
+	scrubbed, credentialDiags, err := carryCredentials(removal, src.Bytes, tree, edits, creds, carriedWhere, refOf, writer)
 	if err != nil {
 		why := "so what the draft writes for its parts could not be written"
 		var unlocated credentialNotLocated
@@ -1145,10 +1214,9 @@ func (inst *platformInstance) carry(p *Platform, format string, src aggrega.Impo
 			why = "so a credential it holds could not be kept out of the draft"
 		}
 		diags = append(diags, aggrega.Diagnostic{
-			Severity: "warn",
-			Code:     "definition-not-carried",
-			Message: fmt.Sprintf("%s is not carried in values.%s: %s, %s", flow, p.DefinitionValue, err.Error(),
-				why),
+			Severity:  "warn",
+			Code:      "definition-not-carried",
+			Message:   fmt.Sprintf("%s is not carried in %s: %s, %s", flow, definitionAt, err.Error(), why),
 			SourceRef: src.Name,
 		})
 		if carriedIdentifier(own) {
@@ -1166,17 +1234,42 @@ func (inst *platformInstance) carry(p *Platform, format string, src aggrega.Impo
 	diags = append(diags, credentialDiags...)
 
 	text, returns := lineFeedsFor(string(scrubbed))
+	var refused []aggrega.Diagnostic
 	if returns > 0 {
-		diags = append(diags, aggrega.Diagnostic{
+		reads := "a JSON reader reads the carried flow as the same value"
+		if syntax != "json" {
+			reads = "the host's parser reads the carried flow back as the same tree"
+		}
+		if syntax == "json" || readAlike(reparse, []byte(text), scrubbed) {
+			diags = append(diags, aggrega.Diagnostic{
+				Severity: "warn",
+				Code:     "carriage-returns-rewritten",
+				Message: fmt.Sprintf("%s holds %d carriage return(s), each written as a line feed in %s, since a YAML "+
+					"literal block cannot carry one: %s", flow, returns, definitionAt, reads),
+				SourceRef: src.Name,
+			})
+		} else {
+			refused = append(refused, aggrega.Diagnostic{
+				Severity: "warn",
+				Code:     "definition-not-carried",
+				Message: fmt.Sprintf("%s is not carried in %s: it holds %d carriage return(s), which a YAML literal block "+
+					"cannot carry, and written as line feeds it does not read back as the same tree", flow, definitionAt,
+					returns),
+				SourceRef: src.Name,
+			})
+		}
+	}
+	for _, pr := range blockProblems(text) {
+		refused = append(refused, aggrega.Diagnostic{
 			Severity: "warn",
-			Code:     "carriage-returns-rewritten",
-			Message: fmt.Sprintf("%s holds %d carriage return(s), each written as a line feed in values.%s, since a YAML "+
-				"literal block cannot carry one: a JSON reader reads the carried flow as the same value", flow, returns,
-				p.DefinitionValue),
+			Code:     "definition-not-carried",
+			Message: fmt.Sprintf("%s is not carried in %s: it holds a %s (%d in all, the first at line %d, "+
+				"column %d), which a YAML literal block cannot carry as written",
+				flow, definitionAt, pr.what, pr.count, pr.line, pr.column),
 			SourceRef: src.Name,
 		})
 	}
-	if problems := blockProblems(text); len(problems) > 0 {
+	if len(refused) > 0 {
 		// Nothing is carried, so no value is carried as written.
 		kept := diags[:0]
 		for _, d := range diags {
@@ -1184,17 +1277,7 @@ func (inst *platformInstance) carry(p *Platform, format string, src aggrega.Impo
 				kept = append(kept, d)
 			}
 		}
-		diags = kept
-		for _, pr := range problems {
-			diags = append(diags, aggrega.Diagnostic{
-				Severity: "warn",
-				Code:     "definition-not-carried",
-				Message: fmt.Sprintf("%s is not carried in values.%s: it holds a %s (%d in all, the first at line %d, "+
-					"column %d), which a YAML literal block cannot carry as written",
-					flow, p.DefinitionValue, pr.what, pr.count, pr.line, pr.column),
-				SourceRef: src.Name,
-			})
-		}
+		diags = append(kept, refused...)
 	} else {
 		inst.definition = text
 		inst.carried = true
@@ -1226,6 +1309,9 @@ type platformDraft struct {
 // YAML, so key order is fixed and the output is byte-identical across runs.
 func (d *platformDraft) entity() aggrega.EmittedEntity {
 	p := d.platform
+	if p.Module != nil {
+		return d.moduleEntity()
+	}
 	var b strings.Builder
 	b.WriteString("apiVersion: aggrega.ai/v1alpha1\n")
 	b.WriteString("kind: Aggregate\n")
