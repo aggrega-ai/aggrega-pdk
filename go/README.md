@@ -98,7 +98,7 @@ catalog view, the decision to reference a component or draft a new one, the
 drafted Component and Aggregate bodies, the platform layout below, the `human` and
 `llm` renderers, and the importer's settings — `target_namespace`,
 `reuse_mode`, `reuse_threshold`, `emit_hints`, `render_mode`,
-`mapping_overrides`, `layout`, `empty_unmarked_credentials` and `attach_egress_allowlist` — with their defaults. `NodeList`, `EdgeList` and
+`mapping_overrides`, `layout`, `empty_credentials` and `attach_egress_allowlist` — with their defaults. `NodeList`, `EdgeList` and
 `ObjectEntries` read the shapes a walker commonly meets in a canonical tree. The
 package builds on the host toolchain as well as for `GOOS=wasip1`, so an importer is
 tested on the host by handing `Import` a parse function of the test's own. Its
@@ -127,15 +127,22 @@ there:
   tree. Where it gives none, or one holding a character other than a letter, a digit,
   `.`, `-`, `_` or `:`, the package derives a name-based UUID from the carried flow.
 - **The credential locator.** `Credentials` returns an `importer.Credential` for every
-  value the source keeps in a field the format marks as a credential, and every value
-  the format writes empty though it marks it as none, each addressed by a JSON Pointer
-  from the source's root (`importer.Pointer` writes one). Each is written empty before
-  the source is carried — or as `Credential.Value`, for a field keeping its credentials
-  inside text of its own — and reported by node and field, never by value. It is handed
-  the `empty_unmarked_credentials` setting: where that is `false`, the default, it
-  leaves out the values the format marks as none and writes empty only because a key
-  can sit in them, such as a request's headers, and keeps those belonging to a part of
-  the flow, such as an MCP server's address.
+  value in the source that can carry a credential, each addressed by a JSON Pointer
+  from the source's root (`importer.Pointer` writes one) and tagged with its `Class`:
+  `CredentialMarked` for what the format marks as a credential,
+  `CredentialServerMember` for a member of an MCP server's configuration, and
+  `CredentialUnmarked` for an input the format marks as none that can carry one, such
+  as a request's headers. It returns every class every time and reads no setting: the
+  package reads `empty_credentials` — `none`, the default, `marked` (the first two
+  classes) or `all` — and writes empty the classes it names before the source is
+  carried, each as `""` or as `Credential.Value`, for a field keeping its credentials
+  inside text of its own, reported as `credential-emptied`. Every other value is
+  carried as written and, where it holds something, reported as `credential-carried`
+  with the setting value that writes it empty — by node and field, never by value. Any
+  other setting value halts the import, which drafts nothing. A value `Wire` or
+  `Reached` writes is theirs, neither emptied nor carried. An importer that drafts
+  values of its own rather than carrying a source calls `importer.CarryCredentials`
+  with the values its own locator finds, for the same decision under the same codes.
 - **The selector matcher.** `Match` reports whether a set of labels satisfies a
   socket's selector. The package carries no selector grammar of its own, so a nil
   `Match` places no part in any socket; the compiler's importers hand it the
@@ -165,7 +172,13 @@ there:
   address emptied, a server renamed to its connection's alias — and `Reads` or
   `Literal`, saying how the flow reaches the part through that connection or other than
   through it, which the import reports as `part-reads-connection` or
-  `part-address-in-flow`. `importer.Rewrite` writes such edits into JSON text a format
+  `part-address-in-flow`. A value a node would send in place of what its connection
+  supplies, such as its own default headers, is written empty here, as wiring, and not
+  by the credential locator. `Reached` is asked the same of each node the draft wires
+  to no socket, with the parts it does wire: where a connection reaches the node as it
+  is written — its client reading what the platform delivers from its environment — its
+  `Edits` are written and its `Reads` reported as `part-reads-connection`.
+  `importer.Rewrite` writes such edits into JSON text a format
   holds inside a value of its own, and `importer.VariableName` gives the name a
   platform delivering a connection under variables named for its alias gives that
   alias.

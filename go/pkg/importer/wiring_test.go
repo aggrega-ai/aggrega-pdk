@@ -232,6 +232,149 @@ func TestANodeNamingAPartIsReachedThroughOneConnectionByName(t *testing.T) {
 	})
 }
 
+// TestANodeAConnectionReachesAsWrittenIsWrittenAsItsWiring drafts wiringSource
+// with a header planted on f5, a node naming no server, which stays in the flow,
+// and on f6, which starts a server of its own, under a format whose Reached says
+// a node reaches a connection the draft wires as it is written — and has its
+// headers written empty — where it names no server and a part is wired to the
+// tools socket, and returns edits with no Reads for every other node:
+//
+//   - f5's headers are written {} in the carried flow, whatever the
+//     empty_credentials setting says, since that is how the node is written for
+//     the connection reaching it; its decision and a part-reads-connection
+//     warning say so, and its header, which the format locates as a value it
+//     marks as none, is neither carried nor emptied as one;
+//   - f6's edits, with no Reads, are not written, so its header is carried as
+//     written and reported under credential-carried.
+//
+// 🔴 PLANTED DEFECTS:
+//
+//   - in carryCredentials (credentials.go), replace
+//     `case editWrites(editTokens, c.Pointer):` with `case false:`: f5's header,
+//     written by the edit, is also reported as carried, and the diagnostics row
+//     fails;
+//   - in importPlatform (platform.go), replace `if w.Reads == "" {` with
+//     `if false {`: f6's edits are written, and the definition row fails.
+func TestANodeAConnectionReachesAsWrittenIsWrittenAsItsWiring(t *testing.T) {
+	t.Parallel()
+	const (
+		reachedKey = "sk-plantedREACHEDheader0123456789"
+		keptKey    = "sk-plantedKEPTheader0123456789ab"
+	)
+	source := strings.Replace(wiringSource, `"server":""}`, `"server":"","headers":{"X-Key":"`+reachedKey+`"}}`, 1)
+	source = strings.Replace(source, `"serverStarts":true}`, `"serverStarts":true,"headers":{"X-Key":"`+keptKey+`"}}`, 1)
+	format := wiringTestFormat()
+	var asked []string
+	format.Platform.Reached = func(tree json.RawMessage, node Node, wired []Part) Wiring {
+		asked = append(asked, node.ID)
+		i, data := testNode(tree, node.ID)
+		edit := Edit{Pointer: Pointer("nodes", strconv.Itoa(i), "data", "headers"), Value: json.RawMessage(`{}`)}
+		toTools := false
+		for _, p := range wired {
+			toTools = toTools || p.Socket == "tools"
+		}
+		var server string
+		if json.Unmarshal(data["server"], &server) == nil && server == "" && toTools && data["headers"] != nil {
+			return Wiring{Edits: []Edit{edit}, Reads: "its headers are written empty"}
+		}
+		if data["headers"] != nil {
+			return Wiring{Edits: []Edit{edit}}
+		}
+		return Wiring{}
+	}
+	for _, settings := range []string{"", `{"empty_credentials":"all"}`} {
+		t.Run("settings "+settings, func(t *testing.T) {
+			asked = nil
+			out := platformImport(t, format, platformCatalog(), settings, oneSource(source))
+			agg := out.Files[len(out.Files)-1].Content
+			if want := []string{"f5", "f6"}; !reflect.DeepEqual(asked, want) {
+				t.Errorf("Reached was asked about %v, want %v", asked, want)
+			}
+			kept := `"headers":{"X-Key":"` + keptKey + `"}`
+			if settings != "" {
+				kept = `"headers":{"X-Key":""}`
+			}
+			if !strings.Contains(agg, `"server":"","headers":{}}`) || !strings.Contains(agg, kept) {
+				t.Errorf("f5's headers are not written empty, or f6's not as the setting asks:\n%s", agg)
+			}
+			var got []string
+			for _, d := range out.Diagnostics {
+				got = append(got, d.Code+" "+d.SourceRef)
+			}
+			f6 := "credential-carried f6"
+			if settings != "" {
+				f6 = "credential-emptied f6"
+			}
+			want := []string{f6, "part-not-placed f5", "part-not-placed f6", "part-address-in-flow m1",
+				"part-reads-connection f1", "part-reads-connection f2", "part-reads-connection f3",
+				"part-reads-connection f4", "part-reads-connection f5"}
+			if !reflect.DeepEqual(got, want) {
+				t.Errorf("the import raised %v, want %v", got, want)
+			}
+			if msg := out.Diagnostics[len(out.Diagnostics)-1].Message; msg != "node f5 is wired to no socket of "+
+				"core/ai-agent/testplat, and a connection the draft wires reaches it as it is written: its headers are "+
+				"written empty" {
+				t.Errorf("f5's wiring is reported as %q", msg)
+			}
+			if d := decisionOf(t, out, "f5"); !strings.HasSuffix(d.Rationale,
+				"; a connection the draft wires reaches it as it is written: its headers are written empty") {
+				t.Errorf("f5's decision does not say how a connection reaches it: %q", d.Rationale)
+			}
+		})
+	}
+}
+
+// TestAValueTheSettingCarriesNeverStopsAFlowBeingCarried hands the platform a
+// credential locator returning a value its pointer does not reach in the
+// source's bytes. Under the default the value is carried, so it is never located
+// in the bytes: the flow is carried and nothing is reported. Under marked it is
+// one to write empty, so the flow is not carried, and the import says a
+// credential could not be kept out of the draft. A wiring edit the bytes do not
+// hold stops the flow under every setting, and the import says what the draft
+// writes for its parts could not be written.
+func TestAValueTheSettingCarriesNeverStopsAFlowBeingCarried(t *testing.T) {
+	t.Parallel()
+	const prefix = "the flow is not carried in values.flow_definition: "
+	unreached := func(json.RawMessage) []Credential {
+		return []Credential{{Node: "model-1", Field: "gone", Pointer: Pointer("nodes", "0", "data", "gone")}}
+	}
+	for _, tc := range []struct {
+		name, settings string
+		edit           bool
+		want           []aggrega.Diagnostic
+	}{
+		{name: "carried by default"},
+		{name: "written empty at marked", settings: `{"empty_credentials":"marked"}`,
+			want: []aggrega.Diagnostic{{Severity: "warn", Code: "definition-not-carried",
+				Message: prefix + "the field gone of node model-1 is not in the source's bytes where its tree holds it, so a " +
+					"credential it holds could not be kept out of the draft"}}},
+		{name: "a wiring edit", edit: true,
+			want: []aggrega.Diagnostic{{Severity: "warn", Code: "definition-not-carried",
+				Message: prefix + "the value at /nodes/0/data/gone is not in the source's bytes where its tree holds it, so " +
+					"what the draft writes for its parts could not be written"}}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			format := platformTestFormat()
+			format.Platform.Credentials = unreached
+			if tc.edit {
+				format.Platform.Credentials = nil
+				format.Platform.Wire = func(json.RawMessage, Part) Wiring {
+					return Wiring{Edits: []Edit{{Pointer: Pointer("nodes", "0", "data", "gone"), Value: json.RawMessage(`""`)}}}
+				}
+			}
+			out := platformImport(t, format, platformCatalog(), tc.settings, oneSource(platformSource))
+			if !reflect.DeepEqual(out.Diagnostics, tc.want) {
+				t.Errorf("the import raised %+v, want %+v", out.Diagnostics, tc.want)
+			}
+			carried := strings.Contains(out.Files[len(out.Files)-1].Content, "flow_definition: |")
+			if carried != (tc.want == nil) {
+				t.Errorf("the flow is carried: %v, want %v", carried, tc.want == nil)
+			}
+		})
+	}
+}
+
 // TestNothingReachesAPartThroughAFlowThatIsNotCarried drafts wiringSource with a
 // line separator added, which keeps the flow from being carried: the parts are
 // wired as before and what each leaves for the Release is still named, but no
@@ -301,92 +444,65 @@ func TestAFlowWrittenWithCarriageReturnsIsCarriedWithLineFeeds(t *testing.T) {
 	}
 }
 
-// TestTheEmptyUnmarkedCredentialsSettingReachesTheCredentialLocator imports one
-// source through the platform layout with the empty_unmarked_credentials setting
-// absent, false and true: the format's credential locator is handed false, false
-// and true, once each, and what it locates is written empty — a value it locates
-// only when handed true is carried as written otherwise, and one it always
-// locates never is.
-func TestTheEmptyUnmarkedCredentialsSettingReachesTheCredentialLocator(t *testing.T) {
-	t.Parallel()
-	const (
-		marked   = "sk-plantedKITmarked0123456789abcdef"
-		unmarked = "sk-plantedKITunmarked0123456789abcd"
-		source   = `{"id":"flow-u","nodes":[{"id":"n1","type":"generic","data":{"type":"ChatOutput",` +
-			`"marked":"` + marked + `","unmarked":"` + unmarked + `"}}],"edges":[]}` + "\n"
-	)
-	for _, tc := range []struct {
-		name, settings string
-		want           bool
-	}{
-		{name: "absent", settings: "", want: false},
-		{name: "false", settings: `{"empty_unmarked_credentials":false}`, want: false},
-		{name: "true", settings: `{"empty_unmarked_credentials":true}`, want: true},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			var handed []bool
-			format := platformTestFormat()
-			format.Platform.Credentials = func(_ json.RawMessage, emptyUnmarked bool) []Credential {
-				handed = append(handed, emptyUnmarked)
-				out := []Credential{{Node: "n1", Field: "marked", Pointer: Pointer("nodes", "0", "data", "marked")}}
-				if emptyUnmarked {
-					out = append(out, Credential{Node: "n1", Field: "unmarked",
-						Pointer: Pointer("nodes", "0", "data", "unmarked"), Detail: "it can carry a key"})
-				}
-				return out
-			}
-			out := platformImport(t, format, platformCatalog(), tc.settings, oneSource(source))
-			if !reflect.DeepEqual(handed, []bool{tc.want}) {
-				t.Errorf("the credential locator was handed %v, want [%v]", handed, tc.want)
-			}
-			agg := out.Files[len(out.Files)-1].Content
-			if strings.Contains(agg, marked) {
-				t.Errorf("the value the locator always locates is carried:\n%s", agg)
-			}
-			if carried := strings.Contains(agg, unmarked); carried == tc.want {
-				t.Errorf("the value located only under true is carried: %v, want %v:\n%s", carried, !tc.want, agg)
-			}
-		})
-	}
-}
-
-// TestACredentialCarryingAValueIsWrittenAsThatValue empties, through the
-// platform layout, a credential a format locates with a Value — the value with
-// only the credentials inside it emptied — and one with only a Detail: the first
-// is written as its Value, the second as "", and each warning names the node and
-// the field with what was emptied, never a value. A credential whose value
-// already reads as its Value is neither written nor reported.
+// TestACredentialCarryingAValueIsWrittenAsThatValue locates, through the
+// platform layout, a member of a server's configuration with a Value — the value
+// with only the credentials inside it emptied — one with only a Detail, and one
+// whose value already reads as its Value. With empty_credentials at marked, the
+// first is written as its Value, the second as "", and each warning names the
+// node and the field with what was emptied, never a value; the third is neither
+// written nor reported. Under the default, the first two are carried as written
+// and each warning names what of the value its setting would write empty; the
+// third, holding nothing to carry, is not reported.
 func TestACredentialCarryingAValueIsWrittenAsThatValue(t *testing.T) {
 	t.Parallel()
 	const source = `{"id":"flow-c","nodes":[{"id":"n1","type":"generic","data":{"type":"ChatOutput",` +
 		`"config":"{\"url\":\"http://planted.example\",\"note\":\"kept\"}","loose":"{url: planted}","done":"{}"}}],"edges":[]}` + "\n"
 	format := platformTestFormat()
-	format.Platform.Credentials = func(json.RawMessage, bool) []Credential {
+	format.Platform.Credentials = func(json.RawMessage) []Credential {
 		return []Credential{
-			{Node: "n1", Field: "config", Pointer: Pointer("nodes", "0", "data", "config"),
+			{Node: "n1", Field: "config", Pointer: Pointer("nodes", "0", "data", "config"), Class: CredentialServerMember,
 				Value: json.RawMessage(`"{\"url\":\"\",\"note\":\"kept\"}"`), Detail: "server address"},
-			{Node: "n1", Field: "loose", Pointer: Pointer("nodes", "0", "data", "loose"),
+			{Node: "n1", Field: "loose", Pointer: Pointer("nodes", "0", "data", "loose"), Class: CredentialServerMember,
 				Detail: "it does not read as a JSON object"},
-			{Node: "n1", Field: "done", Pointer: Pointer("nodes", "0", "data", "done"), Value: json.RawMessage(`"{}"`)},
+			{Node: "n1", Field: "done", Pointer: Pointer("nodes", "0", "data", "done"), Class: CredentialServerMember,
+				Value: json.RawMessage(`"{}"`)},
 		}
 	}
-	out := platformImport(t, format, platformCatalog(), "", oneSource(source))
 	const tail = " in the flow the draft carries"
-	want := []aggrega.Diagnostic{
-		{Severity: "warn", Code: "credential-emptied", SourceRef: "n1",
-			Message: "config of node n1 is written with its server address empty" + tail},
-		{Severity: "warn", Code: "credential-emptied", SourceRef: "n1",
-			Message: "the whole value of loose of node n1 is written empty in the flow the draft carries, since it does not " +
-				"read as a JSON object"},
-	}
-	if !reflect.DeepEqual(out.Diagnostics, want) {
-		t.Errorf("the import raised %+v, want %+v", out.Diagnostics, want)
-	}
-	agg := out.Files[len(out.Files)-1].Content
-	if strings.Contains(agg, "planted") || !strings.Contains(agg, `"config":"{\"url\":\"\",\"note\":\"kept\"}","loose":"","done":"{}"`) {
-		t.Errorf("the credentials are not written as located:\n%s", agg)
-	}
+	t.Run("marked", func(t *testing.T) {
+		out := platformImport(t, format, platformCatalog(), `{"empty_credentials":"marked"}`, oneSource(source))
+		want := []aggrega.Diagnostic{
+			{Severity: "warn", Code: "credential-emptied", SourceRef: "n1",
+				Message: "config of node n1 is written with its server address empty" + tail},
+			{Severity: "warn", Code: "credential-emptied", SourceRef: "n1",
+				Message: "the whole value of loose of node n1 is written empty in the flow the draft carries, since it " +
+					"does not read as a JSON object"},
+		}
+		if !reflect.DeepEqual(out.Diagnostics, want) {
+			t.Errorf("the import raised %+v, want %+v", out.Diagnostics, want)
+		}
+		agg := out.Files[len(out.Files)-1].Content
+		if strings.Contains(agg, "planted") || !strings.Contains(agg, `"config":"{\"url\":\"\",\"note\":\"kept\"}","loose":"","done":"{}"`) {
+			t.Errorf("the credentials are not written as located:\n%s", agg)
+		}
+	})
+	t.Run("the default", func(t *testing.T) {
+		out := platformImport(t, format, platformCatalog(), "", oneSource(source))
+		want := []aggrega.Diagnostic{
+			{Severity: "warn", Code: "credential-carried", SourceRef: "n1",
+				Message: "config of node n1 is carried with its server address as written" + tail + ": " + serverWhy +
+					", and setting empty_credentials to marked or all writes its server address empty"},
+			{Severity: "warn", Code: "credential-carried", SourceRef: "n1",
+				Message: "the value of loose of node n1 is carried as written" + tail + ": " + serverWhy +
+					", and setting empty_credentials to marked or all writes it empty"},
+		}
+		if !reflect.DeepEqual(out.Diagnostics, want) {
+			t.Errorf("the import raised %+v, want %+v", out.Diagnostics, want)
+		}
+		if agg := out.Files[len(out.Files)-1].Content; !strings.Contains(agg, strings.TrimSuffix(source, "\n")) {
+			t.Errorf("the flow is not carried as written:\n%s", agg)
+		}
+	})
 }
 
 // refuseSource is a flow of the test's format holding two finders: one naming the

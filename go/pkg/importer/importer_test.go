@@ -549,12 +549,12 @@ func TestDraftAndAggregateRendering(t *testing.T) {
 // it does not set keeps its default.
 func TestSettingsDefaults(t *testing.T) {
 	type view struct {
-		namespace, reuseMode, renderMode, layout string
-		threshold                                float64
-		hints, nodes, emptyUnmarked              bool
+		namespace, reuseMode, renderMode, layout, emptyCredentials string
+		threshold                                                  float64
+		hints, nodes                                               bool
 	}
 	defaults := view{namespace: "imported", reuseMode: "hints-only", renderMode: "human", layout: "platform", threshold: 0.85,
-		hints: true}
+		hints: true, emptyCredentials: "none"}
 	for _, tc := range []struct {
 		name, doc string
 		want      view
@@ -564,31 +564,39 @@ func TestSettingsDefaults(t *testing.T) {
 		{name: "not JSON", doc: `{"target_namespace":`, want: defaults},
 		{name: "a namespace", doc: `{"target_namespace":"north"}`,
 			want: view{namespace: "north", reuseMode: "hints-only", renderMode: "human", layout: "platform", threshold: 0.85,
-				hints: true}},
+				hints: true, emptyCredentials: "none"}},
 		{name: "auto-apply at a threshold, no hints, llm",
 			doc: `{"reuse_mode":"auto-apply-above-threshold","reuse_threshold":0.9,"emit_hints":false,"render_mode":"llm"}`,
 			want: view{namespace: "imported", reuseMode: "auto-apply-above-threshold", renderMode: "llm", layout: "platform",
-				threshold: 0.9, hints: false}},
+				threshold: 0.9, hints: false, emptyCredentials: "none"}},
 		{name: "the platform layout, named", doc: `{"layout":"platform"}`, want: defaults},
 		{name: "the nodes layout", doc: `{"layout":"nodes"}`,
 			want: view{namespace: "imported", reuseMode: "hints-only", renderMode: "human", layout: "nodes", threshold: 0.85,
-				hints: true, nodes: true}},
+				hints: true, nodes: true, emptyCredentials: "none"}},
 		{name: "a layout that is neither, kept for the warning", doc: `{"layout":"graph"}`,
 			want: view{namespace: "imported", reuseMode: "hints-only", renderMode: "human", layout: "graph", threshold: 0.85,
-				hints: true}},
-		{name: "unmarked credentials written empty", doc: `{"empty_unmarked_credentials":true}`,
+				hints: true, emptyCredentials: "none"}},
+		{name: "credentials emptied as marked", doc: `{"empty_credentials":"marked"}`,
 			want: view{namespace: "imported", reuseMode: "hints-only", renderMode: "human", layout: "platform", threshold: 0.85,
-				hints: true, emptyUnmarked: true}},
-		{name: "unmarked credentials carried, named", doc: `{"empty_unmarked_credentials":false}`, want: defaults},
-		{name: "unmarked credentials given as text, not a boolean", doc: `{"empty_unmarked_credentials":"true","layout":"nodes"}`,
+				hints: true, emptyCredentials: "marked"}},
+		{name: "every credential emptied", doc: `{"empty_credentials":"all","layout":"nodes"}`,
 			want: view{namespace: "imported", reuseMode: "hints-only", renderMode: "human", layout: "nodes", threshold: 0.85,
-				hints: true, nodes: true}},
+				hints: true, nodes: true, emptyCredentials: "all"}},
+		{name: "no credential emptied, named", doc: `{"empty_credentials":"none"}`, want: defaults},
+		{name: "the credential setting read past a sibling that does not decode",
+			doc: `{"mapping_overrides":7,"empty_credentials":"all"}`,
+			want: view{namespace: "imported", reuseMode: "hints-only", renderMode: "human", layout: "platform", threshold: 0.85,
+				hints: true, emptyCredentials: "all"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			s := parseSettings(json.RawMessage(tc.doc))
+			removal, halt := readCredentialRemoval(json.RawMessage(tc.doc))
+			if halt != nil {
+				t.Fatalf("the credential setting halted: %+v", *halt)
+			}
 			got := view{namespace: s.TargetNamespace, reuseMode: s.ReuseMode, renderMode: s.RenderMode, layout: s.Layout,
 				threshold: s.ReuseThreshold, hints: s.emitInlineHints(), nodes: s.nodeLayout(),
-				emptyUnmarked: s.EmptyUnmarkedCredentials}
+				emptyCredentials: removal.level}
 			if got != tc.want {
 				t.Errorf("the settings read %+v, want %+v", got, tc.want)
 			}

@@ -166,24 +166,32 @@ func lineFeedsFor(text string) (string, int) {
 	return strings.ReplaceAll(strings.ReplaceAll(text, "\r\n", "\n"), "\r", "\n"), count
 }
 
-// Credential is one value a source holds in a field its format marks as a
-// credential, or one the format writes empty as a credential though it marks it
-// as none: the node holding the field, the field's name as the format names it,
-// and the JSON Pointer (RFC 6901) addressing the value from the root of the
-// source's tree.
+// Credential is one value a source holds that can carry a credential, as a
+// format's credential locator finds it: the node holding the field, the field's
+// name as the format names it, the JSON Pointer (RFC 6901) addressing the value
+// from the root of the source's tree, and its class — what the format says of
+// the field, which decides which value of the empty_credentials setting writes
+// it empty. A value the setting does not write empty is carried as written and
+// named in a warning.
 type Credential struct {
 	Node    string
 	Field   string
 	Pointer string
+	// Class is what the format says of the field: that it marks it as a
+	// credential, the zero value; that it is a member of an MCP server's
+	// configuration; or that it marks it as none though it can carry one.
+	Class CredentialClass
 	// Value, where set, is the JSON value written in place of the value instead
-	// of an empty string: the same value with only the credentials it carries
-	// written empty, for a field that keeps them inside text of its own, such as a
-	// server configuration written as JSON text. A value that already reads as
-	// Value is left as written.
+	// of an empty string where it is written empty: the same value with only the
+	// credentials it carries written empty, for a field that keeps them inside
+	// text of its own, such as a server configuration written as JSON text. A
+	// value that already reads as Value is left as written, and holds nothing to
+	// carry.
 	Value json.RawMessage
 	// Detail, where set, says what of the value is written empty — with Value set
-	// — or why the whole value is — without it. The import's report of the value
-	// carries it.
+	// — or why the whole value is — without it. The import's report of a value
+	// written empty carries it, and the report of a value carried with Value set
+	// names what Detail names.
 	Detail string
 }
 
@@ -251,21 +259,38 @@ func scrubCredentials(source []byte, credentials []Credential) ([]byte, []Creden
 	return rewriteSource(source, nil, credentials)
 }
 
-// rewriteSource writes each edit into source and then empties every credential
-// as scrubCredentials does: a credential carrying a Value has it written in
-// place of its value instead of "", and is left as written where its value
-// already reads as that. An edit wins over a credential addressing the same
-// value, and the credential is then not reported as emptied, since what is
+// rewriteSource is rewriteSourceAt returning, in place of a flag per
+// credential, the credentials whose value it changed, in the order given.
+func rewriteSource(source []byte, edits []Edit, credentials []Credential) ([]byte, []Credential, error) {
+	out, changed, err := rewriteSourceAt(source, edits, credentials)
+	if err != nil {
+		return nil, nil, err
+	}
+	var written []Credential
+	for i, c := range credentials {
+		if changed[i] {
+			written = append(written, c)
+		}
+	}
+	return out, written, nil
+}
+
+// rewriteSourceAt writes each edit into source and then empties every
+// credential as scrubCredentials does: a credential carrying a Value has it
+// written in place of its value instead of "", and is left as written where its
+// value already reads as that. An edit wins over a credential addressing the
+// same value, and the credential is then not reported as emptied, since what is
 // written there is the edit's. Every other byte is kept. It returns the written
-// bytes and the credentials whose value it changed, in the order given.
+// bytes and, for each credential in the order given, whether it changed its
+// value.
 //
 // Every edit and credential is located in one reading of source, as a
 // jsonDocument reads it, however many there are.
 //
 // An edit or a credential whose pointer reaches no value in the bytes is refused
-// with an error, as are an edit whose value is not JSON and bytes that are not
-// one JSON document.
-func rewriteSource(source []byte, edits []Edit, credentials []Credential) ([]byte, []Credential, error) {
+// with an error — a credentialNotLocated error for a credential — as are an edit
+// whose value is not JSON and bytes that are not one JSON document.
+func rewriteSourceAt(source []byte, edits []Edit, credentials []Credential) ([]byte, []bool, error) {
 	type write struct {
 		span
 		value []byte
@@ -301,15 +326,15 @@ func rewriteSource(source []byte, edits []Edit, credentials []Credential) ([]byt
 			edited[s] = true
 		}
 	}
-	var changed []Credential
+	changed := make([]bool, len(credentials))
 	for i, c := range credentials {
 		spans, err := doc.spans(c.Pointer)
 		if err != nil {
-			return nil, nil, fmt.Errorf("the field %s of node %s: %w", c.Field, c.Node, err)
+			return nil, nil, credentialNotLocated{fmt.Errorf("the field %s of node %s: %w", c.Field, c.Node, err)}
 		}
 		if len(spans) == 0 {
-			return nil, nil, fmt.Errorf("the field %s of node %s is not in the source's bytes where its tree holds it",
-				c.Field, c.Node)
+			return nil, nil, credentialNotLocated{fmt.Errorf("the field %s of node %s is not in the source's bytes "+
+				"where its tree holds it", c.Field, c.Node)}
 		}
 		value := []byte(`""`)
 		if c.Value != nil {
@@ -330,12 +355,10 @@ func rewriteSource(source []byte, edits []Edit, credentials []Credential) ([]byt
 			writes = append(writes, write{span: s, value: value, order: len(edits) + i})
 			wrote = true
 		}
-		if wrote {
-			changed = append(changed, c)
-		}
+		changed[i] = wrote
 	}
 	if len(writes) == 0 {
-		return source, nil, nil
+		return source, changed, nil
 	}
 	sort.SliceStable(writes, func(i, j int) bool {
 		if writes[i].start != writes[j].start {

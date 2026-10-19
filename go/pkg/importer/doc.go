@@ -91,14 +91,23 @@
 // workspace's catalog holds no Component of the platform's name, the platform
 // is drafted all the same, no part is wired, and the import warns.
 //
-// The source is carried as its own bytes with every value in a field the format
-// marks as a credential written empty, and every value the format writes empty
-// as one though it marks it as none, as an argument a server is started with
-// can carry a key; each one is reported by its node and field and never by its
-// value, and nothing else is changed but what the format writes so that the
-// flow reaches each wired part through its connection: the name of the variable
-// the platform delivers for the connection, written into the field that reads
-// it, or an address the platform writes for itself, written empty.
+// The source is carried as its own bytes. The format locates every value in it
+// that can carry a credential, each of one class — what the format marks as a
+// credential, a member of an MCP server's configuration, or an input the format
+// marks as none that can carry one — and the empty_credentials setting decides,
+// in one place for every format, which classes are written empty: by default
+// none, so each value is carried as written and named in a credential-carried
+// warning, by its node and field and never by its value, which also names the
+// setting value that writes it empty; each value the setting writes empty is
+// reported under credential-emptied. [CarryCredentials] is the same decision for
+// an importer that drafts values of its own. Nothing else is changed but what
+// the format writes so that the flow reaches each wired part through its
+// connection — the name of the variable the platform delivers for the
+// connection, written into the field that reads it, an address the platform
+// writes for itself, written empty, or what the node would send in place of
+// what the connection supplies, written empty — and what it writes for a node
+// the draft wires to no socket that a connection reaches as the node is
+// written, which is wiring and not removal, whatever the setting says.
 // The import reports how the flow reaches each wired part, and a part the flow
 // reaches other than through its connection. Each carriage return is written
 // as a line feed, which a JSON reader reads alike, and the import says how many.
@@ -145,10 +154,13 @@
 //     HIGH match; default 0.85.
 //   - emit_hints: whether hints are written into the drafts as comments;
 //     default true. The decision record carries them either way.
-//   - empty_unmarked_credentials: whether the flow a platform carries has the
-//     inputs its format marks as no credential, and that can carry one, written
-//     empty; default false, which carries them as written. What a format marks
-//     as a credential is written empty either way.
+//   - empty_credentials: none (the default), which writes no credential value
+//     empty, marked, which writes empty what a format marks as a credential and
+//     every member of an MCP server's configuration, or all, which writes empty
+//     the inputs a format marks as no credential that can carry one as well. A
+//     value carried is named in a warning. Any other value halts the import,
+//     which drafts nothing; a draft made node by node reads no value, and so
+//     does not read this setting.
 //   - render_mode: human (the default), one file per drafted Component plus
 //     the Aggregate, or llm, the whole decision record as one JSON document.
 //   - mapping_overrides: format, then node type, then a mapping with the keys

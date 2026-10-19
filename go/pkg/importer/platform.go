@@ -5,6 +5,7 @@ package importer
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"path"
 	"regexp"
@@ -42,11 +43,13 @@ import (
 // core/egress-allowlist under features, with nothing of its infrastructure set,
 // and the comment above it names what of that the Release sets.
 //
-// The source is carried as its own bytes, with every credential value it holds
-// written empty, every value Wire asks for written anew, every carriage return
-// written as a line feed, and nothing else changed, so a source with nothing of
-// these to change is carried byte for byte. A source is read as JSON to find
-// those values, so a platform's sources are JSON documents.
+// The source is carried as its own bytes, with every value Wire and Reached ask
+// for written anew, every credential value Credentials locates written empty
+// where the empty_credentials setting asks for it — and every other one carried
+// as written and named in a warning — every carriage return written as a line
+// feed, and nothing else changed, so a source with nothing of these to change is
+// carried byte for byte. A source is read as JSON to find those values, so a
+// platform's sources are JSON documents.
 type Platform struct {
 	// Component is the name of the catalog Component that runs a flow of the
 	// format, such as core/ai-agent/langflow. The last segment of the name is the
@@ -62,20 +65,17 @@ type Platform struct {
 	// dot, a hyphen, an underscore or a colon — is given one derived from its
 	// carried bytes, and the draft says so. Nil reads none.
 	Identifier func(tree json.RawMessage) string
-	// Credentials locates every value the source's tree holds in a field the
-	// format marks as a credential, and every value the format writes empty as
-	// one though it marks it as none, as an argument a server is started with can
-	// carry a key. emptyUnmarked is the empty_unmarked_credentials setting: where
-	// it is false, Credentials locates, of the values the format marks as none,
-	// only those it writes empty because they belong to a part of the flow — an
-	// MCP server's members, or what a node the platform's connection reaches
-	// would send in place of what that connection supplies — and leaves every
-	// other one, such as a request's headers or query parameters, to be carried
-	// as written. Each
-	// value located is written empty before the source is carried, and the import
-	// names each one it empties by its node and field, never by its value. Nil
-	// locates none.
-	Credentials func(tree json.RawMessage, emptyUnmarked bool) []Credential
+	// Credentials locates every value the source's tree holds that can carry a
+	// credential, of every class, each tagged with its class: what the format
+	// marks as a credential, each member of an MCP server's configuration, and
+	// each input the format marks as no credential that can carry one, as a
+	// request's headers or query parameters can. It reads no setting: the
+	// empty_credentials setting decides which classes are written empty before
+	// the source is carried, and every other value located is carried as
+	// written; the import names each value it empties and each it carries
+	// holding something by its node and field, never by its value. A value Wire
+	// or Reached writes is theirs, neither emptied nor carried. Nil locates none.
+	Credentials func(tree json.RawMessage) []Credential
 	// Match reports whether a set of labels satisfies a socket's selector, in the
 	// grammar the catalog writes selectors in. The package carries no selector
 	// grammar of its own; nil places no part in any socket.
@@ -105,6 +105,17 @@ type Platform struct {
 	// edits it returns write the alias in place of that name. Nil writes nothing
 	// and reports nothing.
 	Wire func(tree json.RawMessage, part Part) Wiring
+	// Reached is asked, for each node of a source the draft wires to no socket,
+	// whether a connection the draft does wire reaches the node as it is written —
+	// its client reading what the platform delivers for that connection from its
+	// environment, as the format reads it off the tree — and, where one does, what
+	// the flow is written with so that nothing the node holds is sent in place of
+	// what that connection supplies: the values of the source it writes anew, and
+	// how the node reaches the connection, which the import reports. wired are the
+	// parts of the platform's instance the draft wires, in the order wired. A
+	// Wiring with no Reads says the node reaches none, and its edits are not
+	// written. Nil reaches no node.
+	Reached func(tree json.RawMessage, node Node, wired []Part) Wiring
 	// Single lists the sockets of the platform that draw a single connection, as
 	// a socket does whose connection the platform's Recipes deliver under fixed
 	// variable names, which can carry one connection only. Of the parts placed
@@ -266,6 +277,10 @@ func importPlatform(in aggrega.ImportInput, served Format, settings importSettin
 	parse func(syntax string, source []byte) (json.RawMessage, error)) aggrega.ImportOutput {
 	p := served.Platform
 	format := in.Format
+	removal, halt := readCredentialRemoval(in.Settings)
+	if halt != nil {
+		return aggrega.ImportOutput{Diagnostics: []aggrega.Diagnostic{*halt}}
+	}
 	table := newMappingTable(settings.MappingOverrides, format, served)
 	catalog := candidatesFrom(in.Catalog)
 	labels := catalogLabels(in.Catalog)
@@ -336,6 +351,7 @@ func importPlatform(in aggrega.ImportInput, served Format, settings importSettin
 			nodeDiags = append(nodeDiags, pl.diags...)
 			if pl.heldBy != "" {
 				held = append(held, heldOut{placement: i, decision: len(out.Decisions), diag: len(nodeDiags)})
+				pl.decisionAt = len(out.Decisions)
 				out.Decisions = append(out.Decisions, decision)
 				// Written once the part holding the connection is wired and the
 				// flow carried, since it names both.
@@ -343,6 +359,7 @@ func importPlatform(in aggrega.ImportInput, served Format, settings importSettin
 				continue
 			}
 			if socket == "" {
+				pl.decisionAt = len(out.Decisions)
 				out.Decisions = append(out.Decisions, decision)
 				continue
 			}
@@ -407,8 +424,29 @@ func importPlatform(in aggrega.ImportInput, served Format, settings importSettin
 				edits = append(edits, wired[i].wiring.Edits...)
 			}
 		}
-		out.Diagnostics = append(out.Diagnostics, inst.carry(p, format, src, tree, nodes, refOf, edits,
-			settings.EmptyUnmarkedCredentials)...)
+		// A node the draft wires to no socket that a connection reaches as it is
+		// written is written so that nothing it holds is sent in place of what
+		// that connection supplies, before the flow is carried.
+		var reached []reachedNode
+		if p.Reached != nil && len(wired) > 0 {
+			parts := make([]Part, 0, len(wired))
+			for _, w := range wired {
+				parts = append(parts, w.part)
+			}
+			for i := range placements {
+				pl := &placements[i]
+				if pl.socket != "" && pl.heldBy == "" {
+					continue
+				}
+				w := p.Reached(tree, pl.node, parts)
+				if w.Reads == "" {
+					continue
+				}
+				reached = append(reached, reachedNode{placement: i, wiring: w})
+				edits = append(edits, w.Edits...)
+			}
+		}
+		out.Diagnostics = append(out.Diagnostics, inst.carry(p, format, src, tree, nodes, refOf, edits, removal)...)
 		for _, h := range held {
 			pl := placements[h.placement]
 			reason := heldOutReason(p, inst.carried, tree, pl, holders[pl.heldBy])
@@ -445,6 +483,21 @@ func importPlatform(in aggrega.ImportInput, served Format, settings importSettin
 					SourceRef: w.ref,
 				})
 			}
+		}
+		for _, r := range reached {
+			if !inst.carried {
+				continue
+			}
+			pl := placements[r.placement]
+			out.Decisions[pl.decisionAt].Rationale += "; a connection the draft wires reaches it as it is written: " +
+				r.wiring.Reads
+			out.Diagnostics = append(out.Diagnostics, aggrega.Diagnostic{
+				Severity: "warn",
+				Code:     "part-reads-connection",
+				Message: fmt.Sprintf("node %s is wired to no socket of %s, and a connection the draft wires reaches it as "+
+					"it is written: %s", pl.ref, p.Component, r.wiring.Reads),
+				SourceRef: pl.ref,
+			})
 		}
 		if settings.AttachEgressAllowlist {
 			for _, w := range wired {
@@ -498,6 +551,17 @@ type placement struct {
 	// heldBy, where set, is the socket drawing a single connection the node's
 	// part was placed in, which another part holds: the part stays in the flow.
 	heldBy string
+	// decisionAt is the position of the decision of a node the draft wires to no
+	// socket, once it is recorded.
+	decisionAt int
+}
+
+// reachedNode is a node the draft wires to no socket that a connection the
+// draft wires reaches as it is written: its placement, and what the format says
+// the flow is written with for it.
+type reachedNode struct {
+	placement int
+	wiring    Wiring
 }
 
 // placeNode decides one node of a source and places it: a part of the flow in
@@ -1041,25 +1105,29 @@ func (inst *platformInstance) wired() bool {
 	return len(inst.parts) > 0
 }
 
+// carriedWhere names, in each report of a credential value, the flow a platform
+// carries.
+const carriedWhere = "in the flow the draft carries"
+
 // carry prepares the flow one source carries into the instance: the values the
-// format writes anew written, its credential values written empty, its carriage
-// returns written as line feeds, and its identifier. It returns the diagnostics
-// the preparation raised: one per credential value it emptied, naming the node
-// and the field; one naming how many carriage returns it wrote as line feeds;
-// and, where the flow cannot be carried, why — a value to write or empty that
+// format writes anew written, its credential values written empty or carried as
+// removal — the empty_credentials setting — decides, its carriage returns
+// written as line feeds, and its identifier. It returns the diagnostics the
+// preparation raised: one per credential value it emptied and one per value it
+// carried holding something, each naming the node and the field; one naming how
+// many carriage returns it wrote as line feeds; and, where the flow cannot be
+// carried, why — a value to write anew, or one the setting writes empty, that
 // the source's bytes do not hold where its tree does, or a character a YAML
 // literal block cannot carry as written. Where the source gives its flow no
 // identifier a draft can carry, one is derived from the carried bytes — or,
 // where a value could not be located and the flow is not carried, from its
 // nodes' identifiers, so nothing a credential value could reach decides it.
-// emptyUnmarked is the empty_unmarked_credentials setting, which the format's
-// credential locator is handed.
 func (inst *platformInstance) carry(p *Platform, format string, src aggrega.ImportSource, tree json.RawMessage,
-	nodes []Node, refOf func(string) string, edits []Edit, emptyUnmarked bool) []aggrega.Diagnostic {
+	nodes []Node, refOf func(string) string, edits []Edit, removal credentialRemoval) []aggrega.Diagnostic {
 	var diags []aggrega.Diagnostic
 	var creds []Credential
 	if p.Credentials != nil {
-		creds = p.Credentials(tree, emptyUnmarked)
+		creds = p.Credentials(tree)
 	}
 	own := ""
 	if p.Identifier != nil {
@@ -1069,13 +1137,18 @@ func (inst *platformInstance) carry(p *Platform, format string, src aggrega.Impo
 	if src.Name != "" {
 		flow = fmt.Sprintf("the flow of source %q", src.Name)
 	}
-	scrubbed, emptied, err := rewriteSource(src.Bytes, edits, creds)
+	scrubbed, credentialDiags, err := carryCredentials(removal, src.Bytes, tree, edits, creds, carriedWhere, refOf)
 	if err != nil {
+		why := "so what the draft writes for its parts could not be written"
+		var unlocated credentialNotLocated
+		if errors.As(err, &unlocated) {
+			why = "so a credential it holds could not be kept out of the draft"
+		}
 		diags = append(diags, aggrega.Diagnostic{
 			Severity: "warn",
 			Code:     "definition-not-carried",
-			Message: fmt.Sprintf("%s is not carried in values.%s: %s, so a credential it holds could not be kept out of "+
-				"the draft", flow, p.DefinitionValue, err.Error()),
+			Message: fmt.Sprintf("%s is not carried in values.%s: %s, %s", flow, p.DefinitionValue, err.Error(),
+				why),
 			SourceRef: src.Name,
 		})
 		if carriedIdentifier(own) {
@@ -1090,14 +1163,7 @@ func (inst *platformInstance) carry(p *Platform, format string, src aggrega.Impo
 		inst.idNote = "derived from the identifiers of the flow's nodes, since the flow is not carried"
 		return diags
 	}
-	for _, c := range emptied {
-		diags = append(diags, aggrega.Diagnostic{
-			Severity:  "warn",
-			Code:      "credential-emptied",
-			Message:   emptiedMessage(c, refOf(c.Node)),
-			SourceRef: refOf(c.Node),
-		})
-	}
+	diags = append(diags, credentialDiags...)
 
 	text, returns := lineFeedsFor(string(scrubbed))
 	if returns > 0 {
@@ -1111,6 +1177,14 @@ func (inst *platformInstance) carry(p *Platform, format string, src aggrega.Impo
 		})
 	}
 	if problems := blockProblems(text); len(problems) > 0 {
+		// Nothing is carried, so no value is carried as written.
+		kept := diags[:0]
+		for _, d := range diags {
+			if d.Code != "credential-carried" {
+				kept = append(kept, d)
+			}
+		}
+		diags = kept
 		for _, pr := range problems {
 			diags = append(diags, aggrega.Diagnostic{
 				Severity: "warn",
@@ -1137,26 +1211,6 @@ func (inst *platformInstance) carry(p *Platform, format string, src aggrega.Impo
 		inst.idNote = "derived from the exported flow: its own identifier holds characters a draft does not write as they are"
 	}
 	return diags
-}
-
-// emptiedMessage reports a credential value written empty, by its node — written
-// ref — and its field, never by its value: with the credential's Value set, the
-// parts inside the value its Detail names; with only its Detail set, the whole
-// value, and why. It says what is written of that one value and nothing of the
-// rest of the flow, which can hold a credential in a place no format marks.
-func emptiedMessage(c Credential, ref string) string {
-	const carried = " in the flow the draft carries"
-	switch {
-	case c.Value != nil:
-		return fmt.Sprintf("%s of node %s is written with its %s empty%s", c.Field, ref,
-			firstOf(c.Detail, "credential values"), carried)
-	case c.Detail != "":
-		return fmt.Sprintf("the whole value of %s of node %s is written empty%s, since %s", c.Field, ref, carried,
-			c.Detail)
-	default:
-		return fmt.Sprintf("the value of %s, which node %s marks as a credential, is written empty%s", c.Field, ref,
-			carried)
-	}
 }
 
 // platformDraft assembles the drafted Aggregate of a platform draft: each

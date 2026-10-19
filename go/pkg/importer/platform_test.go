@@ -21,9 +21,11 @@ const testPlatformName = "core/ai-agent/testplat"
 // platformTestFormat is the test's own format, describing a platform of the
 // test's own: its flow is carried in flow_definition and named by flow_id, the
 // source's top-level id is its own identifier, every member of a node's
-// data.secretValues is a credential, and so is every element of its data.args,
-// the arguments a server is started with, and a socket's selector is read by
-// testMatch.
+// data.secretValues is a value the format marks as a credential, every element
+// of its data.args — the arguments a server is started with — a member of an
+// MCP server's configuration, and every member of its data.headers an input the
+// format marks as no credential that can carry one, and a socket's selector is
+// read by testMatch.
 func platformTestFormat() Format {
 	f := testFormat()
 	f.Platform = &Platform{
@@ -46,16 +48,21 @@ func testFlowID(tree json.RawMessage) string {
 	return top.ID
 }
 
-// testArgumentDetail says why the test's format writes an argument empty.
-const testArgumentDetail = "an argument a server is started with can carry a credential"
+// testArgumentDetail and testHeaderDetail say why the test's format writes an
+// argument and a header empty.
+const (
+	testArgumentDetail = "an argument a server is started with can carry a credential"
+	testHeaderDetail   = "a header can carry a credential, though the format marks it as none"
+)
 
-func testCredentials(tree json.RawMessage, _ bool) []Credential {
+func testCredentials(tree json.RawMessage) []Credential {
 	var top struct {
 		Nodes []struct {
 			ID   string `json:"id"`
 			Data struct {
 				SecretValues json.RawMessage `json:"secretValues"`
 				Args         json.RawMessage `json:"args"`
+				Headers      json.RawMessage `json:"headers"`
 			} `json:"data"`
 		} `json:"nodes"`
 	}
@@ -65,14 +72,18 @@ func testCredentials(tree json.RawMessage, _ bool) []Credential {
 	var out []Credential
 	for i, n := range top.Nodes {
 		for _, e := range ObjectEntries(n.Data.SecretValues) {
-			out = append(out, Credential{Node: n.ID, Field: e.Key,
+			out = append(out, Credential{Node: n.ID, Field: e.Key, Class: CredentialMarked,
 				Pointer: Pointer("nodes", strconv.Itoa(i), "data", "secretValues", e.Key)})
 		}
 		var args []json.RawMessage
 		_ = json.Unmarshal(n.Data.Args, &args)
 		for j := range args {
-			out = append(out, Credential{Node: n.ID, Field: "args." + strconv.Itoa(j),
+			out = append(out, Credential{Node: n.ID, Field: "args." + strconv.Itoa(j), Class: CredentialServerMember,
 				Pointer: Pointer("nodes", strconv.Itoa(i), "data", "args", strconv.Itoa(j)), Detail: testArgumentDetail})
+		}
+		for _, e := range ObjectEntries(n.Data.Headers) {
+			out = append(out, Credential{Node: n.ID, Field: "headers." + e.Key, Class: CredentialUnmarked,
+				Pointer: Pointer("nodes", strconv.Itoa(i), "data", "headers", e.Key), Detail: testHeaderDetail})
 		}
 	}
 	return out
@@ -454,79 +465,278 @@ func TestACatalogHoldingNoPlatformDraftsItAndWiresNothing(t *testing.T) {
 // plantedKey is a key-shaped value planted in a credential field.
 const plantedKey = "sk-plantedKITkey0123456789abcdefXYZ"
 
-// TestNoCredentialValueReachesTheDraft plants a key-shaped value in a field the
-// test's format marks as a credential, and, apart, in an argument a server is
-// started with, which the format writes empty too, and imports each under both
-// layouts. The planted value is in the source — the search below finds it there,
-// which is what says the search fires — and in nothing the import returns: no
-// drafted file, no decision, no diagnostic. The carried definition is the source
-// with the values the format locates written "" and every other byte kept, and
-// one warning per value names the node and the field, and not the value.
-//
-// 🔴 PLANTED DEFECT: in carry (platform.go), replace
-// `scrubbed, emptied, err := rewriteSource(src.Bytes, edits, creds)` with
-// `scrubbed, emptied, err := src.Bytes, []Credential(nil), error(nil); _, _ = edits, creds`,
-// and both platform rows fail: the planted value is in the drafted Aggregate.
-func TestNoCredentialValueReachesTheDraft(t *testing.T) {
-	t.Parallel()
-	const tail = " in the flow the draft carries"
-	argument := func(n int) aggrega.Diagnostic {
-		return aggrega.Diagnostic{Severity: "warn", Code: "credential-emptied", SourceRef: "finder",
-			Message: "the whole value of args." + strconv.Itoa(n) + " of node finder is written empty in the flow the draft " +
-				"carries, since " + testArgumentDetail}
+// The key-shaped values a test plants, one per class of credential value the
+// test's format locates: in a field it marks as a credential, in an argument a
+// server is started with, and in a header it marks as no credential.
+const (
+	plantedMarked   = "sk-plantedKITmarked0123456789abcdef"
+	plantedServer   = "sk-plantedKITserver0123456789abcdef"
+	plantedUnmarked = "sk-plantedKITunmarked0123456789abcd"
+)
+
+// plantedFields writes, in place of model-1's empty api_key and the finder's
+// bare data in platformSourceLine, an api_key of apiKey, two arguments and two
+// headers, the second of which holds nothing.
+func plantedFields(line, apiKey, arg0, arg1, auth string) string {
+	line = strings.Replace(line, `"secretValues":{"api_key":""}`, `"secretValues":{"api_key":"`+apiKey+`"}`, 1)
+	return strings.Replace(line, `{"type":"Finder"}`, `{"type":"Finder","args":["`+arg0+`","`+arg1+`"],`+
+		`"headers":{"Authorization":"`+auth+`","Accept":""}}`, 1)
+}
+
+// carriedWarning and emptiedWarning are the reports of a value of the test's
+// format carried as written and written empty.
+func carriedWarning(node, field, why, level string) aggrega.Diagnostic {
+	return aggrega.Diagnostic{Severity: "warn", Code: "credential-carried", SourceRef: node,
+		Message: "the value of " + field + " of node " + node + " is carried as written in the flow the draft carries: " +
+			why + ", and setting empty_credentials to " + level + " writes it empty"}
+}
+
+func emptiedWarning(node, field, detail string) aggrega.Diagnostic {
+	if detail == "" {
+		return aggrega.Diagnostic{Severity: "warn", Code: "credential-emptied", SourceRef: node,
+			Message: "the value of " + field + ", which node " + node + " marks as a credential, is written empty in the " +
+				"flow the draft carries"}
 	}
-	for _, plant := range []struct {
-		name, source string
-		// aggregate is the Aggregate the source is drafted as, with what the
-		// format locates written "".
-		aggregate   string
-		diagnostics []aggrega.Diagnostic
+	return aggrega.Diagnostic{Severity: "warn", Code: "credential-emptied", SourceRef: node,
+		Message: "the whole value of " + field + " of node " + node + " is written empty in the flow the draft carries, " +
+			"since " + detail}
+}
+
+// The reasons a carried value's report gives, by class.
+const (
+	markedWhy   = "its format marks the field as a credential"
+	serverWhy   = "the field belongs to an MCP server's configuration, which can carry a key"
+	unmarkedWhy = "its format marks the field as no credential, though it can carry one"
+)
+
+// TestTheEmptyCredentialsSettingDecidesWhatIsCarried plants a key-shaped value of
+// each class the test's format locates — in a field it marks as a credential, in
+// an argument a server is started with, and in a header it marks as none — and
+// imports the flow under the empty_credentials setting absent and at each value
+// it takes:
+//
+//   - absent and none write nothing empty: the flow is carried byte for byte,
+//     every planted value in it as written and in the order written, and one
+//     credential-carried warning per located value holding something — the
+//     second argument and the header holding nothing raise none — naming the
+//     node, the field and the setting value that writes it empty;
+//   - marked writes empty the marked field and the server's arguments, each
+//     reported under credential-emptied and none under credential-carried, and
+//     carries the header as in the default;
+//   - all writes every one of them empty.
+//
+// Under every value no planted value reaches a diagnostic, a decision or a
+// comment of any drafted file — the search finds the values in the source,
+// which is what says it fires — and under the node-by-node layout none reaches
+// anything the import returns at all, since that draft reads no value.
+//
+// 🔴 PLANTED DEFECTS, each in credentials.go:
+//
+//   - in carryCredentials, replace `case removal.empties(c.Class):` with
+//     `case true:`: every value is written empty under the default, and the
+//     absent and none rows fail;
+//   - in carryCredentials, replace
+//     `case verdicts[i] == carried && holdsValue(tree, c):` with `case false:`:
+//     the default raises no warning, and the absent and none rows fail;
+//   - in readCredentialRemoval, replace `return credentialRemoval{level: level}, nil`
+//     with `return credentialRemoval{level: emptyNone}, nil`: the setting reads
+//     as none, and the marked and all rows fail.
+func TestTheEmptyCredentialsSettingDecidesWhatIsCarried(t *testing.T) {
+	t.Parallel()
+	source := plantedFields(platformSourceLine, plantedMarked, "--verbose", "--api-key="+plantedServer,
+		"Bearer "+plantedUnmarked) + "\n"
+	planted := []string{plantedMarked, plantedServer, plantedUnmarked}
+	for _, needle := range planted {
+		if !strings.Contains(source, needle) {
+			t.Fatalf("the needle: the search does not find %s in the source, so it finds nothing", needle)
+		}
+	}
+	carriedAs := func(apiKey, arg0, arg1, auth string) string {
+		agg := renderedPlatformAggregate()
+		agg = strings.Replace(agg, `"secretValues":{"api_key":""}`, `"secretValues":{"api_key":"`+apiKey+`"}`, 1)
+		return strings.Replace(agg, `{"type":"Finder"}`, `{"type":"Finder","args":["`+arg0+`","`+arg1+`"],`+
+			`"headers":{"Authorization":"`+auth+`","Accept":""}}`, 1)
+	}
+	asWritten := carriedAs(plantedMarked, "--verbose", "--api-key="+plantedServer, "Bearer "+plantedUnmarked)
+	defaultWarnings := []aggrega.Diagnostic{
+		carriedWarning("model-1", "api_key", markedWhy, "marked or all"),
+		carriedWarning("finder", "args.0", serverWhy, "marked or all"),
+		carriedWarning("finder", "args.1", serverWhy, "marked or all"),
+		carriedWarning("finder", "headers.Authorization", unmarkedWhy, "all"),
+	}
+	for _, tc := range []struct {
+		name, settings, aggregate string
+		diagnostics               []aggrega.Diagnostic
 	}{
-		{
-			name:      "a credential field",
-			source:    strings.Replace(platformSource, `"secretValues":{"api_key":""}`, `"secretValues":{"api_key":"`+plantedKey+`"}`, 1),
-			aggregate: renderedPlatformAggregate(),
-			diagnostics: []aggrega.Diagnostic{{Severity: "warn", Code: "credential-emptied", SourceRef: "model-1",
-				Message: "the value of api_key, which node model-1 marks as a credential, is written empty" + tail}},
-		},
-		{
-			name:        "an argument",
-			source:      strings.Replace(platformSource, `{"type":"Finder"}`, `{"type":"Finder","args":["--verbose","--api-key=`+plantedKey+`"]}`, 1),
-			aggregate:   strings.Replace(renderedPlatformAggregate(), `{"type":"Finder"}`, `{"type":"Finder","args":["",""]}`, 1),
-			diagnostics: []aggrega.Diagnostic{argument(0), argument(1)},
-		},
+		{name: "absent", aggregate: asWritten, diagnostics: defaultWarnings},
+		{name: "none", settings: `{"empty_credentials":"none"}`, aggregate: asWritten, diagnostics: defaultWarnings},
+		{name: "marked", settings: `{"empty_credentials":"marked"}`,
+			aggregate: carriedAs("", "", "", "Bearer "+plantedUnmarked),
+			diagnostics: []aggrega.Diagnostic{
+				emptiedWarning("model-1", "api_key", ""),
+				emptiedWarning("finder", "args.0", testArgumentDetail),
+				emptiedWarning("finder", "args.1", testArgumentDetail),
+				carriedWarning("finder", "headers.Authorization", unmarkedWhy, "all"),
+			}},
+		{name: "all", settings: `{"empty_credentials":"all"}`, aggregate: carriedAs("", "", "", ""),
+			diagnostics: []aggrega.Diagnostic{
+				emptiedWarning("model-1", "api_key", ""),
+				emptiedWarning("finder", "args.0", testArgumentDetail),
+				emptiedWarning("finder", "args.1", testArgumentDetail),
+				emptiedWarning("finder", "headers.Authorization", testHeaderDetail),
+			}},
 	} {
-		holds := func(text string) bool { return strings.Contains(text, plantedKey) }
-		if !holds(plant.source) {
-			t.Fatalf("the needle: the search does not find the value planted in %s, so it finds nothing", plant.name)
+		t.Run(tc.name, func(t *testing.T) {
+			out := platformImport(t, platformTestFormat(), platformCatalog(), tc.settings, oneSource(source))
+			if agg := out.Files[len(out.Files)-1].Content; agg != tc.aggregate {
+				t.Errorf("the Aggregate is not the source carried as the setting asks:\n%s\nwant\n%s", agg, tc.aggregate)
+			}
+			if !reflect.DeepEqual(out.Diagnostics, tc.diagnostics) {
+				t.Errorf("the import raised %+v, want %+v", out.Diagnostics, tc.diagnostics)
+			}
+			noPlantedValueOutsideTheFlow(t, out, planted)
+		})
+		t.Run(tc.name+", node by node", func(t *testing.T) {
+			settings := `{"layout":"nodes"}`
+			if tc.settings != "" {
+				settings = strings.Replace(tc.settings, "{", `{"layout":"nodes",`, 1)
+			}
+			out := platformImport(t, platformTestFormat(), platformCatalog(), settings, oneSource(source))
+			whole, err := json.Marshal(out)
+			if err != nil {
+				t.Fatalf("encode the output: %v", err)
+			}
+			for _, needle := range planted {
+				if strings.Contains(string(whole), needle) {
+					t.Errorf("the node-by-node draft carries %s:\n%s", needle, whole)
+				}
+			}
+			for _, d := range out.Diagnostics {
+				if strings.HasPrefix(d.Code, "credential-") {
+					t.Errorf("the node-by-node draft reports a credential value: %+v", d)
+				}
+			}
+		})
+	}
+}
+
+// noPlantedValueOutsideTheFlow fails the test where a planted value reaches a
+// diagnostic or a decision of out, a drafted file other than the Aggregate, or
+// a line of the Aggregate outside the flow it carries.
+func noPlantedValueOutsideTheFlow(t *testing.T, out aggrega.ImportOutput, planted []string) {
+	t.Helper()
+	reported, err := json.Marshal(struct {
+		D []aggrega.Diagnostic
+		R []aggrega.ImportDecision
+	}{out.Diagnostics, out.Decisions})
+	if err != nil {
+		t.Fatalf("encode the diagnostics and decisions: %v", err)
+	}
+	for _, needle := range planted {
+		if strings.Contains(string(reported), needle) {
+			t.Errorf("%s reaches a diagnostic or a decision:\n%s", needle, reported)
 		}
-		for _, layout := range []string{"", `{"layout":"nodes"}`} {
-			t.Run(plant.name+", layout "+layout, func(t *testing.T) {
-				out := platformImport(t, platformTestFormat(), platformCatalog(), layout, oneSource(plant.source))
-				whole, err := json.Marshal(out)
-				if err != nil {
-					t.Fatalf("encode the output: %v", err)
+		for i, f := range out.Files {
+			if i < len(out.Files)-1 {
+				if strings.Contains(f.Content, needle) {
+					t.Errorf("%s reaches %s:\n%s", needle, f.Path, f.Content)
 				}
-				if holds(string(whole)) {
-					t.Errorf("the planted value reaches the import's output:\n%s", whole)
+				continue
+			}
+			for _, line := range strings.Split(f.Content, "\n") {
+				if strings.Contains(line, needle) && !strings.HasPrefix(line, "          {") {
+					t.Errorf("%s reaches a line of the Aggregate outside the flow it carries: %q", needle, line)
 				}
-				for _, f := range out.Files {
-					if holds(f.Content) {
-						t.Errorf("the planted value reaches %s:\n%s", f.Path, f.Content)
-					}
-				}
-				if layout != "" {
-					return
-				}
-				if agg := out.Files[len(out.Files)-1].Content; agg != plant.aggregate {
-					t.Errorf("the Aggregate is not the source carried with the values the format locates emptied:\n%s\nwant\n%s",
-						agg, plant.aggregate)
-				}
-				if !reflect.DeepEqual(out.Diagnostics, plant.diagnostics) {
-					t.Errorf("the import raised %+v, want %+v", out.Diagnostics, plant.diagnostics)
-				}
-			})
+			}
 		}
+	}
+}
+
+// TestASettingValueTheImportDoesNotTakeHaltsIt imports the planted flow with the
+// empty_credentials setting at values it does not take — another text, the
+// empty text, a boolean, null and an object — and the import drafts nothing:
+// no entity, no file, no decision, and one halting diagnostic naming the setting
+// and the value as written. The node-by-node draft reads no value and so not the
+// setting, and is drafted as it is without it.
+//
+// 🔴 PLANTED DEFECT: in readCredentialRemoval (credentials.go), replace
+// `return credentialRemoval{}, &aggrega.Diagnostic{` with
+// `return credentialRemoval{level: emptyNone}, nil; _ = &aggrega.Diagnostic{`
+// (and drop the now unreachable rest of the statement): every value reads as
+// none, the flow is carried, and every row fails.
+func TestASettingValueTheImportDoesNotTakeHaltsIt(t *testing.T) {
+	t.Parallel()
+	source := plantedFields(platformSourceLine, plantedMarked, "--verbose", "--api-key="+plantedServer,
+		"Bearer "+plantedUnmarked) + "\n"
+	for _, value := range []string{`"mark"`, `""`, `true`, `null`, `{"level":"all"}`} {
+		t.Run(value, func(t *testing.T) {
+			out := platformImport(t, platformTestFormat(), platformCatalog(), `{"empty_credentials":`+value+`}`,
+				oneSource(source))
+			want := []aggrega.Diagnostic{{Severity: "halt", Code: "unknown-empty-credentials",
+				Message: "the empty_credentials setting is " + value + ", which is none of none, marked and all, so the " +
+					"import drafts nothing: an import writes a credential value empty only where the setting asks for it"}}
+			if !reflect.DeepEqual(out.Diagnostics, want) {
+				t.Errorf("the import raised %+v, want %+v", out.Diagnostics, want)
+			}
+			if len(out.Files) != 0 || len(out.Entities) != 0 || len(out.Decisions) != 0 {
+				t.Errorf("the import drafted %d file(s), %d entit(ies) and %d decision(s), want none", len(out.Files),
+					len(out.Entities), len(out.Decisions))
+			}
+			nodes := platformImport(t, platformTestFormat(), platformCatalog(),
+				`{"layout":"nodes","empty_credentials":`+value+`}`, oneSource(source))
+			if len(nodes.Files) == 0 {
+				t.Errorf("the node-by-node draft drafted nothing: %+v", nodes.Diagnostics)
+			}
+			for _, d := range nodes.Diagnostics {
+				if d.Severity == "halt" {
+					t.Errorf("the node-by-node draft halted: %+v", d)
+				}
+			}
+		})
+	}
+}
+
+// TestADraftingImporterDecidesAsThePlatformDraftDoes hands CarryCredentials — the
+// decision an importer drafting values of its own calls — a drafted JSON
+// document holding a value of each class, at each value of the setting, and at
+// one it does not take. Under each it writes and reports exactly what the
+// platform draft writes and reports for the same values: the same values carried
+// or emptied, under the same codes, in the same words but for where the
+// document is written.
+func TestADraftingImporterDecidesAsThePlatformDraftDoes(t *testing.T) {
+	t.Parallel()
+	doc := plantedFields(platformSourceLine, plantedMarked, "--verbose", "--api-key="+plantedServer,
+		"Bearer "+plantedUnmarked)
+	located := testCredentials(json.RawMessage(doc))
+	for _, settings := range []string{"", `{"empty_credentials":"none"}`, `{"empty_credentials":"marked"}`,
+		`{"empty_credentials":"all"}`} {
+		t.Run("settings "+settings, func(t *testing.T) {
+			written, diags, err := CarryCredentials(json.RawMessage(settings), []byte(doc), "in the Release the draft writes",
+				located)
+			if err != nil {
+				t.Fatalf("the decision refused the document: %v", err)
+			}
+			out := platformImport(t, platformTestFormat(), platformCatalog(), settings, oneSource(doc+"\n"))
+			agg := out.Files[len(out.Files)-1].Content
+			if !strings.Contains(agg, "          "+strings.Replace(string(written), "{{question}}", `{{"{{"}}question}}`, 1)+
+				"\n") {
+				t.Errorf("the drafted document reads\n%s\nwhich is not the flow the platform draft carries:\n%s", written, agg)
+			}
+			var want []aggrega.Diagnostic
+			for _, d := range out.Diagnostics {
+				d.Message = strings.Replace(d.Message, "in the flow the draft carries", "in the Release the draft writes", 1)
+				want = append(want, d)
+			}
+			if !reflect.DeepEqual(diags, want) {
+				t.Errorf("the decision raised %+v, want %+v", diags, want)
+			}
+		})
+	}
+	written, diags, err := CarryCredentials(json.RawMessage(`{"empty_credentials":"some"}`), []byte(doc), "here", located)
+	if err != nil || written != nil || len(diags) != 1 || diags[0].Severity != "halt" ||
+		diags[0].Code != "unknown-empty-credentials" {
+		t.Errorf("a value the setting does not take wrote %q and raised %+v (%v), want nothing and one halt", written,
+			diags, err)
 	}
 }
 
