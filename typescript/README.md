@@ -137,6 +137,22 @@ produced from a value an author declared sensitive: match and count it like any
 other, and keep every one of its fields out of a refusal, a warning or a log line,
 as with every other value the input marks.
 
+### Accepting the files a Recipe contributes to the boundary
+
+A Recipe may declare files under `spec.boundary.artifacts` that belong to the
+shared output of the boundary it renders in rather than to one component's
+output — a provider configuration your target reads once for the whole
+boundary, say. The host evaluates those files, merges them across every
+contributor by name, and writes each one once in the directory holding the
+dispatch group's assembled output, beside what your `assemble_boundary` returns.
+Your guest is handed none of them and reads none of them. Declare
+`boundary_artifacts: true` on your `ProviderContract` only when your target
+treats a file placed in that directory as part of the boundary's output; a
+Recipe declaring the block for a provider that does not is refused before
+anything renders. A file your assembly writes under the same name as one of
+those files halts the build, so keep the names your assembly writes documented
+for the authors who choose theirs.
+
 ## Build provenance
 
 A plugin can stamp its version and commit into its `describe()`
