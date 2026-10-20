@@ -100,8 +100,11 @@
 // warning, by its node and field and never by its value, which also names the
 // setting value that writes it empty; each value the setting writes empty is
 // reported under credential-emptied. A value that is wholly a variable reference
-// ([IsVariableReference]) holds no value, and is left as written under every
-// setting and named in no warning. [CarryCredentials] is the same decision for
+// ([IsVariableReference]) — the bare name ${NAME}, ${env:NAME} or ${input:id} —
+// holds no value, and is left as written under every setting and named in no
+// warning; a reference carrying text after an operator, such as ${NAME-value},
+// ${NAME:-value} or ${NAME?message}, holds that text and is located like any
+// other value. [CarryCredentials] is the same decision for
 // an importer that drafts values of its own, which hands it only the values its
 // format's own reading of a reference says hold one. Nothing else is changed but what
 // the format writes so that the flow reaches each wired part through its

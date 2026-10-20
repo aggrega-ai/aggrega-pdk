@@ -22,11 +22,18 @@ import (
 // holds no value of its own.
 
 // IsVariableReference reports whether text is one variable reference and
-// nothing else — ${NAME}, ${env:NAME}, ${input:id}, ${workspaceFolder} and the
-// other forms an MCP client expands in a server's configuration — and so holds
-// no value of its own. A reference carrying a default, ${NAME:-default}, holds
-// the default, and text holding anything beside the reference holds that;
-// neither is a variable reference here.
+// nothing else, and so holds no value of its own: the bare name of a variable,
+// ${NAME}, NAME being a letter or an underscore followed by letters, digits and
+// underscores — a predefined variable such as ${workspaceFolder} or ${userHome}
+// included — or one of the forms the MCP clients define for a server's
+// configuration, ${env:NAME} and ${input:id}, the name or the id written in
+// letters, digits, underscores and hyphens. Every other form holds a value: a
+// reference carrying a default, an alternative, a message or an assignment —
+// ${NAME:-value}, ${NAME-value}, ${NAME:+value}, ${NAME+value},
+// ${NAME:?message}, ${NAME?message}, ${NAME:=value}, ${NAME=value} — holds the
+// text after its operator, which can be a key; any other text inside ${…}, such
+// as ${config:name} or ${/}, is not a reference here and holds that text; and
+// text holding anything beside a reference holds that.
 //
 // A flow a platform draft carries is judged by it: a located value that is
 // wholly a variable reference is left as written under every value of the
@@ -35,11 +42,39 @@ import (
 // its format's is the MCP clients', and hands [CarryCredentials] only the
 // values that grammar says hold one.
 func IsVariableReference(text string) bool {
-	if len(text) < 4 || !strings.HasPrefix(text, "${") || !strings.HasSuffix(text, "}") {
+	if !strings.HasPrefix(text, "${") || !strings.HasSuffix(text, "}") || len(text) < 4 {
 		return false
 	}
 	inner := text[2 : len(text)-1]
-	return !strings.ContainsAny(inner, "${}\n\r") && !strings.Contains(inner, ":-")
+	for _, form := range []string{"env:", "input:"} {
+		if strings.HasPrefix(inner, form) {
+			return referenceID(inner[len(form):])
+		}
+	}
+	return variableName(inner)
+}
+
+// variableName reports whether name is the bare name of a variable: a letter or
+// an underscore, then letters, digits and underscores. Any other character ends
+// the name, so a name followed by an operator and its text is not one.
+func variableName(name string) bool {
+	for i, r := range name {
+		if !(r == '_' || ('a' <= r && r <= 'z') || ('A' <= r && r <= 'Z') || (i > 0 && '0' <= r && r <= '9')) {
+			return false
+		}
+	}
+	return name != ""
+}
+
+// referenceID reports whether id names what ${env:…} or ${input:…} reads: one
+// or more letters, digits, underscores and hyphens.
+func referenceID(id string) bool {
+	for _, r := range id {
+		if !(r == '_' || r == '-' || ('a' <= r && r <= 'z') || ('A' <= r && r <= 'Z') || ('0' <= r && r <= '9')) {
+			return false
+		}
+	}
+	return id != ""
 }
 
 // CredentialClass is what a format says of a credential value its locator

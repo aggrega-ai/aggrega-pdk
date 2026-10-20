@@ -141,11 +141,16 @@ there:
   with the setting value that writes it empty — by node and field, never by value. Any
   other setting value halts the import, which drafts nothing. A value `Wire` or
   `Reached` writes is theirs, neither emptied nor carried. A located value that is one
-  variable reference and nothing else — `${NAME}`, `${env:NAME}`, `${input:id}`, as
+  variable reference and nothing else — the bare name `${NAME}` (a predefined variable
+  such as `${workspaceFolder}` included), `${env:NAME}` or `${input:id}`, as
   `importer.IsVariableReference` reads one — holds no value: the package leaves it as
   written under every setting value and reports it nowhere, so the locator returns it
-  like any other; a locator writing `Credential.Value` keeps each part of the value
-  that is one reference as written, since the package sees only the whole value. An
+  like any other. A reference carrying text after an operator — `${NAME:-value}`,
+  `${NAME-value}`, `${NAME:+value}`, `${NAME?message}`, `${NAME=value}` and the rest,
+  with or without a colon — holds that text, which can be a key, and is located like
+  any other value, as is any other text inside `${…}`. A locator writing
+  `Credential.Value` keeps each part of the value that is one reference as written,
+  since the package sees only the whole value. An
   importer that drafts values of its own rather than carrying a source calls
   `importer.CarryCredentials` with the values its own locator finds, for the same
   decision under the same codes; it reads references in its format's own grammar,
