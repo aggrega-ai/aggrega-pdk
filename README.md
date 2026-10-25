@@ -1,8 +1,8 @@
 # aggrega-pdk
 
-Plugin Development Kits for authoring [Aggrega](https://aggrega.ai)
-Wasm plugins. Three siblings live here, one per supported source
-language:
+This repository holds the Plugin Development Kits for authoring
+[Aggrega](https://aggrega.ai) Wasm plugins, one per supported source
+language.
 
 - **`go/`** — Go PDK; targets publication to `pkg.go.dev` as
   `github.com/aggrega-ai/aggrega-pdk-go`.
@@ -39,8 +39,8 @@ aggrega-pdk/
 ├── .github/workflows/
 │   └── pdk.yml         (per-language build + test gates)
 ├── go/                 (Go PDK + examples + tests)
-├── rust/               (Rust PDK + examples + tests, post-v1alpha1 ship)
-└── typescript/         (TypeScript PDK + examples + tests, post-v1alpha1 ship)
+├── rust/               (Rust PDK + examples + tests)
+└── typescript/         (TypeScript PDK + examples + tests)
 ```
 
 Per-language authoring entry points live in `<language>/README.md`.
