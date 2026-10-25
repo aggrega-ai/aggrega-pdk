@@ -240,10 +240,11 @@ aggrega plugin run-local --plugin dist/governance-adapter-skeleton-typescript.wa
   --type governance --export verdict_render --with @render-verdict-payload.json
 ```
 
-The response reaches you exactly as the guest emitted it. Every governance role's
-wire carries canonical CBOR, so each of these calls prints the role's reply as
-bytes; the payload you author stays JSON, and the command converts it into the
-encoding the export reads.
+Every governance role's wire carries canonical CBOR, so the command converts the
+payload you author as JSON into the encoding the export reads, and reads the
+role's reply back out of it: each of these calls prints the reply as JSON, in the
+shape the role answers with. A reply that is not that shape is refused, naming the
+export, as a build would refuse it.
 
 An unmodified skeleton reaches no engine, so each role emits its own neutral
 result — no annotations, no label changes, and one `info` note per verdict role
