@@ -25,6 +25,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 
 	pdk "github.com/extism/go-pdk"
@@ -37,7 +38,9 @@ import (
 // injectedValue is the value the plugin injects for the bound annotation. The
 // target Feature's schema types the routed field as a string, so the value is a
 // string; it flows through binding expansion into the synthetic Feature's infra
-// pillar and out into the component's rendered output.
+// pillar and out into the component's rendered output. An injection carries its
+// value as JSON, so the string crosses as its quoted JSON form — an object of
+// subkeys crosses the same way, for a binding that routes several.
 const injectedValue = "annotation-transform-was-here"
 
 // unboundKey is a fixed annotation key with no Manifest binding. The plugin
@@ -96,7 +99,7 @@ func transform_annotations() int32 {
 			BoundaryPath:    target.BoundaryPath,
 			ComponentName:   target.ComponentName,
 			AnnotationKey:   in.BindingKeys[0],
-			AnnotationValue: injectedValue,
+			AnnotationValue: jsonString(injectedValue),
 		})
 	}
 
@@ -106,10 +109,17 @@ func transform_annotations() int32 {
 		BoundaryPath:    target.BoundaryPath,
 		ComponentName:   target.ComponentName,
 		AnnotationKey:   unboundKey,
-		AnnotationValue: unboundValue,
+		AnnotationValue: jsonString(unboundValue),
 	})
 
 	return emit(injections)
+}
+
+// jsonString encodes a string annotation value as the JSON an injection
+// carries. Encoding a string cannot fail.
+func jsonString(s string) json.RawMessage {
+	b, _ := json.Marshal(s)
+	return b
 }
 
 // emit encodes the injection list as the AnnotationTransformOutput the host

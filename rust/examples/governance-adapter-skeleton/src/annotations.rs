@@ -14,10 +14,11 @@
 //! # What may be emitted
 //!
 //! Annotations to add to components that already exist. A decision carries a
-//! coordinate, a key and a string value, and there is no other field it could
-//! carry, so this role cannot express any other change. A decision naming a
-//! component the payload does not carry is refused by the build, naming the
-//! coordinate.
+//! coordinate, a key and a value — a string, or an object of subkeys for a
+//! binding that routes several — and there is no other field it could carry, so
+//! this role cannot express any other change. A decision naming a component the
+//! payload does not carry, or carrying a value of another shape, is refused by
+//! the build, naming the coordinate.
 //!
 //! A decision is read straight into the wire's own injection shape, so the field
 //! names a policy writes are the field names the build reads.

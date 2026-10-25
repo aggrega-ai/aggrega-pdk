@@ -112,16 +112,24 @@ func transform_annotations() int32 {
 			BoundaryPath:    target.BoundaryPath,
 			ComponentName:   target.ComponentName,
 			AnnotationKey:   in.BindingKeys[0],
-			AnnotationValue: injectedValue,
+			AnnotationValue: jsonString(injectedValue),
 		})
 	}
 	injections = append(injections, abi.AnnotationInjection{
 		BoundaryPath:    target.BoundaryPath,
 		ComponentName:   target.ComponentName,
 		AnnotationKey:   unboundKey,
-		AnnotationValue: unboundValue,
+		AnnotationValue: jsonString(unboundValue),
 	})
 	return emitInjections(injections)
+}
+
+// jsonString encodes a string annotation value as the JSON an injection carries
+// — a string crosses as its quoted form, and an object of subkeys would cross as
+// its own JSON. Encoding a string cannot fail.
+func jsonString(s string) json.RawMessage {
+	b, _ := json.Marshal(s)
+	return b
 }
 
 func emitInjections(injections []abi.AnnotationInjection) int32 {
