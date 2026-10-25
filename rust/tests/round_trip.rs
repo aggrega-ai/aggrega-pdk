@@ -270,6 +270,14 @@ fn mutator_input_round_trip_json_schema() {
     let mut labels = OrderedMap::new();
     labels.insert("team".to_string(), "payments".to_string());
 
+    // The node's declared values, each carried as the verbatim JSON of its value.
+    let mut values = OrderedMap::new();
+    values.insert(
+        "extensions".to_string(),
+        serde_json::value::RawValue::from_string(r#"["vector"]"#.to_string())
+            .expect("raw value"),
+    );
+
     let fixture = MutatorInput {
         compilation_context: CompilationContext {
             release_name: "payments".to_string(),
@@ -282,6 +290,7 @@ fn mutator_input_round_trip_json_schema() {
                     component: "core/web-service".to_string(),
                     resolved_version: "1.4.2".to_string(),
                     labels,
+                    values,
                 },
             )]),
         },
