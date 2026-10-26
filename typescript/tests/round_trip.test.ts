@@ -298,7 +298,6 @@ test("PolicyInput round-trips through wasm-policy schema", (t) => {
           aggregate_version: "1.0.0",
           manifest_version: "1.0.0",
           release_version: "1.0.0",
-          source_identifiers: ["x"],
         },
       },
     },

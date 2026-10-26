@@ -363,7 +363,6 @@ fn policy_input_round_trip_json_schema() {
                     aggregate_version: "1.0.0".to_string(),
                     manifest_version: "1.0.0".to_string(),
                     release_version: "1.0.0".to_string(),
-                    source_identifiers: vec!["x".to_string()],
                 },
             },
         },
