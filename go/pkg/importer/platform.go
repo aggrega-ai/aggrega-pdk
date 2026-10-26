@@ -367,12 +367,12 @@ func importPlatform(in aggrega.ImportInput, served Format, settings importSettin
 	for _, src := range sources {
 		tree, err := parse(served.Syntax, src.Bytes)
 		if err != nil {
-			out.Diagnostics = append(out.Diagnostics, parseFailed(src, format, err))
+			out.Diagnostics = append(out.Diagnostics, parseFailed(Named(in, src), format, err))
 			continue
 		}
 		nodes, _ := walk(served, format, tree)
 		if len(nodes) == 0 {
-			out.Diagnostics = append(out.Diagnostics, noNodes(src, format))
+			out.Diagnostics = append(out.Diagnostics, noNodes(Named(in, src), format))
 			continue
 		}
 		drafted = true

@@ -72,6 +72,15 @@ says why in the output's `Error` field, and the host reports a non-empty `Error`
 as that importer's failure. `settings` arrives as the bytes the attachment
 authored, which `pkg/importer` reads as JSON.
 
+A file imported on its own arrives as the request's `Bytes`, and its name — the
+file's base name, with no directory — as its `Name`; a directory's files arrive
+as `Sources`, each under its own name, with `Name` empty. `importer.Sources`
+hands the primary bytes on as a source with no name, and that is how
+`pkg/importer` drafts them. To name that file in what an importer reports, pass
+the source through `importer.Named`, as `importer.Import` does before its
+`parse-failed` and `no-nodes` diagnostics, so an importer reporting with
+`importer.ParseFailed` or `importer.NoNodes` itself names the file the same way.
+
 Besides the source and the attachment's `settings`, the `aggrega.ImportInput` an
 importer decodes carries `Catalog`, a view of the Components the workspace's own
 catalog holds: an `aggrega.CatalogProjection` whose `Components` are sorted by

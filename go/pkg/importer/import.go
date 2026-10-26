@@ -125,12 +125,12 @@ func Import(in aggrega.ImportInput, served Format, parse func(syntax string, sou
 	for _, src := range sources {
 		tree, err := parse(served.Syntax, src.Bytes)
 		if err != nil {
-			out.Diagnostics = append(out.Diagnostics, parseFailed(src, format, err))
+			out.Diagnostics = append(out.Diagnostics, parseFailed(Named(in, src), format, err))
 			continue
 		}
 		nodes, edges := walk(served, format, tree)
 		if len(nodes) == 0 {
-			out.Diagnostics = append(out.Diagnostics, noNodes(src, format))
+			out.Diagnostics = append(out.Diagnostics, noNodes(Named(in, src), format))
 			continue
 		}
 
@@ -169,16 +169,33 @@ func Import(in aggrega.ImportInput, served Format, parse func(syntax string, sou
 // them: its named sources, or, where it carries none, its primary bytes as one
 // source with no name. An importer that drafts from its sources itself rather
 // than through [Import] reads them through this, so every importer built on the
-// package reads one request as one list of sources.
+// package reads one request as one list of sources, and names the source with no
+// name in what it reports through [Named].
 func Sources(in aggrega.ImportInput) []aggrega.ImportSource {
 	return sourcesOf(in)
+}
+
+// Named returns src as a diagnostic names it: as it is where it carries a name,
+// and otherwise under in.Name, the name of the file the import was handed on its
+// own — whose bytes arrive as the request's primary bytes, which [Sources]
+// hands on as a source with no name. A source [Sources] returns is drafted
+// under its own name, so a primary source stays unnamed there, and an importer
+// passes a source through Named only where it reports something about it, as
+// [Import] does for [ParseFailed] and [NoNodes]. A request carrying no name
+// leaves the source unnamed.
+func Named(in aggrega.ImportInput, src aggrega.ImportSource) aggrega.ImportSource {
+	if src.Name == "" {
+		src.Name = in.Name
+	}
+	return src
 }
 
 // ParseFailed is the diagnostic [Import] reports for a source the parse
 // callback could not parse, which halts the import: code parse-failed, naming
 // the source, the format and the callback's error. An importer that parses its
 // sources itself reports such a source with it, under the same code and in the
-// same words.
+// same words, passing the source through [Named] so a file imported on its own
+// is named.
 func ParseFailed(src aggrega.ImportSource, format string, err error) aggrega.Diagnostic {
 	return parseFailed(src, format, err)
 }
@@ -186,7 +203,7 @@ func ParseFailed(src aggrega.ImportSource, format string, err error) aggrega.Dia
 // NoNodes is the warning [Import] reports for a source whose tree held nothing
 // the importer drafts from: code no-nodes, naming the source and the format. An
 // importer that walks its sources itself reports such a source with it, under
-// the same code and in the same words.
+// the same code and in the same words, passing the source through [Named].
 func NoNodes(src aggrega.ImportSource, format string) aggrega.Diagnostic {
 	return noNodes(src, format)
 }
