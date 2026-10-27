@@ -127,6 +127,51 @@ function requireSchemas(t: TestContext, schemaName: string): boolean {
 // same identity it was registered under. Reachability is settled by
 // requireSchemas before a test gets here.
 function makeValidator(schemaName: string) {
+  return makeValidatorAt(schemaName, "");
+}
+
+// The top-level keyword under which a socket schema maps each export the host
+// calls a guest with to the definition of its input and the definition of its
+// output, each a JSON Pointer into the schema's own $defs.
+const EXPORT_TABLE_KEYWORD = "x-aggrega-exports";
+
+// exportTable reads a socket schema's export table: export name to direction
+// ("input" or "output") to pointer. Reachability is settled by requireSchemas
+// before a test gets here.
+function exportTable(schemaName: string): Record<string, Record<string, string>> {
+  const schema = JSON.parse(readFileSync(join(schemaDir, schemaName), "utf-8")) as Record<string, unknown>;
+  const table = schema[EXPORT_TABLE_KEYWORD];
+  if (table === null || typeof table !== "object" || Array.isArray(table) || Object.keys(table).length === 0) {
+    throw new Error(`${schemaName} carries no readable ${EXPORT_TABLE_KEYWORD} table`);
+  }
+  return table as Record<string, Record<string, string>>;
+}
+
+// makeExportPayloadValidator compiles the definition a socket schema's export
+// table names for one export's input or output.
+//
+// A socket schema declares no shape at its root, because one document can be a
+// valid payload of several exports — an empty object answers more than one of
+// the provider's — so a payload is validated against the definition its export
+// names. The definition is read from the table rather than named here, so these
+// tests validate against exactly what the schema publishes for the export.
+function makeExportPayloadValidator(schemaName: string, exportName: string, direction: "input" | "output") {
+  const row = exportTable(schemaName)[exportName];
+  if (row === undefined) {
+    throw new Error(`${schemaName}'s ${EXPORT_TABLE_KEYWORD} table maps no export ${exportName}`);
+  }
+  const pointer = row[direction];
+  if (typeof pointer !== "string" || pointer === "") {
+    throw new Error(
+      `${schemaName}'s ${EXPORT_TABLE_KEYWORD} table names no ${direction} definition for export ${exportName}`,
+    );
+  }
+  return makeValidatorAt(schemaName, pointer);
+}
+
+// makeValidatorAt compiles the named schema, or the location fragment names
+// inside it, as makeValidator describes.
+function makeValidatorAt(schemaName: string, fragment: string) {
   const ajv = new Ajv({ strict: false });
   let schemaKey: string | undefined;
   for (const name of readdirSync(schemaDir)
@@ -146,9 +191,9 @@ function makeValidator(schemaName: string) {
     throw new Error(`schema ${schemaName} not found in ${schemaDir}`);
   }
 
-  const validate = ajv.getSchema(schemaKey);
+  const validate = ajv.getSchema(schemaKey + fragment);
   if (validate === undefined) {
-    throw new Error(`schema ${schemaName} not resolvable as ${schemaKey}`);
+    throw new Error(`schema ${schemaName} not resolvable as ${schemaKey}${fragment}`);
   }
   return validate;
 }
@@ -343,7 +388,7 @@ test("PolicyOutput round-trips through wasm-policy schema", (t) => {
 test("NameBoundOutput keeps an absent bound distinct from a bound of zero", (t) => {
   if (requireSchemas(t, "wasm-provider-v1alpha1.schema.json")) return;
 
-  const validate = makeValidator("wasm-provider-v1alpha1.schema.json");
+  const validate = makeExportPayloadValidator("wasm-provider-v1alpha1.schema.json", "name_bound", "output");
 
   // The three states the bound can be in. Absent says length is not what the
   // target objected to — either it imposes none, or the objection is one no
@@ -376,7 +421,7 @@ test("NameBoundOutput keeps an absent bound distinct from a bound of zero", (t) 
 test("NameBoundInput round-trips through the wasm-provider schema", (t) => {
   if (requireSchemas(t, "wasm-provider-v1alpha1.schema.json")) return;
 
-  const validate = makeValidator("wasm-provider-v1alpha1.schema.json");
+  const validate = makeExportPayloadValidator("wasm-provider-v1alpha1.schema.json", "name_bound", "input");
 
   const fixture: NameBoundInput = { proposed: "payments-api", authored: true };
 
@@ -387,4 +432,43 @@ test("NameBoundInput round-trips through the wasm-provider schema", (t) => {
   const round = JSON.parse(wire) as NameBoundInput;
   assert.equal(round.proposed, fixture.proposed);
   assert.equal(round.authored, true);
+});
+
+// Every row of the provider schema's export table names two definitions that
+// compile, so a row naming a definition the schema does not declare fails here.
+// The payloads one shared root shape cannot accept — an empty object, which is a
+// valid answer from several exports, and a carve input, which is also shaped like
+// a reassemble input — then validate against the definition their export names,
+// each beside a definition that refuses the same document, so an acceptance
+// cannot come from a definition that accepts anything.
+test("provider export table validates each payload against its export's definition", (t) => {
+  const schemaName = "wasm-provider-v1alpha1.schema.json";
+  if (requireSchemas(t, schemaName)) return;
+
+  for (const exportName of Object.keys(exportTable(schemaName)).sort()) {
+    for (const direction of ["input", "output"] as const) {
+      // Throws when the row leaves the direction out or the pointer resolves to
+      // nothing the schema declares.
+      makeExportPayloadValidator(schemaName, exportName, direction);
+    }
+  }
+
+  const carveInput = { name: "templates/deployment.yaml", body: "a2luZDogRGVwbG95bWVudAo=" };
+  const cases: Array<[string, unknown, string, "input" | "output", boolean]> = [
+    ["an empty validate_node_input answer", {}, "validate_node_input", "output", true],
+    ["an empty name_bound answer", {}, "name_bound", "output", true],
+    ["an empty rendered_name answer", {}, "rendered_name", "output", true],
+    ["an empty boundary_env_overrides answer", {}, "boundary_env_overrides", "output", true],
+    ["an empty render_node answer, which carries files", {}, "render_node", "output", false],
+    ["a carve input", carveInput, "carve", "input", true],
+    ["a carve input as reassemble's answer", carveInput, "reassemble", "output", false],
+  ];
+  for (const [name, payload, exportName, direction, valid] of cases) {
+    const validate = makeExportPayloadValidator(schemaName, exportName, direction);
+    assert.equal(
+      validate(payload),
+      valid,
+      `${name}: ${JSON.stringify(payload)} as ${exportName}'s ${direction} — errors ${JSON.stringify(validate.errors)}`,
+    );
+  }
 });

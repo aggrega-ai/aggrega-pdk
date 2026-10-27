@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"sort"
 	"strings"
 	"testing"
 
@@ -66,7 +67,75 @@ func refuseOrSkipUnreachableSchemas(t *testing.T, path string, err error) {
 // switch.
 func loadSchema(t *testing.T, schemaFile string) *jsonschema.Schema {
 	t.Helper()
-	dir := filepath.Join("..", "..", "..", "..", "aggrega-schemas", "json")
+	return compileSchemaAt(t, schemaFile, "")
+}
+
+// schemaDir is the sibling aggrega-schemas repository's json directory.
+var schemaDir = filepath.Join("..", "..", "..", "..", "aggrega-schemas", "json")
+
+// exportTableKeyword is the top-level keyword under which a socket schema maps
+// each export the host calls a guest with to the definition of its input and the
+// definition of its output, each a JSON Pointer into the schema's own $defs.
+const exportTableKeyword = "x-aggrega-exports"
+
+// loadExportPayloadSchema compiles the definition a socket schema's export table
+// names for one export's input or output — direction is "input" or "output".
+//
+// A socket schema declares no shape at its root, because one document can be a
+// valid payload of several exports — an empty object answers more than one of the
+// provider's — so a payload is validated against the definition its export names.
+// The definition is read from the table rather than named here, so these tests
+// validate against exactly what the schema publishes for the export.
+//
+// Does not return when the schema is unreachable, matching loadSchema, or when
+// the table does not map the export in that direction.
+func loadExportPayloadSchema(t *testing.T, schemaFile, export, direction string) *jsonschema.Schema {
+	t.Helper()
+	return compileSchemaAt(t, schemaFile, exportTablePointer(t, schemaFile, export, direction))
+}
+
+// exportTablePointer reads the pointer a socket schema's export table holds for
+// one export's input or output.
+func exportTablePointer(t *testing.T, schemaFile, export, direction string) string {
+	t.Helper()
+	table := exportTable(t, schemaFile)
+	row, ok := table[export]
+	if !ok {
+		t.Fatalf("%s's %s table maps no export %q", schemaFile, exportTableKeyword, export)
+	}
+	pointer, ok := row[direction]
+	if !ok || pointer == "" {
+		t.Fatalf("%s's %s table names no %s definition for export %q", schemaFile, exportTableKeyword, direction, export)
+	}
+	return pointer
+}
+
+// exportTable reads a socket schema's export table: export name to direction to
+// pointer.
+func exportTable(t *testing.T, schemaFile string) map[string]map[string]string {
+	t.Helper()
+	path := filepath.Join(schemaDir, schemaFile)
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		refuseOrSkipUnreachableSchemas(t, path, err)
+	}
+	var doc map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &doc); err != nil {
+		t.Fatalf("unmarshal schema %s: %v", schemaFile, err)
+	}
+	var table map[string]map[string]string
+	if err := json.Unmarshal(doc[exportTableKeyword], &table); err != nil || len(table) == 0 {
+		t.Fatalf("%s carries no readable %s table: %v", schemaFile, exportTableKeyword, err)
+	}
+	return table
+}
+
+// compileSchemaAt compiles the named schema, or the location fragment names
+// inside it, with every schema in the sibling json directory registered alongside
+// it, as loadSchema describes.
+func compileSchemaAt(t *testing.T, schemaFile, fragment string) *jsonschema.Schema {
+	t.Helper()
+	dir := schemaDir
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		refuseOrSkipUnreachableSchemas(t, dir, err)
@@ -102,9 +171,9 @@ func loadSchema(t *testing.T, schemaFile string) *jsonschema.Schema {
 	if !ok {
 		t.Fatalf("schema %s not found in %s", schemaFile, dir)
 	}
-	schema, err := c.Compile(id)
+	schema, err := c.Compile(id + fragment)
 	if err != nil {
-		t.Fatalf("Compile schema %s: %v", schemaFile, err)
+		t.Fatalf("Compile schema %s%s: %v", schemaFile, fragment, err)
 	}
 	return schema
 }
@@ -349,7 +418,7 @@ func TestPolicyOutput_RoundTripJSONSchema(t *testing.T) {
 // difference.
 func TestNameBoundOutput_KeepsAnAbsentBoundDistinctFromZero(t *testing.T) {
 	t.Parallel()
-	schema := loadSchema(t, "wasm-provider-v1alpha1.schema.json")
+	schema := loadExportPayloadSchema(t, "wasm-provider-v1alpha1.schema.json", "name_bound", "output")
 
 	shortened := 31
 	nothingFits := 0
@@ -394,7 +463,7 @@ func TestNameBoundOutput_KeepsAnAbsentBoundDistinctFromZero(t *testing.T) {
 // what a refusal DOES is the host's decision, not the guest's.
 func TestNameBoundInput_RoundTripJSONSchema(t *testing.T) {
 	t.Parallel()
-	schema := loadSchema(t, "wasm-provider-v1alpha1.schema.json")
+	schema := loadExportPayloadSchema(t, "wasm-provider-v1alpha1.schema.json", "name_bound", "input")
 
 	fixture := aggrega.NameBoundInput{Proposed: "payments-api", Authored: true}
 
@@ -423,7 +492,7 @@ func TestNameBoundInput_RoundTripJSONSchema(t *testing.T) {
 // does.
 func TestRenderNodeOutput_EveryRenderFactValueIsAList(t *testing.T) {
 	t.Parallel()
-	schema := loadSchema(t, "wasm-provider-v1alpha1.schema.json")
+	schema := loadExportPayloadSchema(t, "wasm-provider-v1alpha1.schema.json", "render_node", "output")
 
 	output := func(value string) aggrega.RenderNodeOutput {
 		return aggrega.RenderNodeOutput{
@@ -442,5 +511,63 @@ func TestRenderNodeOutput_EveryRenderFactValueIsAList(t *testing.T) {
 		if err := schema.Validate(jsonInstance(t, output(value))); err == nil {
 			t.Errorf("a render fact whose value is %s validated; the schema must declare every value a list", value)
 		}
+	}
+}
+
+// TestProviderExportTable_EachPayloadValidatesAgainstItsExportsDefinition
+// compiles both definitions of every row of the provider schema's export table,
+// so a row naming a definition the schema does not declare fails here. It then
+// validates the payloads one shared root shape cannot accept — an empty object,
+// which is a valid answer from several exports, and a carve input, which is also
+// shaped like a reassemble input — against the definition their export names,
+// each beside a definition that refuses the same document, so an acceptance
+// cannot come from a definition that accepts anything.
+func TestProviderExportTable_EachPayloadValidatesAgainstItsExportsDefinition(t *testing.T) {
+	t.Parallel()
+	const file = "wasm-provider-v1alpha1.schema.json"
+
+	table := exportTable(t, file)
+	exports := make([]string, 0, len(table))
+	for export := range table {
+		exports = append(exports, export)
+	}
+	sort.Strings(exports)
+	for _, export := range exports {
+		for _, direction := range []string{"input", "output"} {
+			loadExportPayloadSchema(t, file, export, direction)
+		}
+	}
+
+	carveInput := `{"name":"templates/deployment.yaml","body":"a2luZDogRGVwbG95bWVudAo="}`
+	cases := []struct {
+		name      string
+		payload   string
+		export    string
+		direction string
+		valid     bool
+	}{
+		{"an empty validate_node_input answer", `{}`, "validate_node_input", "output", true},
+		{"an empty name_bound answer", `{}`, "name_bound", "output", true},
+		{"an empty rendered_name answer", `{}`, "rendered_name", "output", true},
+		{"an empty boundary_env_overrides answer", `{}`, "boundary_env_overrides", "output", true},
+		{"an empty render_node answer, which carries files", `{}`, "render_node", "output", false},
+		{"a carve input", carveInput, "carve", "input", true},
+		{"a carve input as reassemble's answer", carveInput, "reassemble", "output", false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var instance any
+			if err := json.Unmarshal([]byte(tc.payload), &instance); err != nil {
+				t.Fatalf("fixture %s does not parse: %v", tc.payload, err)
+			}
+			err := loadExportPayloadSchema(t, file, tc.export, tc.direction).Validate(instance)
+			switch {
+			case tc.valid && err != nil:
+				t.Errorf("%s does not validate as %s's %s: %v", tc.payload, tc.export, tc.direction, err)
+			case !tc.valid && err == nil:
+				t.Errorf("%s validated as %s's %s, which the definition must refuse", tc.payload, tc.export, tc.direction)
+			}
+		})
 	}
 }

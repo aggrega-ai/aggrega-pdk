@@ -154,6 +154,74 @@ macro_rules! require_schema {
 /// that URL rather than under its file name. The schema at `path` is compiled by
 /// the same identity it was registered under.
 fn validate(path: &Path, instance: &serde_json::Value) -> Result<(), String> {
+    validate_at(path, "", instance)
+}
+
+/// The top-level keyword under which a socket schema maps each export the host
+/// calls a guest with to the definition of its input and the definition of its
+/// output, each a JSON Pointer into the schema's own `$defs`.
+const EXPORT_TABLE_KEYWORD: &str = "x-aggrega-exports";
+
+/// export_table reads the export table of the socket schema at `path`: export
+/// name to direction (`input` or `output`) to pointer.
+fn export_table(path: &Path) -> Result<ExportTable, String> {
+    let doc: serde_json::Value = serde_json::from_slice(
+        &std::fs::read(path).map_err(|e| format!("read schema {}: {e}", path.display()))?,
+    )
+    .map_err(|e| format!("parse schema {}: {e}", path.display()))?;
+    let table = doc
+        .get(EXPORT_TABLE_KEYWORD)
+        .ok_or_else(|| format!("{} carries no {EXPORT_TABLE_KEYWORD} table", path.display()))?;
+    let table: ExportTable = serde_json::from_value(table.clone()).map_err(|e| {
+        format!(
+            "{}'s {EXPORT_TABLE_KEYWORD} table does not read: {e}",
+            path.display()
+        )
+    })?;
+    if table.is_empty() {
+        return Err(format!(
+            "{}'s {EXPORT_TABLE_KEYWORD} table holds no export",
+            path.display()
+        ));
+    }
+    Ok(table)
+}
+
+/// A socket schema's export table: export name to direction to pointer.
+type ExportTable = std::collections::BTreeMap<String, std::collections::BTreeMap<String, String>>;
+
+/// validate_export_payload validates `instance` against the definition the
+/// export table of the socket schema at `path` names for one export's input or
+/// output — `direction` is `input` or `output`.
+///
+/// A socket schema declares no shape at its root, because one document can be a
+/// valid payload of several exports — an empty object answers more than one of
+/// the provider's — so a payload is validated against the definition its export
+/// names. The definition is read from the table rather than named here, so these
+/// tests validate against exactly what the schema publishes for the export.
+fn validate_export_payload(
+    path: &Path,
+    export: &str,
+    direction: &str,
+    instance: &serde_json::Value,
+) -> Result<(), String> {
+    let table = export_table(path)?;
+    let pointer = table
+        .get(export)
+        .ok_or_else(|| format!("{}'s {EXPORT_TABLE_KEYWORD} table maps no export {export}", path.display()))?
+        .get(direction)
+        .ok_or_else(|| {
+            format!(
+                "{}'s {EXPORT_TABLE_KEYWORD} table names no {direction} definition for export {export}",
+                path.display()
+            )
+        })?;
+    validate_at(path, pointer, instance)
+}
+
+/// validate_at validates `instance` against the schema at `path`, or against the
+/// location `fragment` names inside it, as `validate` describes.
+fn validate_at(path: &Path, fragment: &str, instance: &serde_json::Value) -> Result<(), String> {
     let dir = schema_dir();
     let mut names: Vec<String> = std::fs::read_dir(&dir)
         .map_err(|e| format!("read schema dir {}: {e}", dir.display()))?
@@ -192,7 +260,7 @@ fn validate(path: &Path, instance: &serde_json::Value) -> Result<(), String> {
 
     let mut schemas = boon::Schemas::new();
     let idx = compiler
-        .compile(&primary_id, &mut schemas)
+        .compile(&format!("{primary_id}{fragment}"), &mut schemas)
         .map_err(|e| format!("compile schema: {e}"))?;
     schemas
         .validate(instance, idx)
@@ -552,7 +620,7 @@ fn name_bound_output_distinguishes_an_absent_bound_from_zero() {
     };
 
     let value = serde_json::to_value(&fixture).expect("serialise NameBoundOutput");
-    if let Err(e) = validate(&schema, &value) {
+    if let Err(e) = validate_export_payload(&schema, "name_bound", "output", &value) {
         panic!("schema validation failed for NameBoundOutput fixture: {e}");
     }
 
@@ -587,7 +655,7 @@ fn name_bound_input_round_trip_json_schema() {
     };
 
     let value = serde_json::to_value(&fixture).expect("serialise NameBoundInput");
-    if let Err(e) = validate(&schema, &value) {
+    if let Err(e) = validate_export_payload(&schema, "name_bound", "input", &value) {
         panic!("schema validation failed for NameBoundInput fixture: {e}");
     }
 
@@ -595,4 +663,68 @@ fn name_bound_input_round_trip_json_schema() {
     let round: NameBoundInput = serde_json::from_str(&raw).expect("unmarshal NameBoundInput");
     assert_eq!(fixture.proposed, round.proposed);
     assert!(round.authored);
+}
+
+/// Every row of the provider schema's export table names two definitions that
+/// compile, so a row naming a definition the schema does not declare fails here.
+/// The payloads one shared root shape cannot accept — an empty object, which is a
+/// valid answer from several exports, and a carve input, which is also shaped
+/// like a reassemble input — then validate against the definition their export
+/// names, each beside a definition that refuses the same document, so an
+/// acceptance cannot come from a definition that accepts anything.
+#[test]
+fn provider_export_table_validates_each_payload_against_its_exports_definition() {
+    let schema = require_schema!("wasm-provider-v1alpha1.schema.json");
+
+    let table = export_table(&schema).expect("read the provider export table");
+    for (export, row) in &table {
+        for direction in ["input", "output"] {
+            assert!(
+                row.contains_key(direction),
+                "the export table names no {direction} definition for {export}"
+            );
+            // Compiling is what is asserted here: a validation verdict on an
+            // arbitrary document says nothing, while a definition that does not
+            // compile, or a table row that does not resolve, fails before any
+            // verdict is reached.
+            if let Err(e) =
+                validate_export_payload(&schema, export, direction, &serde_json::json!({}))
+            {
+                assert!(
+                    e.starts_with("validation failed"),
+                    "{export}'s {direction} definition was not reached: {e}"
+                );
+            }
+        }
+    }
+
+    let carve_input = serde_json::json!({
+        "name": "templates/deployment.yaml",
+        "body": "a2luZDogRGVwbG95bWVudAo="
+    });
+    let empty = serde_json::json!({});
+    // (case, payload, export, direction, whether the payload is valid there)
+    let cases: [(&str, &serde_json::Value, &str, &str, bool); 7] = [
+        ("an empty validate_node_input answer", &empty, "validate_node_input", "output", true),
+        ("an empty name_bound answer", &empty, "name_bound", "output", true),
+        ("an empty rendered_name answer", &empty, "rendered_name", "output", true),
+        ("an empty boundary_env_overrides answer", &empty, "boundary_env_overrides", "output", true),
+        ("an empty render_node answer, which carries files", &empty, "render_node", "output", false),
+        ("a carve input", &carve_input, "carve", "input", true),
+        ("a carve input as reassemble's answer", &carve_input, "reassemble", "output", false),
+    ];
+    for (name, payload, export, direction, valid) in cases {
+        let verdict = validate_export_payload(&schema, export, direction, payload);
+        if let Err(e) = &verdict {
+            assert!(
+                e.starts_with("validation failed"),
+                "{name}: the definition was not reached: {e}"
+            );
+        }
+        assert_eq!(
+            verdict.is_ok(),
+            valid,
+            "{name}: {payload} as {export}'s {direction} — want valid={valid}, got {verdict:?}"
+        );
+    }
 }
