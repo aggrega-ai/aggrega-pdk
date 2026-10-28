@@ -139,5 +139,5 @@ orthogonal.
 
 ## License
 
-Apache-2.0. See the `LICENSE` file in each per-language
-subdirectory.
+Apache-2.0. See the [`LICENSE`](LICENSE) file at the root of this
+repository.
