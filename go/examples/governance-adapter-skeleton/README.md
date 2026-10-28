@@ -156,7 +156,8 @@ governance-adapter-skeleton/
 ├── annotations.go   (the annotation-transform role)
 ├── labels.go        (the label-transform role)
 ├── verdicts.go      (the ir-verdict and render-verdict roles)
-└── build.sh         (build to dist/)
+├── build.sh         (build to dist/)
+└── *-payload.json   (one input per role, for checking it runs)
 ```
 
 One file per role, so the unit of deletion is the role. An adapter that only
@@ -205,6 +206,14 @@ aggrega plugin run-local --plugin dist/governance-adapter-skeleton-go.wasm \
 aggrega plugin run-local --plugin dist/governance-adapter-skeleton-go.wasm \
   --type governance --export verdict_render --with @render-verdict-payload.json
 ```
+
+The four payload files sit beside this README, each a small, valid input for the
+export it is named for, written to the shape on that role's schema reference
+page. Each carries one component — at `verdict_render`, one rendered file — plus
+one policy file named `rules.policy` under `sources` and a `settings` object, so
+both of an attachment's inputs reach the seam. The Rust and TypeScript skeletons
+ship the same four files, byte for byte, and an unmodified skeleton answers each
+of them the same in all three kits.
 
 The wire an export carries is fixed by the socket that export serves rather than
 by any flag. Every governance role's wire carries canonical CBOR, so the command

@@ -1,0 +1,23 @@
+{
+  "targets": [
+    {
+      "boundary_path": "default",
+      "component_name": "api",
+      "annotations": {
+        "team.example.com/owner": "payments"
+      }
+    }
+  ],
+  "binding_keys": [
+    "monitoring.example.com/scrape"
+  ],
+  "sources": [
+    {
+      "path": "rules.policy",
+      "content": "policy text, handed to the engine verbatim\n"
+    }
+  ],
+  "settings": {
+    "max_nodes": 50
+  }
+}

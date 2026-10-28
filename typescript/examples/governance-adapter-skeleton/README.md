@@ -170,6 +170,7 @@ governance-adapter-skeleton/
 ├── tsconfig.json
 ├── index.d.ts                 (the exports extism-js compiles in)
 ├── build.sh                   (build to dist/)
+├── *-payload.json             (one input per role, for checking it runs)
 └── src/
     ├── index.ts               (the describe() self-report and the exports)
     ├── evaluator.ts           (THE SEAM — the one module a new adapter rewrites)
@@ -239,6 +240,14 @@ aggrega plugin run-local --plugin dist/governance-adapter-skeleton-typescript.wa
 aggrega plugin run-local --plugin dist/governance-adapter-skeleton-typescript.wasm \
   --type governance --export verdict_render --with @render-verdict-payload.json
 ```
+
+The four payload files sit beside this README, each a small, valid input for the
+export it is named for, written to the shape on that role's schema reference
+page. Each carries one component — at `verdict_render`, one rendered file — plus
+one policy file named `rules.policy` under `sources` and a `settings` object, so
+both of an attachment's inputs reach the seam. The Go and Rust skeletons ship the
+same four files, byte for byte, and an unmodified skeleton answers each of them
+the same in all three kits.
 
 Every governance role's wire carries canonical CBOR, so the command converts the
 payload you author as JSON into the encoding the export reads, and reads the

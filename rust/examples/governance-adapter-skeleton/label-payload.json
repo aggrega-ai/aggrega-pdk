@@ -1,0 +1,27 @@
+{
+  "compilation_context": {
+    "release_name": "shop-staging",
+    "environment": "staging"
+  },
+  "graph": {
+    "nodes": {
+      "api": {
+        "component": "example/compute/api",
+        "resolved_version": "1.0.0",
+        "labels": {
+          "component.aggrega.ai/type": "server",
+          "component.aggrega.ai/category": "compute"
+        }
+      }
+    }
+  },
+  "sources": [
+    {
+      "path": "rules.policy",
+      "content": "policy text, handed to the engine verbatim\n"
+    }
+  ],
+  "settings": {
+    "max_nodes": 50
+  }
+}

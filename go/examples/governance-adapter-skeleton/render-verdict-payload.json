@@ -1,0 +1,17 @@
+{
+  "artifacts": [
+    {
+      "path": "compose.yaml",
+      "content": "services:\n  api:\n    image: registry.example.com/api:1.0.0\n"
+    }
+  ],
+  "sources": [
+    {
+      "path": "rules.policy",
+      "content": "policy text, handed to the engine verbatim\n"
+    }
+  ],
+  "settings": {
+    "max_nodes": 50
+  }
+}
