@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 Cognitio S.r.l.
 
-//! Reference render-stage policy plugin backed by an embedded Rego
-//! evaluator.
+//! Reference governance plugin for the `render-verdict` role, backed by an
+//! embedded Rego evaluator.
 //!
-//! This is the render-stage sibling of the IR-stage embedded-Rego policy
-//! plugin. Where the IR-stage plugin evaluates operator-supplied Rego against
+//! This is the `render-verdict` sibling of the `ir-verdict` embedded-Rego
+//! governance plugin. Where that plugin evaluates operator-supplied Rego against
 //! the build's IR graph, this plugin evaluates operator-supplied Rego against
 //! the rendered output artifacts — the files the compiler emits (a Docker
 //! Compose file, a CloudFormation template, any YAML or JSON render output).
@@ -112,8 +112,8 @@ use regorus::Value;
 use serde::Deserialize;
 use serde_json::json;
 
-/// The static `describe()` self-report: a v1alpha1 `policy` plugin
-/// evaluating the render stage, whose `verdict_render` export the host validates
+/// The static `describe()` self-report: a v1alpha1 `governance` plugin
+/// for the `render-verdict` role, whose `verdict_render` export the host validates
 /// before dispatch.
 fn descriptor() -> PluginDescriptor {
     PluginDescriptor {

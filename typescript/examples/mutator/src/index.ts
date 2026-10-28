@@ -2,7 +2,7 @@
 // Copyright 2026 Cognitio S.r.l.
 
 /**
- * Fixture mutator plugin for the Aggrega Wasm runtime.
+ * Fixture governance plugin for the label-transform role, for the Aggrega Wasm runtime.
  *
  * Applies one trivial transform — appends the label
  * `fixture.aggrega-pdk/touched = mutator-typescript` to every node in
@@ -12,7 +12,7 @@
  * the result encoded to a shape that validates against the
  * wasm-mutator schema.
  *
- * The label-transform socket carries canonical CBOR in both directions,
+ * The label-transform role's wire carries canonical CBOR in both directions,
  * read and written through the generated codec on the payload type. The
  * patch documents the output carries are JSON, and stay JSON: the socket
  * carries them verbatim and neither side reads into them.
@@ -44,7 +44,7 @@ interface JsonPatchOp {
 const FIXTURE_LABEL_KEY = "fixture.aggrega-pdk/touched";
 const FIXTURE_LABEL_VALUE = "mutator-typescript";
 
-// The static describe() self-report: a v1alpha1 mutator plugin whose
+// The static describe() self-report: a v1alpha1 governance plugin whose
 // mutate export the host validates before dispatch.
 function descriptor(): PluginDescriptor {
   return {

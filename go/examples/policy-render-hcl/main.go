@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 Cognitio S.r.l.
 
-// Render-stage policy fixture that inspects a parsed HCL artifact tree.
+// Fixture governance plugin for the render-verdict role that inspects a parsed HCL artifact tree.
 //
-// It declares the render stage, so the host runs it after render over the
+// At the render-verdict role, the host runs it after render over the
 // rendered artifacts. Where an artifact's format is one a policy guest does not
 // read natively (HCL), the host parses it and carries the parsed JSON tree on the
 // artifact. This fixture reads that tree, navigates its structure to enumerate
 // the resource types the source declares under its top-level resource block, and
-// emits a verdict driven by the attachment's settings.require_resource_type: it
-// denies when the required resource type is absent from the parsed tree and
+// emits a verdict driven by the attachment's settings.require_resource_type: a
+// halt verdict when the required resource type is absent from the parsed tree and
 // records an info verdict (letting the build proceed) when it is present.
 // Driving it with a present versus an absent required type proves the guest reads
 // the parsed HCL structure, not the raw source text.
@@ -39,8 +39,8 @@ type settings struct {
 	RequireResourceType string `json:"require_resource_type"`
 }
 
-// descriptor is the static describe() self-report: a v1alpha1 policy plugin
-// evaluating the render stage.
+// descriptor is the static describe() self-report: a v1alpha1 governance plugin
+// exporting verdict_render, the render-verdict role's default entry function.
 func descriptor() aggrega.PluginDescriptor {
 	return aggrega.PluginDescriptor{
 		AbiVersion:  aggrega.APIVersion,

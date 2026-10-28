@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 Cognitio S.r.l.
 
-// Allow-all proof policy plugin for the Aggrega Wasm runtime.
+// Allow-all proof governance plugin for the ir-verdict role, for the Aggrega Wasm runtime.
 //
 // Emits a deterministic PolicyOutput with no fired verdicts, so
-// the host-side end-to-end test can prove the policy socket lets a build
+// the host-side end-to-end test can prove an ir-verdict attachment lets a build
 // succeed when no rule fires — the counterpart to the minimal
 // policy fixture, whose halt verdict proves the build-halt path.
 //
-// It self-describes via describe() as a policy plugin whose
+// It self-describes via describe() as a governance plugin whose
 // verdict_ir export the host validates before dispatch. Its result travels as
 // canonical CBOR, written with PolicyOutput.EncodeCBOR.
 //
@@ -27,8 +27,8 @@ import (
 // deterministically.
 var fixtureOutput = aggrega.PolicyOutput{Results: []aggrega.Diagnostic{}}
 
-// descriptor is the static describe() self-report: a v1alpha1 policy plugin
-// evaluating the ir stage, whose verdict_ir export the host validates before
+// descriptor is the static describe() self-report: a v1alpha1 governance plugin
+// for the ir-verdict role, whose verdict_ir export the host validates before
 // dispatch.
 func descriptor() aggrega.PluginDescriptor {
 	return aggrega.PluginDescriptor{

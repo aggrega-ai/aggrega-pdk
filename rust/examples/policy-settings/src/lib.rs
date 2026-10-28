@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 Cognitio S.r.l.
 
-//! Typed-settings policy fixture plugin for the Aggrega Wasm runtime.
+//! Typed-settings fixture governance plugin for the `ir-verdict` role, for the Aggrega Wasm runtime.
 //!
 //! This example demonstrates a plugin that types its attachment settings. Its
 //! `describe()` self-report carries a `settings_schema` — a JSON Schema the host
@@ -35,8 +35,8 @@ use serde_json::value::RawValue;
 /// before dispatching `verdict_ir`.
 const SETTINGS_SCHEMA: &str = r#"{"type":"object","properties":{"max_replicas":{"type":"integer","minimum":1}},"required":["max_replicas"],"additionalProperties":false}"#;
 
-/// The static `describe()` self-report: a v1alpha1 `policy` plugin
-/// evaluating the ir stage whose settings are typed by an inline JSON Schema.
+/// The static `describe()` self-report: a v1alpha1 `governance` plugin
+/// for the `ir-verdict` role whose settings are typed by an inline JSON Schema.
 fn descriptor() -> PluginDescriptor {
     PluginDescriptor {
         abi_version: API_VERSION.to_string(),

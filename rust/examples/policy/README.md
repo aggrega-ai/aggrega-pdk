@@ -1,8 +1,15 @@
 # policy (Rust fixture)
 
-A small Rust plugin demonstrating the Aggrega policy socket.
-The plugin emits a deterministic two-result `PolicyOutput` —
-one pass, one fail — for end-to-end loader exercises.
+A small Rust governance plugin for the governance socket's `ir-verdict`
+role. Its `verdict_ir` export emits a `PolicyOutput` carrying two verdicts,
+in this order:
+
+- severity `halt`, message
+  `fixture rule B: deliberate fail for end-to-end coverage`;
+- severity `info`, message `fixture rule A: advisory note`.
+
+The guest does not read its input: the output is a constant, for
+end-to-end loader exercises.
 
 ## Build
 

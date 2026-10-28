@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 Cognitio S.r.l.
 
-// Fixture policy plugin for the Aggrega Wasm runtime.
+// Fixture governance plugin for the ir-verdict role, for the Aggrega Wasm runtime.
 //
-// It offers two policy entry points, so one guest covers both halves of the
-// policy socket's output contract:
+// It offers two entry functions, so one guest covers both halves of a verdict
+// role's output contract:
 //
 //   - verdict_ir emits a deterministic two-verdict PolicyOutput — one halt
 //     verdict and one info verdict — reporting the rules that fired.
 //   - report_incomplete emits a PolicyOutput carrying no verdicts and an error
-//     message. That is the shape a policy plugin returns when it ran but could
+//     message. That is the shape a verdict-role plugin returns when it ran but could
 //     not finish evaluating, and the host reads a present error as a failed
 //     invocation rather than as a verdict the plugin reached.
 //
@@ -35,7 +35,7 @@ var fixtureOutput = aggrega.PolicyOutput{Results: []aggrega.Diagnostic{
 }}
 
 // incompleteOutput is the constant PolicyOutput carrying an error and no
-// verdicts. A policy plugin reaches for this shape when the evaluation itself
+// verdicts. A verdict-role plugin reaches for this shape when the evaluation itself
 // did not complete — a rule source it could not read, an input it cannot
 // interpret — as opposed to a halt verdict, which reports a rule that fired on a
 // run that did complete. results stays present and empty because the wire shape
@@ -46,7 +46,7 @@ var incompleteOutput = aggrega.PolicyOutput{
 }
 
 // descriptor is the static describe() self-report: a v1alpha1 governance plugin
-// declaring both of the fixture's policy entry points. The host reads this once
+// declaring both of the fixture's entry functions. The host reads this once
 // at load through the shared describe() gate, and refuses a call to any export
 // the report does not declare — so an entry point has to be listed here to be
 // dispatchable, whether it is the socket's default or one an attachment names.

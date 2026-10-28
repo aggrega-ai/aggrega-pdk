@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 Cognitio S.r.l.
 
-// End-to-end proof mutator plugin for the Aggrega Wasm runtime.
+// End-to-end proof governance plugin for the label-transform role, for the Aggrega Wasm runtime.
 //
-// Unlike the minimal mutator fixture, this plugin emits JSON Patch
-// documents that APPLY cleanly to the host's labels-only projection: it
+// It emits JSON Patch documents that APPLY cleanly to the nodes and labels
+// the label-transform role hands it: it
 // escapes the label key per RFC 6901 (a "/" in a key becomes "~1"), so
 // the host adds a single label entry rather than failing on a
 // non-existent intermediate path. It exists so the host-side end-to-end
-// test can prove the Step-2 mutator socket injects a label all the way
+// test can prove a label-transform attachment injects a label all the way
 // through to the IR graph.
 //
-// It self-describes via describe() as a mutator plugin whose mutate
+// It self-describes via describe() as a governance plugin whose mutate
 // export the host validates before dispatch, then appends the label
 // "proof.aggrega/touched=mutator-proof" to every node.
 //
@@ -38,7 +38,7 @@ const proofLabelKey = "proof.aggrega/touched"
 // proofLabelValue is the label value the proof plugin writes.
 const proofLabelValue = "mutator-proof"
 
-// descriptor is the static describe() self-report: a v1alpha1 mutator plugin
+// descriptor is the static describe() self-report: a v1alpha1 governance plugin
 // whose mutate export the host validates before dispatch.
 func descriptor() aggrega.PluginDescriptor {
 	return aggrega.PluginDescriptor{

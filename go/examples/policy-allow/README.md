@@ -1,11 +1,12 @@
 # policy-allow (Go fixture)
 
-A Go plugin that drives the Aggrega policy socket's success
-path. It emits a constant `PolicyOutput` whose single verdict
-passes, so a host-side test can prove the socket lets a build succeed
-when every rule passes — the counterpart to the minimal
-`policy` fixture, whose deliberate failing verdict proves the
-build-halt path.
+A Go governance plugin for the governance socket's `ir-verdict` role
+that drives the success path. Its `verdict_ir` export emits a constant
+`PolicyOutput` with an empty verdict list and no `error` — the form of
+"no rule fired" — so a host-side test can prove a build with an
+`ir-verdict` attachment succeeds when the plugin reports nothing. It is
+the counterpart to the `policy` fixture, whose `halt` verdict proves the
+build-halt path. The guest does not read its input.
 
 ## Build
 

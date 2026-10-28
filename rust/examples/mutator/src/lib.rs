@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 Cognitio S.r.l.
 
-//! Fixture mutator plugin for the Aggrega Wasm runtime.
+//! Fixture governance plugin for the `label-transform` role, for the Aggrega Wasm runtime.
 //!
 //! Applies one trivial transform — appends the label
 //! `fixture.aggrega-pdk/touched = mutator-rust` to every node in the
@@ -14,7 +14,7 @@
 //!  - The result encoded to a [`MutatorOutput`] valid against the
 //!    `wasm-mutator-v1alpha1` schema.
 //!
-//! The label-transform socket carries canonical CBOR in both directions, so the
+//! The label-transform role's wire carries canonical CBOR in both directions, so the
 //! export takes and returns bytes. The patch documents the output carries are
 //! JSON, and stay JSON: the socket carries them verbatim and neither side reads
 //! into them.
@@ -36,7 +36,7 @@ const FIXTURE_LABEL_KEY: &str = "fixture.aggrega-pdk/touched";
 /// outputs.
 const FIXTURE_LABEL_VALUE: &str = "mutator-rust";
 
-/// The static `describe()` self-report: a v1alpha1 `mutator` plugin
+/// The static `describe()` self-report: a v1alpha1 `governance` plugin
 /// whose `mutate` export the host validates before dispatch.
 fn descriptor() -> PluginDescriptor {
     PluginDescriptor {
@@ -103,7 +103,7 @@ pub fn mutate(input: Vec<u8>) -> FnResult<Vec<u8>> {
     let mut node_ids: Vec<&String> = parsed.graph.nodes.keys().collect();
     node_ids.sort();
 
-    // The mutator socket's patches are opaque JSON Patch documents; the abi
+    // The label-transform role's patches are opaque JSON Patch documents; the abi
     // MutatorOutput carries them as verbatim RawValue, so each json! value is
     // converted to a RawValue.
     let patches: Vec<Box<RawValue>> = node_ids

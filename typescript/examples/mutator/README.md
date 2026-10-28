@@ -1,9 +1,12 @@
 # mutator (TypeScript fixture)
 
-A small TypeScript plugin demonstrating the Aggrega mutator socket.
-The plugin reads a `MutatorInput` payload, appends a known label to
-every node, and emits a `MutatorOutput` with one JSON Patch per
-node.
+A small TypeScript governance plugin for the governance socket's
+`label-transform` role. Its `mutate` export reads a `MutatorInput`
+payload and emits a `MutatorOutput` carrying one JSON Patch per node, in
+sorted node order. Each patch is one `add` that sets the label
+`fixture.aggrega-pdk/touched` to `mutator-typescript` on that node. A
+non-empty `label_value` string in the attachment's settings replaces
+`mutator-typescript` as the value written.
 
 The socket's wire carries canonical CBOR in both directions, read
 and written through the generated codec functions the kit re-exports

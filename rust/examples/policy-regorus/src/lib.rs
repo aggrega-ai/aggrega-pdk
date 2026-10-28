@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 Cognitio S.r.l.
 
-//! Reference policy plugin backed by an embedded Rego evaluator.
+//! Reference governance plugin for the `ir-verdict` role, backed by an embedded Rego evaluator.
 //!
 //! The plugin evaluates operator-supplied Rego policies against the build's
 //! IR graph entirely in-guest: the Rego engine is compiled into the plugin,
@@ -67,8 +67,8 @@ use aggrega_pdk_rust::{
 use extism_pdk::{plugin_fn, FnResult};
 use regorus::Value;
 
-/// The static `describe()` self-report: a v1alpha1 `policy` plugin
-/// evaluating the ir stage, whose `verdict_ir` export the host validates before
+/// The static `describe()` self-report: a v1alpha1 `governance` plugin
+/// for the `ir-verdict` role, whose `verdict_ir` export the host validates before
 /// dispatch.
 fn descriptor() -> PluginDescriptor {
     PluginDescriptor {

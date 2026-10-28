@@ -1,12 +1,15 @@
 # mutator-proof (Go fixture)
 
-A Go plugin that drives the Aggrega mutator socket end-to-end. It reads a
-`MutatorInput` payload and emits one JSON Patch per node that appends the
-label `proof.aggrega/touched=mutator-proof`. Unlike the minimal `mutator`
-fixture, this plugin escapes the label key per RFC 6901 (`/` becomes
-`~1`), so the patch applies cleanly to the host's labels-only projection
-and the injected label reaches the IR graph. It exists so a host-side
-test can prove the socket wires through.
+A Go governance plugin for the governance socket's `label-transform` role,
+driving that role end-to-end. Its `mutate` export reads a `MutatorInput`
+payload and emits a `MutatorOutput` carrying one JSON Patch per node, in
+sorted node order. Each patch is one `add` that sets the label
+`proof.aggrega/touched` to `mutator-proof` on that node; it reads no
+settings, so the label is fixed. The label key is escaped per RFC 6901 in
+the patch path (`/` becomes `~1`), so each patch adds one label entry to
+the node it names and the label reaches the IR graph. It exists so a
+host-side test can prove a `label-transform` attachment's labels reach the
+build.
 
 The socket's wire carries canonical CBOR in both directions, read and
 written through the generated codec on the payload type. This plugin

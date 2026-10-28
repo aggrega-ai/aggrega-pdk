@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 Cognitio S.r.l.
 
-//! Reference policy plugin that drives a pre-baked OPA-compiled
-//! policy module with the full OPA evaluation semantics and builtin surface.
+//! Reference governance plugin for the `ir-verdict` role that drives a pre-baked
+//! OPA-compiled policy module with the full OPA evaluation semantics and builtin surface.
 //!
 //! The policy is authored in Rego, compiled once with OPA's own toolchain
 //! (`opa build -t wasm`) into a WebAssembly module, and committed alongside
@@ -11,7 +11,7 @@
 //! interpreter, satisfies the OPA module's own imports (its linear memory and
 //! its builtin callbacks) with in-guest host functions, runs the OPA
 //! evaluation sequence, and maps the OPA decision back to the verdict shape the
-//! policy socket expects. The OPA Wasm ABI is absorbed entirely here: the
+//! governance socket's verdict roles expect. The OPA Wasm ABI is absorbed entirely here: the
 //! compiler host sees only the standard `describe()` / `verdict_ir()` surface and
 //! carries no OPA-specific logic.
 //!
@@ -63,8 +63,8 @@ use wasmi::{Caller, Engine, Linker, Memory, MemoryType, Module, Store};
 /// from policy.rego with the OPA CLI as documented in the README.
 static POLICY_WASM: &[u8] = include_bytes!("../policy.wasm");
 
-/// The static `describe()` self-report: a v1alpha1 `policy` plugin
-/// evaluating the ir stage, whose `verdict_ir` export the host validates before
+/// The static `describe()` self-report: a v1alpha1 `governance` plugin
+/// for the `ir-verdict` role, whose `verdict_ir` export the host validates before
 /// dispatch.
 fn descriptor() -> PluginDescriptor {
     PluginDescriptor {

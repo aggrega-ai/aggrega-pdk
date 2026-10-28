@@ -1,8 +1,12 @@
 # mutator (Rust fixture)
 
-A small Rust plugin demonstrating the Aggrega mutator socket. The
-plugin reads a `MutatorInput` payload, appends a known label to every
-node, and emits a `MutatorOutput` with one JSON Patch per node.
+A small Rust governance plugin for the governance socket's
+`label-transform` role. Its `mutate` export reads a `MutatorInput` payload
+and emits a `MutatorOutput` carrying one JSON Patch per node, in sorted node
+order. Each patch is one `add` that sets the label
+`fixture.aggrega-pdk/touched` to `mutator-rust` on that node. A
+`label_value` string in the attachment's settings replaces `mutator-rust`
+as the value written.
 
 The socket's wire carries canonical CBOR in both directions, read and
 written through the generated codec on the payload type

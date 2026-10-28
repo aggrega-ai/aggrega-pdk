@@ -2,7 +2,7 @@
 // Copyright 2026 Cognitio S.r.l.
 
 /**
- * Fixture policy plugin for the Aggrega Wasm runtime.
+ * Fixture governance plugin for the ir-verdict role, for the Aggrega Wasm runtime.
  *
  * Emits a deterministic two-verdict PolicyOutput: one halt
  * verdict and one info verdict. The fixture does not inspect input
@@ -22,8 +22,8 @@ import {
   type PolicyOutput,
 } from "@aggrega-ai/aggrega-pdk-typescript";
 
-// The static describe() self-report: a v1alpha1 policy plugin
-// evaluating the ir stage, whose verdict_ir export the host validates before
+// The static describe() self-report: a v1alpha1 governance plugin
+// for the ir-verdict role, whose verdict_ir export the host validates before
 // dispatch.
 function descriptor(): PluginDescriptor {
   return {

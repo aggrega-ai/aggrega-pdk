@@ -1,8 +1,11 @@
 # mutator (Go fixture)
 
-A small Go plugin demonstrating the Aggrega mutator socket. The plugin
-reads a `MutatorInput` payload, appends a known label to every node, and
-emits a `MutatorOutput` with one JSON Patch per node.
+A small Go governance plugin for the governance socket's `label-transform`
+role. Its `mutate` export reads a `MutatorInput` payload and emits a
+`MutatorOutput` carrying one JSON Patch per node, in sorted node order. Each
+patch is one `add` that sets the label `fixture.aggrega-pdk/touched` to
+`mutator-go` on that node. A non-empty `label_value` string in the
+attachment's settings replaces `mutator-go` as the value written.
 
 The socket's wire carries canonical CBOR in both directions, read and
 written through the generated codec on the payload type
@@ -32,4 +35,4 @@ This fixture consumes the PDK via a `replace` directive in `go.mod`
 pointing at the sibling PDK source at `../../`. The ABI module it
 depends on resolves the same way, from the `aggrega-abi` repository
 checked out beside this repository. Standalone reuse by end users
-is gated on PDK publication (planned post-`v1alpha1`).
+is gated on PDK publication.

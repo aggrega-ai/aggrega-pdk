@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 Cognitio S.r.l.
 
-// Fixture mutator plugin for the Aggrega Wasm runtime.
+// Fixture governance plugin for the label-transform role, for the Aggrega Wasm runtime.
 //
 // Applies one trivial transform — appends the label
 // "fixture.aggrega-pdk/touched=mutator-go" to every node in the
@@ -14,7 +14,7 @@
 //   - The result encoded to a MutatorOutput valid against the
 //     wasm-mutator schema.
 //
-// The label-transform socket carries canonical CBOR in both directions. The
+// The label-transform role's wire carries canonical CBOR in both directions. The
 // patch documents the output carries are JSON, and stay JSON: the socket carries
 // them verbatim and neither side reads into them.
 //
@@ -44,7 +44,7 @@ const fixtureLabelKey = "fixture.aggrega-pdk/touched"
 // outputs when multiple PDKs ship.
 const fixtureLabelValue = "mutator-go"
 
-// descriptor is the static describe() self-report: a v1alpha1 mutator plugin
+// descriptor is the static describe() self-report: a v1alpha1 governance plugin
 // whose mutate export the host validates before dispatch. The host reads this
 // once at load through the shared describe() gate.
 func descriptor() aggrega.PluginDescriptor {
@@ -115,7 +115,7 @@ func mutate() int32 {
 	// makes the emitted patch list independent of that order, so identical
 	// input yields byte-identical output however the nodes were ordered —
 	// both to match Aggrega's determinism discipline and to keep this
-	// fixture safe to copy as a starting template for real mutator plugins.
+	// fixture safe to copy as a starting template for real label-transform plugins.
 	nodeIDs := in.Graph.Nodes.Keys()
 	sort.Strings(nodeIDs)
 

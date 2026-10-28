@@ -1,6 +1,7 @@
 # policy-settings (Rust fixture)
 
-A Rust policy plugin that **types its attachment settings**. Its
+A Rust governance plugin for the governance socket's `ir-verdict` role that
+**types its attachment settings**. Its
 `describe()` self-report carries a `settings_schema` — a JSON Schema the host
 compiles at load and validates the operator's `with.settings` against before
 dispatching `verdict_ir`.
@@ -20,8 +21,9 @@ forbids unknown keys:
 An attachment whose settings omit `max_replicas`, give it the wrong type, or add
 an unknown key halts the build loudly (naming the offending key) before the
 plugin runs. A conforming attachment reaches `verdict_ir`, which reads the typed
-setting and emits a single info verdict echoing the value it read — proof the
-setting flowed through as the declared type.
+setting and emits a single verdict of severity `info` with the message
+`typed settings applied: max_replicas=<value>`, echoing the value it read —
+proof the setting flowed through as the declared type.
 
 A plugin that declares no `settings_schema` keeps the free-form pass-through
 behaviour: the host hands its settings through verbatim without validation.

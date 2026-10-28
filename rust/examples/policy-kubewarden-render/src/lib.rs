@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 Cognitio S.r.l.
 
-//! Reference render-stage policy plugin that runs a Kubewarden-style
-//! validating policy over the rendered Kubernetes manifests.
+//! Reference governance plugin for the `render-verdict` role that runs a
+//! Kubewarden-style validating policy over the rendered Kubernetes manifests.
 //!
 //! Kubewarden policies are written against the Kubernetes AdmissionReview
 //! contract: a policy receives a `ValidationRequest` wrapping the admission
@@ -12,7 +12,7 @@
 //! in-guest:
 //!
 //!   - Outward, it speaks the Aggrega plugin ABI: `describe()` reports a
-//!     `policy` plugin evaluating the `render` stage, and `verdict_render`
+//!     `governance` plugin exporting `verdict_render`, and `verdict_render`
 //!     consumes the render-stage payload and returns policy verdicts. The host
 //!     stays free of any Kubewarden or admission-control logic.
 //!   - Inward, it absorbs the Kubewarden contract: for each rendered object it
@@ -60,8 +60,8 @@ use aggrega_pdk_rust::{
 use extism_pdk::{plugin_fn, FnResult};
 use serde::{Deserialize, Serialize};
 
-/// The static `describe()` self-report: a v1alpha1 `policy` plugin
-/// evaluating the render stage, whose `verdict_render` export the host validates
+/// The static `describe()` self-report: a v1alpha1 `governance` plugin
+/// for the `render-verdict` role, whose `verdict_render` export the host validates
 /// before dispatch.
 fn descriptor() -> PluginDescriptor {
     PluginDescriptor {

@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 Cognitio S.r.l.
 
-// Observing policy fixture plugin for the Aggrega Wasm runtime.
+// Observing fixture governance plugin for the ir-verdict role, for the Aggrega Wasm runtime.
 //
 // Unlike the constant-output policy fixtures, this plugin reads its input
 // payload: it echoes the attachment-supplied sources (count, and the first
 // source's base-name path and content length) and emits a single verdict whose
 // severity is taken from the attachment's settings object (settings.severity),
-// defaulting to audit when unset. Driving the same plugin with different
-// settings exercises the deny / warn / audit host paths, and the echoed source
+// defaulting to info when unset. Driving the same plugin with different
+// settings exercises the halt / warn / info host paths, and the echoed source
 // detail proves the sources reached the guest as base names.
 //
 // The role's payload and result travel as canonical CBOR: the input is read with
@@ -33,8 +33,8 @@ type settings struct {
 	Severity string `json:"severity"`
 }
 
-// descriptor is the static describe() self-report: a v1alpha1 policy plugin
-// evaluating the ir stage.
+// descriptor is the static describe() self-report: a v1alpha1 governance plugin
+// exporting verdict_ir, the ir-verdict role's default entry function.
 func descriptor() aggrega.PluginDescriptor {
 	return aggrega.PluginDescriptor{
 		AbiVersion:  aggrega.APIVersion,

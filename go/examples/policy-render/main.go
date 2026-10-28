@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 Cognitio S.r.l.
 
-// Render-stage policy fixture plugin for the Aggrega Wasm runtime.
+// Fixture governance plugin for the render-verdict role, for the Aggrega Wasm runtime.
 //
-// It declares the render stage, so the host runs it after render over the
+// At the render-verdict role, the host runs it after render over the
 // rendered artifacts rather than over the IR graph. It reads its input payload:
 // it echoes the artifact count and the first (path-sorted) artifact's path, and
 // emits a single verdict whose severity is taken from the attachment's settings
 // object (settings.severity), defaulting to info when unset. Driving it with
-// different settings exercises the render-stage deny / warn / audit host paths.
+// different settings exercises the render-stage halt / warn / info host paths.
 //
 // The role's payload and result travel as canonical CBOR: the input is read with
 // RenderPolicyInput.DecodeCBOR and the output written with PolicyOutput.EncodeCBOR.
@@ -33,8 +33,8 @@ type settings struct {
 	Severity string `json:"severity"`
 }
 
-// descriptor is the static describe() self-report: a v1alpha1 policy plugin
-// evaluating the render stage.
+// descriptor is the static describe() self-report: a v1alpha1 governance plugin
+// exporting verdict_render, the render-verdict role's default entry function.
 func descriptor() aggrega.PluginDescriptor {
 	return aggrega.PluginDescriptor{
 		AbiVersion:  aggrega.APIVersion,

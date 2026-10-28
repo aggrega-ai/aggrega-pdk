@@ -1,9 +1,15 @@
 # policy (TypeScript fixture)
 
-A small TypeScript plugin demonstrating the Aggrega policy
-socket. The plugin emits a deterministic two-result
-`PolicyOutput` — one pass, one fail — matching the Go and
-Rust counterparts byte-for-byte at the verdict level.
+A small TypeScript governance plugin for the governance socket's
+`ir-verdict` role. Its `verdict_ir` export emits a `PolicyOutput`
+carrying two verdicts, in this order:
+
+- severity `halt`, message
+  `fixture rule B: deliberate fail for end-to-end coverage`;
+- severity `info`, message `fixture rule A: advisory note`.
+
+These are the same two verdicts, in the same order, as the `verdict_ir`
+export of the Go and Rust `policy` examples.
 
 ## Build
 
