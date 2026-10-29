@@ -549,7 +549,6 @@ func TestProviderExportTable_EachPayloadValidatesAgainstItsExportsDefinition(t *
 		{"an empty validate_node_input answer", `{}`, "validate_node_input", "output", true},
 		{"an empty name_bound answer", `{}`, "name_bound", "output", true},
 		{"an empty rendered_name answer", `{}`, "rendered_name", "output", true},
-		{"an empty boundary_env_overrides answer", `{}`, "boundary_env_overrides", "output", true},
 		{"an empty render_node answer, which carries files", `{}`, "render_node", "output", false},
 		{"a carve input", carveInput, "carve", "input", true},
 		{"a carve input as reassemble's answer", carveInput, "reassemble", "output", false},

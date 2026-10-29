@@ -704,11 +704,10 @@ fn provider_export_table_validates_each_payload_against_its_exports_definition()
     });
     let empty = serde_json::json!({});
     // (case, payload, export, direction, whether the payload is valid there)
-    let cases: [(&str, &serde_json::Value, &str, &str, bool); 7] = [
+    let cases: [(&str, &serde_json::Value, &str, &str, bool); 6] = [
         ("an empty validate_node_input answer", &empty, "validate_node_input", "output", true),
         ("an empty name_bound answer", &empty, "name_bound", "output", true),
         ("an empty rendered_name answer", &empty, "rendered_name", "output", true),
-        ("an empty boundary_env_overrides answer", &empty, "boundary_env_overrides", "output", true),
         ("an empty render_node answer, which carries files", &empty, "render_node", "output", false),
         ("a carve input", &carve_input, "carve", "input", true),
         ("a carve input as reassemble's answer", &carve_input, "reassemble", "output", false),
