@@ -460,12 +460,19 @@ func TestNameBoundOutput_KeepsAnAbsentBoundDistinctFromZero(t *testing.T) {
 // TestNameBoundInput_RoundTripJSONSchema pins the question shape a provider
 // guest reads: the proposed identity, and whether a person wrote it. The flag is
 // carried so a guest can phrase its reason for the reader who can act on it;
-// what a refusal DOES is the host's decision, not the guest's.
+// what a refusal DOES is the host's decision, not the guest's. It also carries the
+// facts of the node's resolved workload some of a target's names depend on: the
+// form and the Service keys, in the order the workload declares them.
 func TestNameBoundInput_RoundTripJSONSchema(t *testing.T) {
 	t.Parallel()
 	schema := loadExportPayloadSchema(t, "wasm-provider-v1alpha1.schema.json", "name_bound", "input")
 
-	fixture := aggrega.NameBoundInput{Proposed: "payments-api", Authored: true}
+	fixture := aggrega.NameBoundInput{
+		Proposed:     "payments-api",
+		Authored:     true,
+		WorkloadForm: "scheduled",
+		ServiceKeys:  []string{"web", "metrics"},
+	}
 
 	if err := schema.Validate(jsonInstance(t, fixture)); err != nil {
 		t.Errorf("schema validation failed for NameBoundInput fixture: %v", err)

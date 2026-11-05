@@ -644,7 +644,9 @@ fn name_bound_output_distinguishes_an_absent_bound_from_zero() {
 
 /// A guest reads the proposed identity and whether a person wrote it. The flag
 /// is carried so a guest can phrase its reason for the reader who can act on it;
-/// what a refusal DOES is the host's decision, not the guest's.
+/// what a refusal DOES is the host's decision, not the guest's. It also reads the
+/// facts of the node's resolved workload some of its names depend on: the form and
+/// the Service keys, in the order the workload declares them.
 #[test]
 fn name_bound_input_round_trip_json_schema() {
     let schema = require_schema!("wasm-provider-v1alpha1.schema.json");
@@ -652,6 +654,8 @@ fn name_bound_input_round_trip_json_schema() {
     let fixture = NameBoundInput {
         proposed: "payments-api".to_string(),
         authored: true,
+        workload_form: "scheduled".to_string(),
+        service_keys: vec!["web".to_string(), "metrics".to_string()],
     };
 
     let value = serde_json::to_value(&fixture).expect("serialise NameBoundInput");
@@ -663,6 +667,8 @@ fn name_bound_input_round_trip_json_schema() {
     let round: NameBoundInput = serde_json::from_str(&raw).expect("unmarshal NameBoundInput");
     assert_eq!(fixture.proposed, round.proposed);
     assert!(round.authored);
+    assert_eq!(fixture.workload_form, round.workload_form);
+    assert_eq!(fixture.service_keys, round.service_keys);
 }
 
 /// Every row of the provider schema's export table names two definitions that

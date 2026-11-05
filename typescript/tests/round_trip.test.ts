@@ -423,7 +423,12 @@ test("NameBoundInput round-trips through the wasm-provider schema", (t) => {
 
   const validate = makeExportPayloadValidator("wasm-provider-v1alpha1.schema.json", "name_bound", "input");
 
-  const fixture: NameBoundInput = { proposed: "payments-api", authored: true };
+  const fixture: NameBoundInput = {
+    proposed: "payments-api",
+    authored: true,
+    workload_form: "scheduled",
+    service_keys: ["web", "metrics"],
+  };
 
   const wire = encodeNameBoundInput(fixture);
   const ok = validate(JSON.parse(wire));
@@ -432,6 +437,8 @@ test("NameBoundInput round-trips through the wasm-provider schema", (t) => {
   const round = JSON.parse(wire) as NameBoundInput;
   assert.equal(round.proposed, fixture.proposed);
   assert.equal(round.authored, true);
+  assert.equal(round.workload_form, "scheduled");
+  assert.deepEqual(round.service_keys, ["web", "metrics"]);
 });
 
 // Every row of the provider schema's export table names two definitions that
