@@ -387,10 +387,14 @@ func (a *aggregateBuilder) entity() aggrega.EmittedEntity {
 		if len(producers) > 0 {
 			sorted := append([]string{}, producers...)
 			sort.Strings(sorted)
+			// Each connection is written under the socket and the alias of its
+			// producer's key. A component reads its connections by alias whatever
+			// socket each is wired into, so one alias shared by two connections
+			// halts the build; the keys are distinct, so the aliases are.
 			b.WriteString("      uses:\n")
 			for _, p := range dedup(sorted) {
 				b.WriteString("        " + p + ":\n")
-				b.WriteString("          link:\n")
+				b.WriteString("          " + p + ":\n")
 				b.WriteString("            target: " + p + "\n")
 			}
 		}

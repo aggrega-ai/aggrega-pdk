@@ -482,16 +482,53 @@ spec:
       type: imported/component/custompythoncomponent
       uses:
         model-1:
-          link:
+          model-1:
             target: model-1
     out:
       type: imported/ai-model/chatoutput
       uses:
         custom-logic:
-          link:
+          custom-logic:
             target: custom-logic
 `
 )
+
+// TestANodeFedByTwoNodesGivesEachConnectionAnAliasOfItsOwn imports a source whose
+// output node is fed by two nodes: the drafted Aggregate writes each of its two
+// connections under the socket and the alias of the key of the node feeding it,
+// so the two aliases differ — a component reads each connection by its alias,
+// whatever socket it is wired into, and a build halts on two connections of one
+// component under one alias. Two imports write the same Aggregate.
+//
+// 🔴 PLANTED DEFECT: in (*aggregateBuilder).entity (emit.go), write every
+// connection under the alias link again: both connections share it, and the case
+// fails.
+func TestANodeFedByTwoNodesGivesEachConnectionAnAliasOfItsOwn(t *testing.T) {
+	const source = `{"nodes":[` +
+		`{"id":"model","type":"generic","data":{"type":"OpenAIModel"}},` +
+		`{"id":"finder","type":"generic","data":{"type":"Finder"}},` +
+		`{"id":"out","type":"generic","data":{"type":"ChatOutput"}}],` +
+		`"edges":[{"source":"model","target":"out"},{"source":"finder","target":"out"}]}`
+	aggregate := func(out aggrega.ImportOutput) string {
+		for _, f := range out.Files {
+			if f.Path == "aggregate.yaml" {
+				return f.Content
+			}
+		}
+		t.Fatalf("the import wrote no aggregate.yaml: %+v", out.Files)
+		return ""
+	}
+	got := aggregate(importTest(t, "", source))
+	want := "    out:\n      type: imported/ai-model/chatoutput\n      uses:\n" +
+		"        finder:\n          finder:\n            target: finder\n" +
+		"        model:\n          model:\n            target: model\n"
+	if !strings.HasSuffix(got, want) {
+		t.Errorf("the output node's connections are not\n%s\nin\n%s", want, got)
+	}
+	if again := aggregate(importTest(t, "", source)); again != got {
+		t.Errorf("two imports of one source drafted different Aggregates:\n%s\nand\n%s", got, again)
+	}
+}
 
 // TestDraftAndAggregateRendering pins, byte for byte, the files the human renderer
 // writes: one per drafted Component in node order, its HIGH hint written above
