@@ -139,5 +139,5 @@ orthogonal.
 
 ## License
 
-Apache-2.0. See the [`LICENSE`](LICENSE) file at the root of this
-repository.
+The Aggrega Plugin Development Kits are released under the Apache License, Version 2.0; the full text is in the
+[`LICENSE`](LICENSE) file at the root of this repository.
