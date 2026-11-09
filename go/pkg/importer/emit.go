@@ -14,7 +14,7 @@ import (
 
 // apiVersion is the apiVersion every document this package drafts declares —
 // each drafted Component and Aggregate, and the platform and module drafts — so
-// the four writers spell it once, here.
+// its writers spell it once, here.
 //
 // It is a deliberate copy of the version the Aggrega schemas pin, not a second
 // source of it: this module is published on its own and reads no schema, so it
