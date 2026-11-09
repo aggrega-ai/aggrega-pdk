@@ -186,6 +186,19 @@ no `version` / `commit` members rather than a `ReferenceError` — the
 unstamped descriptor is byte-identical to the stamped one minus those
 members.
 
+## Compatibility
+
+This package follows semantic versioning from `0.9.0`. A plugin built
+against a version keeps building against every later `0.9.x` release:
+a release may add exported functions, types and constants, and never
+removes or changes one — and a required member added to an exported
+interface, which breaks a plugin implementing it, is such a change,
+though the check's declaration comparison reads it as an addition. A breaking
+change ships only as a new minor
+version below `1.0.0` (`0.10.0`), or a new major version from `1.0.0`.
+The [kit overview](../README.md#versioning-and-compatibility) states
+the rule and the check that holds it.
+
 ## Layout
 
 ```text

@@ -200,6 +200,18 @@ omits the `version` / `commit` members — byte-identical to the stamped
 one minus those members. A guest that has no build-time stamp uses
 `encode_descriptor(&descriptor)` directly.
 
+## Compatibility
+
+This crate follows semantic versioning from `0.9.0`. A plugin built
+against a version keeps building against every later `0.9.x` release:
+a release may add public functions, types and constants, and never
+removes or changes one — and a public field added to a struct a plugin
+builds with a struct literal is such a change. A breaking change ships only as a new
+minor version below `1.0.0` (`0.10.0`), which Cargo already treats as
+incompatible, or a new major version from `1.0.0`. The
+[kit overview](../README.md#versioning-and-compatibility) states the
+rule and the check that holds it.
+
 ## Layout
 
 ```text

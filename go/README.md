@@ -390,6 +390,19 @@ A plain build (no `-ldflags`) leaves the provenance empty and
 `MarshalDescriptor` omits the `version` / `commit` members — the unstamped
 descriptor is byte-identical to the stamped one minus those members.
 
+## Compatibility
+
+This kit follows semantic versioning from `0.9.0`. A plugin built
+against a version keeps building against every later `0.9.x` release:
+a release may add exported functions, types, constants and struct
+fields to `pkg/aggrega` and `pkg/importer`, and never removes or changes
+one. An added field is compatible for struct literals written with
+field names, the form Go's own compatibility promise assumes. A
+breaking change ships only as a new minor version below `1.0.0`
+(`0.10.0`), or a new major version from `1.0.0`. The
+[kit overview](../README.md#versioning-and-compatibility) states the
+rule and the check that holds it.
+
 ## Layout
 
 ```text

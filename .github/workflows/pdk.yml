@@ -178,6 +178,71 @@ jobs:
         working-directory: aggrega-pdk/rust/examples/policy
         run: bash build.sh
 
+  api-compat:
+    # Refuses a breaking change to a kit's exported API that the version being
+    # prepared does not mark, judged against the newest release tag. Runs where the
+    # next release is prepared: a push to dev and a pull request into it.
+    #
+    # The check is aggrega-abi's scripts/check-api-compat.sh (its --help is the
+    # contract), taken from the ABI sibling's dev, so a change here cannot weaken the
+    # check that judges it. It lays the release-tag trees out side by side as the
+    # manifests expect, pairing this repository's tag with the ABI tag that tag's
+    # rust/Cargo.toml declares on its aggrega-abi dependency; so both checkouts
+    # carry their tags. It pins and installs its own tools, and the Rust toolchain
+    # whose rustdoc it reads, into the per-run directory it is given.
+    if: github.ref_name == 'dev' || github.base_ref == 'dev'
+    # Shared self-hosted-runner switch: set the AGGREGA_RUNNER org/repo variable to route here.
+    runs-on: ${{ vars.AGGREGA_RUNNER || 'ubuntu-latest' }}
+    steps:
+      - name: Mint org app token for private-ABI access
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ secrets.SUBMODULE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.SUBMODULE_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+
+      - name: Checkout PDK, with its tags
+        uses: actions/checkout@v5
+        with:
+          path: aggrega-pdk
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Checkout ABI (sibling, with its tags and the check)
+        uses: actions/checkout@v5
+        with:
+          repository: aggrega-ai/aggrega-abi
+          ref: ${{ env.SIBLING_REF }}
+          path: aggrega-abi
+          fetch-depth: 0
+          token: ${{ steps.app-token.outputs.token }}
+          persist-credentials: false
+
+      - name: Install Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: '1.26'
+          # Caching off, as in go-pdk above and for the same reason.
+          cache: false
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: '1.85'
+
+      - name: Install Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+
+      - name: Refuse an unmarked breaking change to a kit's exported API
+        run: >-
+          aggrega-abi/scripts/check-api-compat.sh
+          --tools "$RUNNER_TEMP/api-tools"
+          --sibling aggrega-abi
+          aggrega-pdk
+
   typescript-pdk:
     # Shared self-hosted-runner switch: set the AGGREGA_RUNNER org/repo variable to route here.
     runs-on: ${{ vars.AGGREGA_RUNNER || 'ubuntu-latest' }}

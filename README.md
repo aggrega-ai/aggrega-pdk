@@ -37,7 +37,7 @@ constant and stay coordinated at every socket-shape change.
 aggrega-pdk/
 ├── README.md           (this file)
 ├── .github/workflows/
-│   └── pdk.yml         (per-language build + test gates)
+│   └── pdk.yml         (per-language build + test gates, and the API compatibility check)
 ├── go/                 (Go PDK + examples + tests)
 ├── rust/               (Rust PDK + examples + tests)
 └── typescript/         (TypeScript PDK + examples + tests)
@@ -123,6 +123,60 @@ regeneration comparison; a codec that disagrees with its siblings
 fails the shared golden-vector parity tests; and drift between a
 committed `.wasm` fixture and the host's expectations fails the
 integration test in the compiler's CI.
+
+## Versioning and compatibility
+
+The three PDKs and the `aggrega-abi` codecs follow semantic versioning
+from `0.9.0`, the version they take at Aggrega's first public release.
+The languages of one repository share one version number.
+
+- **A plugin built against a version keeps building against every later
+  version of the same line.** Within `0.9.x` a release may add exported
+  functions, types and constants; it never removes or changes one.
+  Whether a field or member added to an existing type is an addition
+  depends on the language — each kit's README says — and the check's
+  `--help` names what its comparison cannot see.
+- **A breaking change starts a new line.** Below `1.0.0` it raises the
+  minor number (`0.9.x` → `0.10.0`) and a patch release never breaks;
+  from `1.0.0` it raises the major number. The kits move to `1.0.0`
+  together with Aggrega's own `1.0.0`.
+
+The kits re-export the `aggrega-abi` types, so a breaking change there
+is a breaking change here as well: the kits raise their own minor
+version with it. `rust/Cargo.toml` declares the `aggrega-abi` version
+the kits are built against on its `aggrega-abi` dependency, kept equal
+to that repository's own version; the check refuses the two when they
+differ. At a release tag it reads that declaration and compares
+against the `aggrega-abi` tag it names. That tag is the release the kits
+were built on only when each release of either repository is tagged at
+the version its manifests carry, and the declared version is raised to
+the new `aggrega-abi` release before the kits are tagged — the check's
+`--help` states this under PAIRING.
+
+The promise covers the exported API — what a plugin's source names.
+What crosses the host/guest boundary is held by the plugin ABI version
+each kit's version constant carries: within one ABI version a socket gains only
+descriptions and optional fields, so a plugin built against it keeps
+loading.
+
+A check holds the rule on the development branch.
+`aggrega-abi/scripts/check-api-compat.sh` compares the exported API of
+each kit with the newest release tag and refuses a removed or changed
+item unless the version being prepared marks a breaking change — Go
+with `apidiff`, Rust with `cargo-semver-checks`, TypeScript by
+comparing the declaration files the package emits. A change that has
+to break raises the version in `rust/Cargo.toml` and
+`typescript/package.json` in the same change. The workflow runs the
+check on every push to `dev` and every pull request into it that
+changes a kit; to run it locally, from the directory holding both
+checkouts:
+
+```sh
+aggrega-abi/scripts/check-api-compat.sh --tools .api-tools --sibling aggrega-abi aggrega-pdk
+```
+
+Its `--help` states the rule, the tools it pins, and what each
+language's comparison cannot see.
 
 ## Module-path identity
 
