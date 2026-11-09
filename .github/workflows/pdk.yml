@@ -7,13 +7,9 @@ on:
       - 'rust/**'
       - 'typescript/**'
       - '.github/workflows/pdk.yml'
+  # No paths filter on pushes: a release's push to main needs a check result on every push tip main can receive.
   push:
     branches: [main, dev]
-    paths:
-      - 'go/**'
-      - 'rust/**'
-      - 'typescript/**'
-      - '.github/workflows/pdk.yml'
 
 # The PDK manifests carry local relative path deps to the sibling ABI
 # (go: replace ../../aggrega-abi/go; rust: path ../../aggrega-abi/rust;
