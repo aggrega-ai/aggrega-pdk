@@ -52,7 +52,7 @@ const unboundKey = "proof.aggrega/unbound"
 // unboundValue is the value the plugin injects for the unbound annotation.
 const unboundValue = "no-binding-here"
 
-// descriptor is the static describe() self-report: a v1alpha1 governance plugin
+// descriptor is the static describe() self-report: a governance plugin
 // whose transform_annotations export the host validates before dispatch.
 func descriptor() aggrega.PluginDescriptor {
 	return aggrega.PluginDescriptor{

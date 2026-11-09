@@ -45,8 +45,8 @@ like any non-structured content, surfaces `parse_error`.
 
 The plugin exports the two functions a verdict-role governance plugin declares:
 
-- `describe()` — reports itself as a `governance` plugin, ABI
-  `v1alpha1`, serving the `render-verdict` role, exporting `verdict_render`.
+- `describe()` — reports itself as a `governance` plugin at the kit's ABI,
+  serving the `render-verdict` role, exporting `verdict_render`.
 - `verdict_render(input)` — evaluates the attached policies against the rendered
   artifacts the host hands it and returns the fired verdicts.
 

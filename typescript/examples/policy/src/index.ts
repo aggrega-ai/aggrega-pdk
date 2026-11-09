@@ -22,7 +22,7 @@ import {
   type PolicyOutput,
 } from "@aggrega-ai/aggrega-pdk-typescript";
 
-// The static describe() self-report: a v1alpha1 governance plugin
+// The static describe() self-report: a governance plugin
 // for the ir-verdict role, whose verdict_ir export the host validates before
 // dispatch.
 function descriptor(): PluginDescriptor {

@@ -36,7 +36,7 @@ const CONTENT_PREFIX: &str = "rendered-node:";
 /// every crossing — the source of the deliberate non-determinism.
 static COUNTER: AtomicU32 = AtomicU32::new(0);
 
-/// The static `describe()` self-report: a v1alpha1 `provider` plugin whose
+/// The static `describe()` self-report: a `provider` plugin whose
 /// `render_node` export the host validates before dispatch. It declares no
 /// capabilities block, so it makes no `reusable_instance` claim.
 fn descriptor() -> PluginDescriptor {

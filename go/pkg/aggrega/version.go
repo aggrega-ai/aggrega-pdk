@@ -8,7 +8,7 @@ import abi "github.com/aggrega-ai/aggrega-abi-go/pkg/abi"
 // APIVersion is the Aggrega Wasm plugin ABI version this PDK targets,
 // re-exported from the portable aggrega-abi module so a plugin author writes
 // aggrega.APIVersion while the value itself stays single-sourced in the
-// descriptor schema that declares it. The constant is the v1alpha1 contract
+// descriptor schema that declares it. The constant is the v1beta1 contract
 // floor; cross-language PDKs (Go, Rust, TypeScript) export the same value
 // because all three are generated from that one declaration.
 const APIVersion = abi.AbiVersion

@@ -56,7 +56,7 @@ const contentPrefix = "rendered-node:"
 // infers the format from the file extension.
 const outputFormat = "text"
 
-// descriptor is the static describe() self-report: a v1alpha1 provider plugin
+// descriptor is the static describe() self-report: a provider plugin
 // whose render_node export the host validates before dispatch. The host reads
 // this once at load through the shared describe() gate.
 func descriptor() aggrega.PluginDescriptor {

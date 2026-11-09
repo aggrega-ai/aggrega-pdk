@@ -30,7 +30,7 @@ use extism_pdk::{plugin_fn, FnResult};
 use serde_json::json;
 use serde_json::value::to_raw_value;
 
-/// The static `describe()` self-report: a v1alpha1 parser plugin whose `parse`
+/// The static `describe()` self-report: a parser plugin whose `parse`
 /// export handles the `parse:demo` format.
 fn descriptor() -> PluginDescriptor {
     PluginDescriptor {

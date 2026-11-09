@@ -42,7 +42,7 @@ use aggrega_pdk_rust::{
 use extism_pdk::{plugin_fn, FnResult};
 use serde_json::Value;
 
-/// The static `describe()` self-report: a v1alpha1 `pipeline-step` plugin whose
+/// The static `describe()` self-report: a `pipeline-step` plugin whose
 /// `step` export patches the merged compose document and is tested-compatible
 /// only with the `compose` provider.
 fn descriptor() -> PluginDescriptor {

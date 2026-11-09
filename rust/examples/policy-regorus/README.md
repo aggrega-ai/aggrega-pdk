@@ -17,8 +17,8 @@ routes the payload in and the verdicts out.
 
 The plugin exports the two functions a verdict-role governance plugin declares:
 
-- `describe()` — reports itself as a `governance` plugin, ABI
-  `v1alpha1`, serving the `ir-verdict` role, exporting `verdict_ir`.
+- `describe()` — reports itself as a `governance` plugin at the kit's ABI,
+  serving the `ir-verdict` role, exporting `verdict_ir`.
 - `verdict_ir(input)` — evaluates the attached policies against the payload the
   host hands it and returns the fired verdicts.
 

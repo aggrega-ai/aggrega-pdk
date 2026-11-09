@@ -34,7 +34,7 @@ use aggrega_pdk_rust::{
 use extism_pdk::{plugin_fn, FnResult};
 use serde_json::Value;
 
-/// The static `describe()` self-report: a v1alpha1 `pipeline-step` plugin
+/// The static `describe()` self-report: a `pipeline-step` plugin
 /// whose `step` export patches own-scope workloads and is
 /// tested-compatible with the helm and helm-chart providers (both render
 /// workloads carrying a pod template, in flat-document and chart-source form

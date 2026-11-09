@@ -39,7 +39,7 @@ type settings struct {
 	RequireResourceType string `json:"require_resource_type"`
 }
 
-// descriptor is the static describe() self-report: a v1alpha1 governance plugin
+// descriptor is the static describe() self-report: a governance plugin
 // exporting verdict_render, the render-verdict role's default entry function.
 func descriptor() aggrega.PluginDescriptor {
 	return aggrega.PluginDescriptor{

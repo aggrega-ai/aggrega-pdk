@@ -32,7 +32,7 @@ import (
 	"github.com/aggrega-ai/aggrega-pdk-go/pkg/aggrega"
 )
 
-// descriptor is the static describe() self-report: a v1alpha1 importer plugin
+// descriptor is the static describe() self-report: an importer plugin
 // whose import export imports the aggrega_parse_source host function. The host
 // reads this once at load, validates it, and cross-checks the declared host
 // functions against the binary's imports.

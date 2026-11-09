@@ -172,7 +172,7 @@ Build the descriptor with typed values and encode it through
 ```ts
 import { encodeDescriptor, type PluginDescriptor } from "@aggrega-ai/aggrega-pdk-typescript";
 const d: PluginDescriptor = {
-  abi_version: "v1alpha1",
+  abi_version: "v1beta1",
   plugin_type: "cli",
   exports: [{ name: "cli_run" }],
   metadata: { author: "me" },

@@ -35,7 +35,7 @@ use serde_json::value::RawValue;
 /// before dispatching `verdict_ir`.
 const SETTINGS_SCHEMA: &str = r#"{"type":"object","properties":{"max_replicas":{"type":"integer","minimum":1}},"required":["max_replicas"],"additionalProperties":false}"#;
 
-/// The static `describe()` self-report: a v1alpha1 `governance` plugin
+/// The static `describe()` self-report: a `governance` plugin
 /// for the `ir-verdict` role whose settings are typed by an inline JSON Schema.
 fn descriptor() -> PluginDescriptor {
     PluginDescriptor {

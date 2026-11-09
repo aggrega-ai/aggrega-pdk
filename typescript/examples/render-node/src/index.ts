@@ -92,7 +92,7 @@ const CONTENT_PREFIX = "rendered-node:";
 // format leaves the field unset and the host infers it from the extension.
 const OUTPUT_FORMAT = "text";
 
-// The static describe() self-report: a v1alpha1 provider plugin whose
+// The static describe() self-report: a provider plugin whose
 // render_node export the host validates before dispatch.
 function descriptor(): PluginDescriptor {
   return {

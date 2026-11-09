@@ -28,7 +28,7 @@ shape. Plugin authors targeting a mutator, policy, or any future
 Aggrega socket consume the language-appropriate PDK and write
 idiomatic source against it.
 
-Contract floor: `v1alpha1`. The three PDKs export a common version
+Contract floor: `v1beta1`. The three PDKs export a common version
 constant and stay coordinated at every socket-shape change.
 
 ## Layout

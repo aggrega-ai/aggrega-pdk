@@ -50,7 +50,7 @@ const managedSecretName = "guardrail-managed-secret"
 // omits the field or gives it a non-string value halts the build.
 const outputContract = `{"type":"object","required":["secretName"],"properties":{"secretName":{"type":"string"}}}`
 
-// descriptor is the static describe() self-report: a v1alpha1 pipeline-step plugin
+// descriptor is the static describe() self-report: a pipeline-step plugin
 // whose step export emits into its own set, declares the helm compatible
 // provider, and types its returned outputs with the output contract above.
 func descriptor() aggrega.PluginDescriptor {

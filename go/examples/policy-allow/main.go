@@ -27,7 +27,7 @@ import (
 // deterministically.
 var fixtureOutput = aggrega.PolicyOutput{Results: []aggrega.Diagnostic{}}
 
-// descriptor is the static describe() self-report: a v1alpha1 governance plugin
+// descriptor is the static describe() self-report: a governance plugin
 // for the ir-verdict role, whose verdict_ir export the host validates before
 // dispatch.
 func descriptor() aggrega.PluginDescriptor {

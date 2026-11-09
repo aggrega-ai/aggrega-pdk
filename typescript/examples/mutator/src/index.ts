@@ -44,7 +44,7 @@ interface JsonPatchOp {
 const FIXTURE_LABEL_KEY = "fixture.aggrega-pdk/touched";
 const FIXTURE_LABEL_VALUE = "mutator-typescript";
 
-// The static describe() self-report: a v1alpha1 governance plugin whose
+// The static describe() self-report: a governance plugin whose
 // mutate export the host validates before dispatch.
 function descriptor(): PluginDescriptor {
   return {

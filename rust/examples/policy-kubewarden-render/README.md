@@ -53,7 +53,7 @@ Kubewarden policy is called as an ordinary in-guest Rust function,
 
 The plugin exports the two functions a verdict-role governance plugin declares:
 
-- `describe()` — reports itself as a `governance` plugin, ABI `v1alpha1`,
+- `describe()` — reports itself as a `governance` plugin at the kit's ABI,
   serving the `render-verdict` role, exporting `verdict_render`.
 - `verdict_render(input)` — receives the render-stage payload (the rendered
   artifacts, plus the attachment's sources and settings), runs the policy over

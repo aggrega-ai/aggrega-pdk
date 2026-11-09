@@ -45,7 +45,7 @@ import (
 	"github.com/aggrega-ai/aggrega-pdk-go/pkg/aggrega"
 )
 
-// descriptor is the static describe() self-report: a v1alpha1 pipeline-step plugin
+// descriptor is the static describe() self-report: a pipeline-step plugin
 // whose step export patches own-scope workloads and is tested-compatible with
 // the helm and helm-chart providers (both render workloads carrying a pod
 // template, in flat-document and chart-source form respectively). The host

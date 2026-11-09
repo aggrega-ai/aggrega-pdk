@@ -63,7 +63,7 @@ runs, nothing is fetched, and the build stays deterministic and hermetic.
 
 ## What it exports
 
-- `describe()` — reports itself as a `governance` plugin, ABI `v1alpha1`,
+- `describe()` — reports itself as a `governance` plugin at the kit's ABI,
   serving the `ir-verdict` role, exporting `verdict_ir`.
 - `verdict_ir(input)` — drives the baked module against the payload the host hands
   it and returns the fired verdicts.

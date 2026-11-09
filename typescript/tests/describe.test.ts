@@ -22,7 +22,7 @@ import {
 
 test("encodeDescriptor omits absent optionals and carries command flags", () => {
   const d: PluginDescriptor = {
-    abi_version: "v1alpha1",
+    abi_version: "v1beta1",
     plugin_type: "cli",
     exports: [
       { name: "cli_run", host_functions: ["aggrega_cli_write_stdout"] },
@@ -61,7 +61,7 @@ test("encodeDescriptor omits absent optionals and carries command flags", () => 
 
 test("encodeDescriptor emits a full provider contract and round-trips", () => {
   const d: PluginDescriptor = {
-    abi_version: "v1alpha1",
+    abi_version: "v1beta1",
     plugin_type: "provider",
     description: "Render one IR node and assemble the dispatch group.",
     capabilities: ["helm"],
@@ -101,7 +101,7 @@ test("encodeDescriptor emits a full provider contract and round-trips", () => {
 
 test("encodeDescriptor carries typed metadata version and commit fields", () => {
   const d: PluginDescriptor = {
-    abi_version: "v1alpha1",
+    abi_version: "v1beta1",
     plugin_type: "provider",
     exports: [{ name: "render_node", input_pattern: "b" }],
     metadata: {
@@ -122,7 +122,7 @@ test("encodeDescriptor folds the build-provenance stamp into metadata", () => {
   g.AGGREGA_PLUGIN_COMMIT = "deadbee";
   try {
     const d: PluginDescriptor = {
-      abi_version: "v1alpha1",
+      abi_version: "v1beta1",
       plugin_type: "cli",
       exports: [{ name: "cli_run" }],
     };
@@ -138,7 +138,7 @@ test("encodeDescriptor folds the build-provenance stamp into metadata", () => {
 
   // With the constants unset, an unstamped descriptor omits both members.
   const bare: PluginDescriptor = {
-    abi_version: "v1alpha1",
+    abi_version: "v1beta1",
     plugin_type: "cli",
     exports: [{ name: "cli_run" }],
   };

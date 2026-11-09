@@ -45,7 +45,7 @@ var incompleteOutput = aggrega.PolicyOutput{
 	Error:   "fixture rule set could not be evaluated: no rule source was supplied",
 }
 
-// descriptor is the static describe() self-report: a v1alpha1 governance plugin
+// descriptor is the static describe() self-report: a governance plugin
 // declaring both of the fixture's entry functions. The host reads this once
 // at load through the shared describe() gate, and refuses a call to any export
 // the report does not declare — so an entry point has to be listed here to be

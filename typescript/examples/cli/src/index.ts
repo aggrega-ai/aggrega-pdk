@@ -30,7 +30,7 @@ import {
 // argument vector, cli_run echoes the remaining arguments upper-cased.
 const UPPER_FLAG = "--upper";
 
-// The static describe() self-report: a v1alpha1 cli plugin contributing a
+// The static describe() self-report: a cli plugin contributing a
 // single command, "echo-args", carrying one flag. The command's name is the
 // token the host installs the subcommand under; its flags are registered on the
 // command so `aggrega help echo-args` lists them like a core command's flags.

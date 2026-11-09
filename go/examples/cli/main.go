@@ -35,7 +35,7 @@ import (
 // upper-cased.
 const upperFlag = "--upper"
 
-// descriptor is the static describe() self-report: a v1alpha1 cli plugin
+// descriptor is the static describe() self-report: a cli plugin
 // contributing a single command, "echo-args", carrying one flag. The command's
 // name is the token the host installs the subcommand under; its flags are
 // registered on the command so aggrega help echo-args lists them like a core

@@ -40,7 +40,7 @@ use serde_json::value::RawValue;
 /// in their own dispatch group; the two are distinct files in distinct groups.
 const LINK_FILE: &str = "boundary.yaml";
 
-/// The static `describe()` self-report: a v1alpha1 `provider` plugin that
+/// The static `describe()` self-report: a `provider` plugin that
 /// declares the `cross_boundary_linking` capability and both link exports as a
 /// pair, alongside the mandatory `render_node` export.
 fn descriptor() -> PluginDescriptor {

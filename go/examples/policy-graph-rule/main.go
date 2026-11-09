@@ -45,7 +45,7 @@ type settings struct {
 	Severity      string `json:"severity"`
 }
 
-// descriptor is the static describe() self-report: a v1alpha1 governance plugin
+// descriptor is the static describe() self-report: a governance plugin
 // whose verdict_ir export the host validates before dispatch.
 func descriptor() aggrega.PluginDescriptor {
 	return aggrega.PluginDescriptor{

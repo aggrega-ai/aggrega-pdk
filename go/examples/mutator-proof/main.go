@@ -38,7 +38,7 @@ const proofLabelKey = "proof.aggrega/touched"
 // proofLabelValue is the label value the proof plugin writes.
 const proofLabelValue = "mutator-proof"
 
-// descriptor is the static describe() self-report: a v1alpha1 governance plugin
+// descriptor is the static describe() self-report: a governance plugin
 // whose mutate export the host validates before dispatch.
 func descriptor() aggrega.PluginDescriptor {
 	return aggrega.PluginDescriptor{

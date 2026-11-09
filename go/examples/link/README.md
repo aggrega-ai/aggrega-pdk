@@ -32,4 +32,4 @@ This fixture consumes the PDK via a `replace` directive in `go.mod`
 pointing at the sibling PDK source at `../../`. The ABI module it
 depends on resolves the same way, from the `aggrega-abi` repository
 checked out beside this repository. Standalone reuse by end users
-is gated on PDK publication (planned post-`v1alpha1`).
+is gated on PDK publication.

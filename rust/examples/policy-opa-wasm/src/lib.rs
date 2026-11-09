@@ -63,7 +63,7 @@ use wasmi::{Caller, Engine, Linker, Memory, MemoryType, Module, Store};
 /// from policy.rego with the OPA CLI as documented in the README.
 static POLICY_WASM: &[u8] = include_bytes!("../policy.wasm");
 
-/// The static `describe()` self-report: a v1alpha1 `governance` plugin
+/// The static `describe()` self-report: a `governance` plugin
 /// for the `ir-verdict` role, whose `verdict_ir` export the host validates before
 /// dispatch.
 fn descriptor() -> PluginDescriptor {

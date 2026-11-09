@@ -36,7 +36,7 @@ const FIXTURE_LABEL_KEY: &str = "fixture.aggrega-pdk/touched";
 /// outputs.
 const FIXTURE_LABEL_VALUE: &str = "mutator-rust";
 
-/// The static `describe()` self-report: a v1alpha1 `governance` plugin
+/// The static `describe()` self-report: a `governance` plugin
 /// whose `mutate` export the host validates before dispatch.
 fn descriptor() -> PluginDescriptor {
     PluginDescriptor {

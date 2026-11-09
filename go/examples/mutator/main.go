@@ -44,7 +44,7 @@ const fixtureLabelKey = "fixture.aggrega-pdk/touched"
 // outputs when multiple PDKs ship.
 const fixtureLabelValue = "mutator-go"
 
-// descriptor is the static describe() self-report: a v1alpha1 governance plugin
+// descriptor is the static describe() self-report: a governance plugin
 // whose mutate export the host validates before dispatch. The host reads this
 // once at load through the shared describe() gate.
 func descriptor() aggrega.PluginDescriptor {

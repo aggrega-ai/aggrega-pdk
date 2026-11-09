@@ -33,7 +33,7 @@ import {
   type PluginDescriptor,
 } from "@aggrega-ai/aggrega-pdk-typescript";
 
-// The static describe() self-report: a v1alpha1 parser plugin whose parse
+// The static describe() self-report: a parser plugin whose parse
 // export handles the parse:demo format. The host reads this once at load and
 // validates it before invoking parse.
 function descriptor(): PluginDescriptor {

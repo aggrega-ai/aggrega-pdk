@@ -112,7 +112,7 @@ use regorus::Value;
 use serde::Deserialize;
 use serde_json::json;
 
-/// The static `describe()` self-report: a v1alpha1 `governance` plugin
+/// The static `describe()` self-report: a `governance` plugin
 /// for the `render-verdict` role, whose `verdict_render` export the host validates
 /// before dispatch.
 fn descriptor() -> PluginDescriptor {

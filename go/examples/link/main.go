@@ -50,7 +50,7 @@ import (
 // files in distinct groups.
 const linkFile = "boundary.yaml"
 
-// descriptor is the static describe() self-report: a v1alpha1 provider plugin
+// descriptor is the static describe() self-report: a provider plugin
 // that declares the cross_boundary_linking capability and both link exports as
 // a pair, alongside the mandatory render_node export. The host reads this once
 // at load through the shared describe() gate.

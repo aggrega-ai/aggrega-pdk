@@ -53,7 +53,7 @@ import {
 // groups.
 const LINK_FILE = "boundary.yaml";
 
-// The static describe() self-report: a v1alpha1 provider plugin that
+// The static describe() self-report: a provider plugin that
 // declares the cross_boundary_linking capability and both link exports as a
 // pair, alongside the mandatory render_node export.
 function descriptor(): PluginDescriptor {
