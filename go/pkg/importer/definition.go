@@ -97,6 +97,38 @@ func CommentLine(indent, text string) string {
 	return indent + "# " + EscapeTemplateText(text) + "\n"
 }
 
+// QuotedString writes s as a double-quoted YAML scalar reading back as exactly s,
+// whatever UTF-8 text it holds:
+// a double quote and a backslash escaped, every printable ASCII character as it
+// is, and every other character as its \u or \U escape, so no character a YAML
+// reader could take for a line break, and no control character, is written raw.
+// A byte that is not part of a UTF-8 sequence is written as U+FFFD. It is the one
+// writer of a double-quoted scalar for the kit's own drafts and for every
+// importer drafting YAML by hand. A value written into a drafted Aggregate, whose
+// text is evaluated as a template before it is read, is written through
+// EscapeTemplateText first, whose output holds no double quote and no backslash
+// of its own.
+func QuotedString(s string) string {
+	var b strings.Builder
+	b.WriteByte('"')
+	for _, r := range s {
+		switch {
+		case r == '"':
+			b.WriteString(`\"`)
+		case r == '\\':
+			b.WriteString(`\\`)
+		case r >= 0x20 && r < 0x7f:
+			b.WriteRune(r)
+		case r <= 0xffff:
+			fmt.Fprintf(&b, `\u%04X`, r)
+		default:
+			fmt.Fprintf(&b, `\U%08X`, r)
+		}
+	}
+	b.WriteByte('"')
+	return b.String()
+}
+
 // literalBlock writes text as a YAML literal block scalar, the value of a key
 // whose line sits at keyIndent spaces: the header — the block indicator with
 // the chomping indicator that reads the text's own trailing line breaks back,

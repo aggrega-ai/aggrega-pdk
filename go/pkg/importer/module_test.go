@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"text/template"
 
 	"github.com/aggrega-ai/aggrega-pdk-go/pkg/aggrega"
 )
@@ -245,6 +246,161 @@ func TestTheModuleFormWritesValuesEmptyThroughTheFormatAndCarriesOnlyAMatchingTr
 				if strings.Contains(d.Message, plantedMarked) {
 					t.Errorf("a diagnostic carries the planted value: %q", d.Message)
 				}
+			}
+		})
+	}
+}
+
+// passedDownDescription is the description the test's passed-down parameter is
+// declared with: double quotes, a backslash and two opening braces, each of which
+// a double-quoted scalar of an Aggregate evaluated as a template must carry as
+// written.
+const passedDownDescription = `The key the "platform" signs with, {{ not an action }} and a back\slash.`
+
+// passingDownFormat is moduleTestFormat with the module's signing_key parameter
+// passed down.
+func passingDownFormat(empty *emptyRecorder) Format {
+	f := moduleTestFormat(empty)
+	f.Platform.Module.PassedDown = []PassedDownParameter{
+		{Name: "signing_key", Description: passedDownDescription},
+	}
+	return f
+}
+
+// passedDownHead is the head of the Aggregate the module form drafts with
+// signing_key passed down, up to the first entry's key: the parameter declared
+// once, required with no default, and the comment above each entry naming it
+// first among what the Release supplies.
+const passedDownHead = "apiVersion: aggrega.ai/v1alpha1\n" +
+	"kind: Aggregate\n" +
+	"metadata:\n" +
+	"  name: imported/flow\n" +
+	"  version: 0.1.0\n" +
+	"  description: Draft Aggregate imported from a source in the testflow format.\n" +
+	"spec:\n" +
+	"  parameters:\n" +
+	"    signing_key:\n" +
+	"      type: string\n" +
+	"      required: true\n" +
+	"      minLength: 1\n" +
+	"      description: \"The key the \\\"platform\\\" signs with, {{`{{`}} not an action }} and a back\\\\slash.\"\n" +
+	"  aggregates:\n"
+
+// passedDownComment is the comment the module form writes above each entry with
+// signing_key passed down.
+const passedDownComment = "    # An import sees the Components of the workspace's catalog and none of its Aggregates, so it does " +
+	"not check that the catalog holds core/testmod.\n" +
+	"    # Left for the Release, since the source cannot supply it:\n" +
+	"    #   - the signing_key parameter declared above, which this entry passes down to core/testmod\n" +
+	"    #   - infra.owner, the platform's owner\n"
+
+// evaluated evaluates a drafted Aggregate as a template, as the compiler does
+// before it reads the Aggregate as YAML, with the Release fulfilling signing_key
+// as fulfilled.
+func evaluated(t *testing.T, aggregate, fulfilled string) string {
+	t.Helper()
+	tmpl, err := template.New("aggregate").Parse(aggregate)
+	if err != nil {
+		t.Fatalf("the drafted Aggregate does not parse as a template: %v\n%s", err, aggregate)
+	}
+	var b strings.Builder
+	if err := tmpl.Execute(&b, map[string]any{"parameters": map[string]any{"signing_key": fulfilled}}); err != nil {
+		t.Fatalf("the drafted Aggregate does not run as a template: %v", err)
+	}
+	return b.String()
+}
+
+// TestTheModuleFormPassesDownTheParametersItDeclares imports in the module form
+// with the module's signing_key parameter passed down:
+//
+//   - one source carried: the drafted Aggregate declares signing_key once, under
+//     spec.parameters, as a required string of at least one character with no
+//     default and the description given, names it first in the comment of what
+//     the Release supplies, and passes it down to the entry by name ahead of the
+//     carried flow — byte for byte;
+//   - one source not carried, its writer refusing: the entry passes signing_key
+//     down all the same, under a parameters key of its own, with the comment
+//     saying why the flow is left unset;
+//   - two sources: signing_key is declared once and both entries pass it down.
+//
+// Evaluated as a template, as the compiler evaluates an Aggregate, with the
+// Release fulfilling signing_key, every entry reads the value fulfilled and the
+// description reads back as written, read as the double-quoted scalar it is
+// through JSON, whose escapes are a subset of that scalar's.
+//
+// 🔴 PLANTED DEFECT: in moduleEntity (module.go), write the passed-down lines only
+// where the flow is carried (`if inst.carried {` around the loop writing them):
+// the row whose flow is not carried fails.
+func TestTheModuleFormPassesDownTheParametersItDeclares(t *testing.T) {
+	t.Parallel()
+	escaped := strings.Replace(moduleSourceLine, "{{question}}", `{{"{{"}}question}}`, 1)
+	passing := "      parameters:\n        signing_key: \"{{ .parameters.signing_key }}\"\n"
+	for _, tc := range []struct {
+		name     string
+		settings string
+		writer   *emptyRecorder
+		sources  []aggrega.ImportSource
+		// want is the drafted Aggregate, where it is pinned byte for byte, and
+		// entries the entries that must each pass signing_key down.
+		want    string
+		entries []string
+		contain []string
+	}{
+		{name: "one source carried", writer: &emptyRecorder{}, sources: []aggrega.ImportSource{oneSource(moduleSource)},
+			want: passedDownHead + passedDownComment + "    testmod:\n      type: core/testmod\n" + passing +
+				"        flow: |\n          " + escaped + "\n",
+			entries: []string{"testmod"}},
+		{name: "one source not carried", settings: `{"empty_credentials":"marked"}`, writer: &emptyRecorder{fail: true},
+			sources: []aggrega.ImportSource{oneSource(moduleSource)}, entries: []string{"testmod"},
+			contain: []string{passedDownHead + passedDownComment + "    testmod:\n      type: core/testmod\n" + passing +
+				"      # parameters.flow is left unset: the import's diagnostics say why the flow is not carried.\n"}},
+		{name: "two sources", writer: &emptyRecorder{},
+			sources: []aggrega.ImportSource{{Name: "a.json", Bytes: []byte(moduleSource)},
+				{Name: "b.json", Bytes: []byte(moduleSource)}},
+			entries: []string{"testmod", "testmod-2"},
+			contain: []string{passedDownHead + passedDownComment + "    testmod:\n      type: core/testmod\n" + passing,
+				passedDownComment + "    testmod-2:\n      type: core/testmod\n" + passing}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			out := platformImport(t, passingDownFormat(tc.writer), platformCatalog(), tc.settings, tc.sources...)
+			if len(out.Files) != 1 || out.Files[0].Path != "aggregate.yaml" {
+				t.Fatalf("the module form wrote %+v, want the Aggregate alone", out.Files)
+			}
+			agg := out.Files[0].Content
+			if tc.want != "" && agg != tc.want {
+				t.Errorf("the module form drafted\n%s\nwant\n%s", agg, tc.want)
+			}
+			for _, want := range tc.contain {
+				if !strings.Contains(agg, want) {
+					t.Errorf("the draft does not hold\n%s\nit reads\n%s", want, agg)
+				}
+			}
+			if n := strings.Count(agg, "    signing_key:\n      type: string\n"); n != 1 {
+				t.Errorf("the draft declares signing_key %d times, want once:\n%s", n, agg)
+			}
+			if strings.Contains(agg, "default:") {
+				t.Errorf("the draft gives a passed-down parameter a default:\n%s", agg)
+			}
+
+			text := evaluated(t, agg, "k-fulfilled")
+			if n := strings.Count(text, "\n        signing_key: \"k-fulfilled\"\n"); n != len(tc.entries) {
+				t.Errorf("evaluated, %d entries read the fulfilled signing_key, want %d (%v):\n%s", n, len(tc.entries),
+					tc.entries, text)
+			}
+			const opening = "\n      description: "
+			at := strings.Index(text, opening)
+			if at < 0 {
+				t.Fatalf("evaluated, the draft holds no description:\n%s", text)
+			}
+			line := text[at+len(opening):]
+			line = line[:strings.IndexByte(line, '\n')]
+			var description string
+			if err := json.Unmarshal([]byte(line), &description); err != nil {
+				t.Fatalf("evaluated, the description %s does not read back as a double-quoted scalar: %v", line, err)
+			}
+			if description != passedDownDescription {
+				t.Errorf("evaluated, the description reads %q, want %q", description, passedDownDescription)
 			}
 		})
 	}

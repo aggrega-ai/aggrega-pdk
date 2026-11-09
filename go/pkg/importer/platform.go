@@ -207,11 +207,42 @@ type Platform struct {
 // does not check that the workspace's catalog holds Aggregate. An entry of a
 // composed Aggregate takes parameters and no Feature, so the
 // attach_egress_allowlist setting attaches nothing to it, and the import says so.
+// The parameters of Aggregate a Release supplies are declared by the drafted
+// Aggregate and passed down to every entry, as PassedDown says.
 type Module struct {
 	// Aggregate is the name of the catalog Aggregate, such as core/dify.
 	Aggregate string
 	// Parameter is the parameter of Aggregate that carries the flow.
 	Parameter string
+	// PassedDown lists parameters of Aggregate that no source supplies and that
+	// Aggregate gives no default, such as a key the installation signs with. The
+	// drafted Aggregate declares each once, under spec.parameters, as a string
+	// parameter of its own, and passes it down by the same name to every entry,
+	// as [PassedDownParameter] describes, so the Release fulfills it and a build
+	// whose Release leaves it unset halts naming it. Every entry of one draft is
+	// handed the one parameter. The comment naming what the Release supplies
+	// names each. Empty passes nothing down, and the drafted Aggregate declares
+	// no parameter.
+	PassedDown []PassedDownParameter
+}
+
+// PassedDownParameter is a parameter of a module that the drafted Aggregate
+// declares and passes down to every entry of the module, as [Module] lists them.
+// The drafted Aggregate declares it as a string parameter — required, at least
+// one character long, with no default and with Description as its description —
+// and hands each entry NAME: "{{ .parameters.NAME }}".
+type PassedDownParameter struct {
+	// Name is the parameter's name, the module's and the drafted Aggregate's
+	// alike. It is written as it is, both as a YAML key and as a field of the
+	// template the compiler evaluates the Aggregate's text as, so the caller gives
+	// an identifier — a letter or an underscore, then letters, digits and
+	// underscores — that is neither the module's Parameter nor the Name of any
+	// other parameter the module passes down. The import checks none of this.
+	Name string
+	// Description is the declared parameter's description. It is written through
+	// EscapeTemplateText and then as a double-quoted scalar by QuotedString, so it
+	// reads back as written, whatever UTF-8 text it holds.
+	Description string
 }
 
 // TargetAttachment is an attachment of a platform's own instance that its

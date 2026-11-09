@@ -122,10 +122,12 @@ func configuredInPlatform(ref string, node Node, what, platform string) aggrega.
 	}
 }
 
-// moduleEntity renders the Aggregate of a module-form draft: one entry of the
-// module per source, under aggregates, carrying the source in the module's
-// parameter, with the comment above it naming what the Release supplies and
-// that the import does not check the catalog for the module.
+// moduleEntity renders the Aggregate of a module-form draft: the parameters the
+// module's PassedDown lists, declared once under spec.parameters, then one entry
+// of the module per source, under aggregates, passing each of them down and
+// carrying the source in the module's parameter, with the comment above it
+// naming what the Release supplies and that the import does not check the
+// catalog for the module.
 func (d *platformDraft) moduleEntity() aggrega.EmittedEntity {
 	p := d.platform
 	m := p.Module
@@ -137,20 +139,39 @@ func (d *platformDraft) moduleEntity() aggrega.EmittedEntity {
 	b.WriteString("  version: 0.1.0\n")
 	b.WriteString("  description: " + draftDescription(d.format) + "\n")
 	b.WriteString("spec:\n")
+	if len(m.PassedDown) > 0 {
+		b.WriteString("  parameters:\n")
+		for _, param := range m.PassedDown {
+			b.WriteString("    " + param.Name + ":\n")
+			b.WriteString("      type: string\n")
+			b.WriteString("      required: true\n")
+			b.WriteString("      minLength: 1\n")
+			b.WriteString("      description: " + QuotedString(EscapeTemplateText(param.Description)) + "\n")
+		}
+	}
 	b.WriteString("  aggregates:\n")
 	for _, inst := range d.instances {
 		b.WriteString(CommentLine("    ", "An import sees the Components of the workspace's catalog and none of its Aggregates, so it "+
 			"does not check that the catalog holds "+m.Aggregate+"."))
-		if len(p.LeftForRelease) > 0 {
+		if len(p.LeftForRelease) > 0 || len(m.PassedDown) > 0 {
 			b.WriteString(CommentLine("    ", "Left for the Release, since the source cannot supply it:"))
+			for _, param := range m.PassedDown {
+				b.WriteString(CommentLine("    ", "  - the "+param.Name+" parameter declared above, which this entry passes down "+
+					"to "+m.Aggregate))
+			}
 			for _, item := range p.LeftForRelease {
 				b.WriteString(CommentLine("    ", "  - "+item))
 			}
 		}
 		b.WriteString("    " + inst.key + ":\n")
 		b.WriteString("      type: " + m.Aggregate + "\n")
-		if inst.carried {
+		if inst.carried || len(m.PassedDown) > 0 {
 			b.WriteString("      parameters:\n")
+		}
+		for _, param := range m.PassedDown {
+			b.WriteString("        " + param.Name + ": \"{{ .parameters." + param.Name + " }}\"\n")
+		}
+		if inst.carried {
 			b.WriteString("        " + m.Parameter + ": " + draftedText(inst.definition, 8))
 		} else {
 			b.WriteString(CommentLine("      ", "parameters."+m.Parameter+" is left unset: the import's diagnostics say why the "+

@@ -228,12 +228,16 @@ there:
   `Parameter` of it that takes the flow. Each source is then drafted in the module
   form: one entry of that Aggregate under `aggregates`, carrying the source in that
   parameter, with no identifier, no part drafted and nothing wired, since the module
-  wires every connection of the platform itself. `Configured` says what a node names
-  that the platform configures for itself — a model and its provider, a tool, a
-  knowledge base, a plugin — which the import reports in the node's decision and as
-  `part-configured-in-platform`. The comment above the entry names `LeftForRelease`,
-  and that the import, which sees the catalog's Components and none of its Aggregates,
-  does not check that the catalog holds the module.
+  wires every connection of the platform itself. `PassedDown` lists the module's
+  parameters no source supplies and the module gives no default, such as a key the
+  installation signs with: the draft declares each once, as a required string with no
+  default, and passes it down by name to every entry, for the Release to fulfill.
+  `Configured` says what a node names that the platform configures for itself — a
+  model and its provider, a tool, a knowledge base, a plugin — which the import
+  reports in the node's decision and as `part-configured-in-platform`. The comment
+  above the entry names each parameter passed down and `LeftForRelease`, and that the
+  import, which sees the catalog's Components and none of its Aggregates, does not
+  check that the catalog holds the module.
 
 Every node the draft gives no Component stays inside the flow the platform carries,
 and its decision chooses nothing and says so. Where the catalog view holds no

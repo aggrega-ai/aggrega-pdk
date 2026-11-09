@@ -101,12 +101,48 @@ func TestCommentLineReadsBackAsWrittenOnceEvaluated(t *testing.T) {
 	}
 }
 
+// TestQuotedStringEscapesEverythingButPrintableASCII pins the bytes QuotedString
+// writes, one row per class of character: printable ASCII as it is, a double
+// quote and a backslash escaped, and every other character — a tab, DEL, the
+// line-break characters U+0085 and U+2028, a C1 control, a letter outside ASCII,
+// a character beyond the Basic Multilingual Plane — as its \u or \U escape, and a
+// byte that is not UTF-8 as U+FFFD. A YAML reader reads each back as the text,
+// which the importers' read-back tests prove through a YAML reader of their own.
+//
+// 🔴 PLANTED DEFECT: in QuotedString (definition.go), write `r >= 0x20 && r < 0x80`
+// for the printable range: the DEL row fails, written raw.
+func TestQuotedStringEscapesEverythingButPrintableASCII(t *testing.T) {
+	t.Parallel()
+	for _, row := range []struct{ name, in, want string }{
+		{"printable ASCII", "a b-c_d.e/f:g{h}", `"a b-c_d.e/f:g{h}"`},
+		{"a double quote and a backslash", `say "hi" \ there`, `"say \"hi\" \\ there"`},
+		{"a tab and a line feed", "a\tb\nc", `"a\u0009b\u000Ac"`},
+		{"DEL", "a\x7fb", `"a\u007Fb"`},
+		{"U+0085", "a\u0085b", `"a\u0085b"`},
+		{"a C1 control", "a\u0090b", `"a\u0090b"`},
+		{"U+2028", "a\u2028b", `"a\u2028b"`},
+		{"a letter outside ASCII", "\u00e9", `"\u00E9"`},
+		{"beyond the Basic Multilingual Plane", "\U0001F600", `"\U0001F600"`},
+		{"a byte that is not UTF-8", "a\xffb", `"a\uFFFDb"`},
+		{"empty", "", `""`},
+	} {
+		t.Run(row.name, func(t *testing.T) {
+			t.Parallel()
+			if got := QuotedString(row.in); got != row.want {
+				t.Errorf("QuotedString(%q) = %s, want %s", row.in, got, row.want)
+			}
+		})
+	}
+}
+
 // TestEscapeTemplateTextReadsBackInsideADoubleQuotedScalar writes texts holding
 // double braces, double quotes and backslashes through EscapeTemplateText and
-// then as a double-quoted scalar, evaluates the result as a Go template — as an
-// Aggregate's text is evaluated before it is read as YAML — and reads the scalar
-// back: each reads back as the text it was. JSON's string escapes are a subset of
-// a YAML double-quoted scalar's, so the scalar is read back as JSON.
+// then as a double-quoted scalar through QuotedString, the kit's writer of one,
+// evaluates the result as a Go template — as an Aggregate's text is evaluated
+// before it is read as YAML — and reads the scalar back: each reads back as the
+// text it was. The texts are ASCII, which QuotedString escapes only as a quote
+// and a backslash, both escapes JSON shares with a YAML double-quoted scalar, so
+// the scalar is read back by a JSON reader, a codec other than the writer.
 //
 // 🔴 PLANTED DEFECT: make EscapeTemplateText return escapeTemplateText(text), the
 // double-quoted action: the scalar escapes its quotes with backslashes the
@@ -121,11 +157,8 @@ func TestEscapeTemplateTextReadsBackInsideADoubleQuotedScalar(t *testing.T) {
 		`no braces at all`,
 	} {
 		t.Run(text, func(t *testing.T) {
-			quoted, err := json.Marshal(EscapeTemplateText(text))
-			if err != nil {
-				t.Fatalf("quote the escaped text: %v", err)
-			}
-			tmpl, err := template.New("aggregate").Parse(string(quoted))
+			quoted := QuotedString(EscapeTemplateText(text))
+			tmpl, err := template.New("aggregate").Parse(quoted)
 			if err != nil {
 				t.Fatalf("the quoted escaped text %s does not parse as a template: %v", quoted, err)
 			}
