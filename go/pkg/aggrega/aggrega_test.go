@@ -206,7 +206,7 @@ func jsonInstance(t *testing.T, v any) any {
 func schemaDeclaredABIVersion(t *testing.T) string {
 	t.Helper()
 	path := filepath.Join("..", "..", "..", "..", "aggrega-schemas", "json",
-		"wasm-describe-v1alpha1.schema.json")
+		"wasm-describe-v1beta1.schema.json")
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		refuseOrSkipUnreachableSchemas(t, path, err)
@@ -250,7 +250,7 @@ func TestAPIVersion_MatchesSchemaDeclaration(t *testing.T) {
 
 func TestCLIRunInput_RoundTripJSONSchema(t *testing.T) {
 	t.Parallel()
-	schema := loadSchema(t, "wasm-cli-v1alpha1.schema.json")
+	schema := loadSchema(t, "wasm-cli-v1beta1.schema.json")
 
 	fixture := aggrega.CLIRunInput{Command: "deploy", Args: []string{"deploy", "--env", "prod", "payments"}}
 
@@ -273,7 +273,7 @@ func TestCLIRunInput_RoundTripJSONSchema(t *testing.T) {
 
 func TestMutatorInput_RoundTripJSONSchema(t *testing.T) {
 	t.Parallel()
-	schema := loadSchema(t, "wasm-mutator-v1alpha1.schema.json")
+	schema := loadSchema(t, "wasm-mutator-v1beta1.schema.json")
 
 	var labels aggrega.OrderedMap[string]
 	labels.Set("team", "payments")
@@ -310,7 +310,7 @@ func TestMutatorInput_RoundTripJSONSchema(t *testing.T) {
 
 func TestMutatorOutput_RoundTripJSONSchema(t *testing.T) {
 	t.Parallel()
-	schema := loadSchema(t, "wasm-mutator-v1alpha1.schema.json")
+	schema := loadSchema(t, "wasm-mutator-v1beta1.schema.json")
 
 	patch := json.RawMessage(`[{"op":"add","path":"/nodes/payments-api/labels/compliance","value":"soc2"}]`)
 	fixture := aggrega.MutatorOutput{
@@ -324,13 +324,13 @@ func TestMutatorOutput_RoundTripJSONSchema(t *testing.T) {
 
 func TestPolicyInput_RoundTripJSONSchema(t *testing.T) {
 	t.Parallel()
-	// The policy schema references ir-v1alpha1 for its graph field and
-	// wasm-diagnostic-v1alpha1 for its result entries; both resolve because the
+	// The policy schema references ir-v1beta1 for its graph field and
+	// wasm-diagnostic-v1beta1 for its result entries; both resolve because the
 	// whole schema directory is registered with the compiler.
-	schema := loadSchema(t, "wasm-policy-v1alpha1.schema.json")
+	schema := loadSchema(t, "wasm-policy-v1beta1.schema.json")
 
 	// Under b-full the policy input carries the full IR graph (single-sourced
-	// from ir-v1alpha1). Every map the IR schema marks order-preserving is an
+	// from ir-v1beta1). Every map the IR schema marks order-preserving is an
 	// aggrega.OrderedMap, which keeps the order its entries were set in.
 	var labels aggrega.OrderedMap[string]
 	labels.Set("team", "payments")
@@ -342,7 +342,7 @@ func TestPolicyInput_RoundTripJSONSchema(t *testing.T) {
 	})
 	fixture := aggrega.PolicyInput{
 		Graph: aggrega.IRGraph{
-			APIVersion: "aggrega.ai/v1alpha1",
+			APIVersion: "aggrega.ai/v1beta1",
 			Kind:       "IR",
 			Metadata:   aggrega.IRMetadata{AggregateName: "payments"},
 			Spec: aggrega.IRSpec{
@@ -352,7 +352,7 @@ func TestPolicyInput_RoundTripJSONSchema(t *testing.T) {
 					SocketDeclaration: "declared",
 				}},
 				Provenance: aggrega.IRProvenance{
-					SchemaVersion: "v1alpha1", CompilerVersion: "test", AggregateVersion: "1.0.0",
+					SchemaVersion: "v1beta1", CompilerVersion: "test", AggregateVersion: "1.0.0",
 					ManifestVersion: "1.0.0", ReleaseVersion: "1.0.0",
 				},
 			},
@@ -373,10 +373,10 @@ func TestPolicyInput_RoundTripJSONSchema(t *testing.T) {
 
 func TestPolicyOutput_RoundTripJSONSchema(t *testing.T) {
 	t.Parallel()
-	// Compiling the policy schema resolves its graph $ref into ir-v1alpha1 even
+	// Compiling the policy schema resolves its graph $ref into ir-v1beta1 even
 	// though the output payload omits the graph, so the cross-file targets must
 	// be registered here too.
-	schema := loadSchema(t, "wasm-policy-v1alpha1.schema.json")
+	schema := loadSchema(t, "wasm-policy-v1beta1.schema.json")
 
 	fixture := aggrega.PolicyOutput{
 		Results: []aggrega.Diagnostic{
@@ -418,7 +418,7 @@ func TestPolicyOutput_RoundTripJSONSchema(t *testing.T) {
 // difference.
 func TestNameBoundOutput_KeepsAnAbsentBoundDistinctFromZero(t *testing.T) {
 	t.Parallel()
-	schema := loadExportPayloadSchema(t, "wasm-provider-v1alpha1.schema.json", "name_bound", "output")
+	schema := loadExportPayloadSchema(t, "wasm-provider-v1beta1.schema.json", "name_bound", "output")
 
 	shortened := 31
 	nothingFits := 0
@@ -465,7 +465,7 @@ func TestNameBoundOutput_KeepsAnAbsentBoundDistinctFromZero(t *testing.T) {
 // form and the Service keys, in the order the workload declares them.
 func TestNameBoundInput_RoundTripJSONSchema(t *testing.T) {
 	t.Parallel()
-	schema := loadExportPayloadSchema(t, "wasm-provider-v1alpha1.schema.json", "name_bound", "input")
+	schema := loadExportPayloadSchema(t, "wasm-provider-v1beta1.schema.json", "name_bound", "input")
 
 	fixture := aggrega.NameBoundInput{
 		Proposed:     "payments-api",
@@ -499,7 +499,7 @@ func TestNameBoundInput_RoundTripJSONSchema(t *testing.T) {
 // does.
 func TestRenderNodeOutput_EveryRenderFactValueIsAList(t *testing.T) {
 	t.Parallel()
-	schema := loadExportPayloadSchema(t, "wasm-provider-v1alpha1.schema.json", "render_node", "output")
+	schema := loadExportPayloadSchema(t, "wasm-provider-v1beta1.schema.json", "render_node", "output")
 
 	output := func(value string) aggrega.RenderNodeOutput {
 		return aggrega.RenderNodeOutput{
@@ -531,7 +531,7 @@ func TestRenderNodeOutput_EveryRenderFactValueIsAList(t *testing.T) {
 // cannot come from a definition that accepts anything.
 func TestProviderExportTable_EachPayloadValidatesAgainstItsExportsDefinition(t *testing.T) {
 	t.Parallel()
-	const file = "wasm-provider-v1alpha1.schema.json"
+	const file = "wasm-provider-v1beta1.schema.json"
 
 	table := exportTable(t, file)
 	exports := make([]string, 0, len(table))

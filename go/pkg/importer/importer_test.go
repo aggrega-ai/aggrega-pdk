@@ -420,7 +420,7 @@ const renderSource = `{"nodes":[` +
 // The files the human renderer writes for renderSource under the default settings.
 const (
 	renderedModel = `# resembles core/ai-model/openai (score 0.9200); reference it by setting type: core/ai-model/openai
-apiVersion: aggrega.ai/v1alpha1
+apiVersion: aggrega.ai/v1beta1
 kind: Component
 metadata:
   name: imported/ai-model/openaimodel
@@ -442,7 +442,7 @@ spec:
         temperature: { type: string }
       additionalProperties: false
 `
-	renderedCustom = `apiVersion: aggrega.ai/v1alpha1
+	renderedCustom = `apiVersion: aggrega.ai/v1beta1
 kind: Component
 metadata:
   name: imported/component/custompythoncomponent
@@ -457,7 +457,7 @@ spec:
         code: { type: string }
       additionalProperties: false
 `
-	renderedOutput = `apiVersion: aggrega.ai/v1alpha1
+	renderedOutput = `apiVersion: aggrega.ai/v1beta1
 kind: Component
 metadata:
   name: imported/ai-model/chatoutput
@@ -467,7 +467,7 @@ metadata:
     component.aggrega.ai/category: ai-model
 spec: {}
 `
-	renderedAggregate = `apiVersion: aggrega.ai/v1alpha1
+	renderedAggregate = `apiVersion: aggrega.ai/v1beta1
 kind: Aggregate
 metadata:
   name: imported/flow

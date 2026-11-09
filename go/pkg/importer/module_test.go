@@ -91,7 +91,7 @@ func moduleTestFormat(empty *emptyRecorder) Format {
 // spelling of the escape.
 func renderedModuleAggregate(flow string) string {
 	escaped := strings.Replace(flow, "{{question}}", `{{"{{"}}question}}`, 1)
-	return `apiVersion: aggrega.ai/v1alpha1
+	return `apiVersion: aggrega.ai/v1beta1
 kind: Aggregate
 metadata:
   name: imported/flow
@@ -271,7 +271,7 @@ func passingDownFormat(empty *emptyRecorder) Format {
 // signing_key passed down, up to the first entry's key: the parameter declared
 // once, required with no default, and the comment above each entry naming it
 // first among what the Release supplies.
-const passedDownHead = "apiVersion: aggrega.ai/v1alpha1\n" +
+const passedDownHead = "apiVersion: aggrega.ai/v1beta1\n" +
 	"kind: Aggregate\n" +
 	"metadata:\n" +
 	"  name: imported/flow\n" +

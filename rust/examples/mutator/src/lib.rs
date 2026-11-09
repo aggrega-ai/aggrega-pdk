@@ -12,7 +12,7 @@
 //!  - The canonical CBOR payload decoded to [`MutatorInput`].
 //!  - The transform applied per node.
 //!  - The result encoded to a [`MutatorOutput`] valid against the
-//!    `wasm-mutator-v1alpha1` schema.
+//!    `wasm-mutator-v1beta1` schema.
 //!
 //! The label-transform role's wire carries canonical CBOR in both directions, so the
 //! export takes and returns bytes. The patch documents the output carries are

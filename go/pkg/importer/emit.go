@@ -12,6 +12,18 @@ import (
 	"github.com/aggrega-ai/aggrega-pdk-go/pkg/aggrega"
 )
 
+// apiVersion is the apiVersion every document this package drafts declares —
+// each drafted Component and Aggregate, and the platform and module drafts — so
+// the four writers spell it once, here.
+//
+// It is a deliberate copy of the version the Aggrega schemas pin, not a second
+// source of it: this module is published on its own and reads no schema, so it
+// carries the value itself. The compiler's test suite drafts through this package
+// and refuses a draft whose apiVersion is not the version the compiler's schemas
+// declare, so a move to a new API version that leaves this copy behind fails
+// there rather than shipping drafts the compiler refuses.
+const apiVersion = "aggrega.ai/v1beta1"
+
 // decideNode scores a node against the catalog's candidates, picks its
 // disposition from the top candidate and the reuse mode, and returns the decision
 // record plus the entity emitted for it. A high-confidence match under auto-apply
@@ -136,7 +148,7 @@ func draftComponentName(settings importSettings, table mappingTable, node Node) 
 func draftComponentBody(name string, node Node) string {
 	category := categoryFromName(name)
 	var b strings.Builder
-	b.WriteString("apiVersion: aggrega.ai/v1alpha1\n")
+	b.WriteString("apiVersion: " + apiVersion + "\n")
 	b.WriteString("kind: Component\n")
 	b.WriteString("metadata:\n")
 	b.WriteString("  name: " + name + "\n")
@@ -367,7 +379,7 @@ func draftDescription(format string) string {
 // entity renders the aggregate as a draft EmittedEntity carrying hand-built YAML.
 func (a *aggregateBuilder) entity() aggrega.EmittedEntity {
 	var b strings.Builder
-	b.WriteString("apiVersion: aggrega.ai/v1alpha1\n")
+	b.WriteString("apiVersion: " + apiVersion + "\n")
 	b.WriteString("kind: Aggregate\n")
 	b.WriteString("metadata:\n")
 	b.WriteString("  name: " + a.settings.TargetNamespace + "/flow\n")

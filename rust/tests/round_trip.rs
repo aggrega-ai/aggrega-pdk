@@ -297,7 +297,7 @@ fn schema_declared_abi_version(path: &Path) -> String {
 /// version, which is the one artifact upstream of every language's copy.
 #[test]
 fn api_version_matches_schema_declaration() {
-    let path = require_schema!("wasm-describe-v1alpha1.schema.json");
+    let path = require_schema!("wasm-describe-v1beta1.schema.json");
     let want = schema_declared_abi_version(&path);
     assert_eq!(
         API_VERSION, want,
@@ -309,7 +309,7 @@ fn api_version_matches_schema_declaration() {
 
 #[test]
 fn cli_run_input_round_trip_json_schema() {
-    let schema = require_schema!("wasm-cli-v1alpha1.schema.json");
+    let schema = require_schema!("wasm-cli-v1beta1.schema.json");
 
     let fixture = CLIRunInput {
         command: "deploy".to_string(),
@@ -333,7 +333,7 @@ fn cli_run_input_round_trip_json_schema() {
 
 #[test]
 fn mutator_input_round_trip_json_schema() {
-    let schema = require_schema!("wasm-mutator-v1alpha1.schema.json");
+    let schema = require_schema!("wasm-mutator-v1beta1.schema.json");
 
     let mut labels = OrderedMap::new();
     labels.insert("team".to_string(), "payments".to_string());
@@ -374,7 +374,7 @@ fn mutator_input_round_trip_json_schema() {
 
 #[test]
 fn mutator_output_round_trip_json_schema() {
-    let schema = require_schema!("wasm-mutator-v1alpha1.schema.json");
+    let schema = require_schema!("wasm-mutator-v1beta1.schema.json");
 
     let patch =
         serde_json::value::RawValue::from_string(r#"{"op":"add","path":"/x","value":"y"}"#.into())
@@ -391,15 +391,15 @@ fn mutator_output_round_trip_json_schema() {
 #[test]
 fn policy_input_round_trip_json_schema() {
     // Under b-full the policy input carries the full IR graph; the schema
-    // references ir-v1alpha1 for the graph field, so both schemas are registered.
-    let schema = require_schema!("wasm-policy-v1alpha1.schema.json");
+    // references ir-v1beta1 for the graph field, so both schemas are registered.
+    let schema = require_schema!("wasm-policy-v1beta1.schema.json");
 
     let mut labels = OrderedMap::new();
     labels.insert("team".to_string(), "payments".to_string());
 
     let fixture = PolicyInput {
         graph: IRGraph {
-            api_version: "aggrega.ai/v1alpha1".to_string(),
+            api_version: "aggrega.ai/v1beta1".to_string(),
             kind: "IR".to_string(),
             metadata: IRMetadata {
                 aggregate_name: "payments".to_string(),
@@ -426,7 +426,7 @@ fn policy_input_round_trip_json_schema() {
                 feature_values_mapping: OrderedMap::new(),
                 boundary_features: OrderedMap::new(),
                 provenance: IRProvenance {
-                    schema_version: "v1alpha1".to_string(),
+                    schema_version: "v1beta1".to_string(),
                     compiler_version: "test".to_string(),
                     aggregate_version: "1.0.0".to_string(),
                     manifest_version: "1.0.0".to_string(),
@@ -458,7 +458,7 @@ fn policy_input_round_trip_json_schema() {
 
 #[test]
 fn policy_output_round_trip_json_schema() {
-    let schema = require_schema!("wasm-policy-v1alpha1.schema.json");
+    let schema = require_schema!("wasm-policy-v1beta1.schema.json");
 
     let fixture = PolicyOutput {
         results: vec![
@@ -488,13 +488,13 @@ fn policy_output_round_trip_json_schema() {
 
 #[test]
 fn linter_input_round_trip_json_schema() {
-    let schema = require_schema!("wasm-linter-v1alpha1.schema.json");
+    let schema = require_schema!("wasm-linter-v1beta1.schema.json");
 
     let fixture = LinterInput {
         rule_id: "schema-evolution".to_string(),
         entity_kind: "Component".to_string(),
         proposed: serde_json::value::RawValue::from_string(
-            r#"{"apiVersion":"aggrega.ai/v1alpha1","kind":"Component"}"#.into(),
+            r#"{"apiVersion":"aggrega.ai/v1beta1","kind":"Component"}"#.into(),
         )
         .unwrap(),
         previous: Some(
@@ -547,7 +547,7 @@ fn linter_input_round_trip_json_schema() {
 
 #[test]
 fn linter_output_round_trip_json_schema() {
-    let schema = require_schema!("wasm-linter-v1alpha1.schema.json");
+    let schema = require_schema!("wasm-linter-v1beta1.schema.json");
 
     let fixture = LinterOutput {
         findings: vec![
@@ -591,7 +591,7 @@ fn linter_output_round_trip_json_schema() {
 /// only over the round-tripped value.
 #[test]
 fn name_bound_output_distinguishes_an_absent_bound_from_zero() {
-    let schema = require_schema!("wasm-provider-v1alpha1.schema.json");
+    let schema = require_schema!("wasm-provider-v1beta1.schema.json");
 
     let fixture = NameBoundOutput {
         names: vec![
@@ -649,7 +649,7 @@ fn name_bound_output_distinguishes_an_absent_bound_from_zero() {
 /// the Service keys, in the order the workload declares them.
 #[test]
 fn name_bound_input_round_trip_json_schema() {
-    let schema = require_schema!("wasm-provider-v1alpha1.schema.json");
+    let schema = require_schema!("wasm-provider-v1beta1.schema.json");
 
     let fixture = NameBoundInput {
         proposed: "payments-api".to_string(),
@@ -680,7 +680,7 @@ fn name_bound_input_round_trip_json_schema() {
 /// acceptance cannot come from a definition that accepts anything.
 #[test]
 fn provider_export_table_validates_each_payload_against_its_exports_definition() {
-    let schema = require_schema!("wasm-provider-v1alpha1.schema.json");
+    let schema = require_schema!("wasm-provider-v1beta1.schema.json");
 
     let table = export_table(&schema).expect("read the provider export table");
     for (export, row) in &table {

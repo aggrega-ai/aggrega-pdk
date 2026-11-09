@@ -5,5 +5,5 @@
 //! generated from the canonical schemas into the portable `aggrega-abi` crate
 //! and re-exported from `lib.rs`, single-sourcing the wire shape across the
 //! host, the guest codec, and every PDK. The policy socket's graph is
-//! the full capability-agnostic IR graph (generated from ir-v1alpha1), so the IR
+//! the full capability-agnostic IR graph (generated from ir-v1beta1), so the IR
 //! types are re-exported alongside the policy envelope.

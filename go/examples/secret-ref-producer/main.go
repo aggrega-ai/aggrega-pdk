@@ -100,7 +100,7 @@ func step() int32 {
 		Scope: "own",
 		File: &abi.SideEffectFile{
 			Path:    "secret-ref.yaml",
-			Content: "apiVersion: aggrega.ai/v1alpha1\nkind: SecretReference\nmetadata:\n  name: " + managedSecretName + "\nspec:\n  secretName: " + managedSecretName + "\n",
+			Content: "apiVersion: aggrega.ai/v1beta1\nkind: SecretReference\nmetadata:\n  name: " + managedSecretName + "\nspec:\n  secretName: " + managedSecretName + "\n",
 		},
 	})
 

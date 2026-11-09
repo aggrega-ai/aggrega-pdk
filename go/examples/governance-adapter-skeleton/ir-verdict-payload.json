@@ -1,6 +1,6 @@
 {
   "graph": {
-    "apiVersion": "aggrega.ai/v1alpha1",
+    "apiVersion": "aggrega.ai/v1beta1",
     "kind": "IR",
     "metadata": {
       "aggregate_name": "shop"
@@ -21,7 +21,7 @@
       "infra_mapping": {},
       "feature_values_mapping": {},
       "provenance": {
-        "schema_version": "aggrega.ai/v1alpha1",
+        "schema_version": "aggrega.ai/v1beta1",
         "compiler_version": "0.0.0",
         "aggregate_version": "1.0.0",
         "manifest_version": "1.0.0",

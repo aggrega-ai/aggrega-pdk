@@ -7,7 +7,7 @@
  * @aggrega-ai/aggrega-abi package and re-exported from index.ts,
  * single-sourcing the wire shape across the host, the guest codec, and every
  * PDK. The policy socket's graph is the full capability-agnostic IR
- * graph (types generated from ir-v1alpha1), re-exported alongside the policy
+ * graph (types generated from ir-v1beta1), re-exported alongside the policy
  * envelope.
  */
 

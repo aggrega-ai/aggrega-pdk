@@ -8,4 +8,4 @@ package aggrega
 // re-exported from abi_reexport.go, single-sourcing the wire shape across the
 // host, the guest codec, and every PDK. The policy socket's graph is
 // the full capability-agnostic IR graph (types in aggrega-abi generated from
-// ir-v1alpha1), so the IR types are re-exported alongside the policy envelope.
+// ir-v1beta1), so the IR types are re-exported alongside the policy envelope.

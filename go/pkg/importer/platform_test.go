@@ -174,7 +174,7 @@ const platformSource = platformSourceLine + "\n"
 
 // renderedFinder is the Component drafted for the finder node.
 const renderedFinder = `# resembles core/ai-tool/retrieval (score 0.7000); consider referencing it
-apiVersion: aggrega.ai/v1alpha1
+apiVersion: aggrega.ai/v1beta1
 kind: Component
 metadata:
   name: imported/ai-tool/finder
@@ -190,7 +190,7 @@ spec: {}
 // test's own spelling of the escape.
 func renderedPlatformAggregate() string {
 	escaped := strings.Replace(platformSourceLine, "{{question}}", `{{"{{"}}question}}`, 1)
-	return `apiVersion: aggrega.ai/v1alpha1
+	return `apiVersion: aggrega.ai/v1beta1
 kind: Aggregate
 metadata:
   name: imported/flow

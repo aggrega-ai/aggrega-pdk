@@ -132,7 +132,7 @@ func (d *platformDraft) moduleEntity() aggrega.EmittedEntity {
 	p := d.platform
 	m := p.Module
 	var b strings.Builder
-	b.WriteString("apiVersion: aggrega.ai/v1alpha1\n")
+	b.WriteString("apiVersion: " + apiVersion + "\n")
 	b.WriteString("kind: Aggregate\n")
 	b.WriteString("metadata:\n")
 	b.WriteString("  name: " + d.settings.TargetNamespace + "/flow\n")

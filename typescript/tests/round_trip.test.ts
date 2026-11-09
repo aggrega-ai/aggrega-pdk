@@ -205,7 +205,7 @@ function makeValidatorAt(schemaName: string, fragment: string) {
 // kit's constant against a second copy living in this same repository, which is
 // the divergence that generating the constant from the schema exists to remove.
 function schemaDeclaredABIVersion(): string {
-  const path = join(schemaDir, "wasm-describe-v1alpha1.schema.json");
+  const path = join(schemaDir, "wasm-describe-v1beta1.schema.json");
   const doc = JSON.parse(readFileSync(path, "utf8"));
   const declared = doc?.$defs?.PluginDescriptor?.properties?.abi_version?.const;
   // An absent read means the declaration moved, not that the two versions agree.
@@ -222,7 +222,7 @@ function schemaDeclaredABIVersion(): string {
 // Checks this kit's exported constant against the schema that declares the
 // version, which is the one artifact upstream of every language's copy.
 test("API_VERSION matches the abi_version the descriptor schema declares", (t) => {
-  if (requireSchemas(t, "wasm-describe-v1alpha1.schema.json")) return;
+  if (requireSchemas(t, "wasm-describe-v1beta1.schema.json")) return;
 
   assert.equal(
     API_VERSION,
@@ -233,9 +233,9 @@ test("API_VERSION matches the abi_version the descriptor schema declares", (t) =
 });
 
 test("CLIRunInput round-trips through wasm-cli schema", (t) => {
-  if (requireSchemas(t, "wasm-cli-v1alpha1.schema.json")) return;
+  if (requireSchemas(t, "wasm-cli-v1beta1.schema.json")) return;
 
-  const validate = makeValidator("wasm-cli-v1alpha1.schema.json");
+  const validate = makeValidator("wasm-cli-v1beta1.schema.json");
 
   const fixture: CLIRunInput = { command: "deploy", args: ["deploy", "--env", "prod", "payments"] };
 
@@ -248,9 +248,9 @@ test("CLIRunInput round-trips through wasm-cli schema", (t) => {
 });
 
 test("MutatorInput round-trips through wasm-mutator schema", (t) => {
-  if (requireSchemas(t, "wasm-mutator-v1alpha1.schema.json")) return;
+  if (requireSchemas(t, "wasm-mutator-v1beta1.schema.json")) return;
 
-  const validate = makeValidator("wasm-mutator-v1alpha1.schema.json");
+  const validate = makeValidator("wasm-mutator-v1beta1.schema.json");
 
   const fixture: MutatorInput = {
     compilation_context: {
@@ -281,9 +281,9 @@ test("MutatorInput round-trips through wasm-mutator schema", (t) => {
 });
 
 test("MutatorOutput round-trips through wasm-mutator schema", (t) => {
-  if (requireSchemas(t, "wasm-mutator-v1alpha1.schema.json")) return;
+  if (requireSchemas(t, "wasm-mutator-v1beta1.schema.json")) return;
 
-  const validate = makeValidator("wasm-mutator-v1alpha1.schema.json");
+  const validate = makeValidator("wasm-mutator-v1beta1.schema.json");
 
   const fixture: MutatorOutput = {
     patches: [
@@ -303,16 +303,16 @@ test("MutatorOutput round-trips through wasm-mutator schema", (t) => {
 });
 
 test("PolicyInput round-trips through wasm-policy schema", (t) => {
-  if (requireSchemas(t, "wasm-policy-v1alpha1.schema.json")) return;
+  if (requireSchemas(t, "wasm-policy-v1beta1.schema.json")) return;
 
   // The policy input carries the full IR graph, and the policy schema references
-  // ir-v1alpha1 for that graph field and wasm-diagnostic-v1alpha1 for its result
+  // ir-v1beta1 for that graph field and wasm-diagnostic-v1beta1 for its result
   // entries; both resolve because the whole schema directory is registered.
-  const validate = makeValidator("wasm-policy-v1alpha1.schema.json");
+  const validate = makeValidator("wasm-policy-v1beta1.schema.json");
 
   const fixture: PolicyInput = {
     graph: {
-      apiVersion: "aggrega.ai/v1alpha1",
+      apiVersion: "aggrega.ai/v1beta1",
       kind: "IR",
       metadata: { aggregate_name: "payments" },
       spec: {
@@ -338,7 +338,7 @@ test("PolicyInput round-trips through wasm-policy schema", (t) => {
         infra_mapping: new Map(),
         feature_values_mapping: new Map(),
         provenance: {
-          schema_version: "v1alpha1",
+          schema_version: "v1beta1",
           compiler_version: "test",
           aggregate_version: "1.0.0",
           manifest_version: "1.0.0",
@@ -366,9 +366,9 @@ test("PolicyInput round-trips through wasm-policy schema", (t) => {
 });
 
 test("PolicyOutput round-trips through wasm-policy schema", (t) => {
-  if (requireSchemas(t, "wasm-policy-v1alpha1.schema.json")) return;
+  if (requireSchemas(t, "wasm-policy-v1beta1.schema.json")) return;
 
-  const validate = makeValidator("wasm-policy-v1alpha1.schema.json");
+  const validate = makeValidator("wasm-policy-v1beta1.schema.json");
 
   const fixture: PolicyOutput = {
     results: [
@@ -386,9 +386,9 @@ test("PolicyOutput round-trips through wasm-policy schema", (t) => {
 });
 
 test("NameBoundOutput keeps an absent bound distinct from a bound of zero", (t) => {
-  if (requireSchemas(t, "wasm-provider-v1alpha1.schema.json")) return;
+  if (requireSchemas(t, "wasm-provider-v1beta1.schema.json")) return;
 
-  const validate = makeExportPayloadValidator("wasm-provider-v1alpha1.schema.json", "name_bound", "output");
+  const validate = makeExportPayloadValidator("wasm-provider-v1beta1.schema.json", "name_bound", "output");
 
   // The three states the bound can be in. Absent says length is not what the
   // target objected to — either it imposes none, or the objection is one no
@@ -419,9 +419,9 @@ test("NameBoundOutput keeps an absent bound distinct from a bound of zero", (t) 
 });
 
 test("NameBoundInput round-trips through the wasm-provider schema", (t) => {
-  if (requireSchemas(t, "wasm-provider-v1alpha1.schema.json")) return;
+  if (requireSchemas(t, "wasm-provider-v1beta1.schema.json")) return;
 
-  const validate = makeExportPayloadValidator("wasm-provider-v1alpha1.schema.json", "name_bound", "input");
+  const validate = makeExportPayloadValidator("wasm-provider-v1beta1.schema.json", "name_bound", "input");
 
   const fixture: NameBoundInput = {
     proposed: "payments-api",
@@ -449,7 +449,7 @@ test("NameBoundInput round-trips through the wasm-provider schema", (t) => {
 // each beside a definition that refuses the same document, so an acceptance
 // cannot come from a definition that accepts anything.
 test("provider export table validates each payload against its export's definition", (t) => {
-  const schemaName = "wasm-provider-v1alpha1.schema.json";
+  const schemaName = "wasm-provider-v1beta1.schema.json";
   if (requireSchemas(t, schemaName)) return;
 
   for (const exportName of Object.keys(exportTable(schemaName)).sort()) {
