@@ -178,6 +178,10 @@ aggrega-abi/scripts/check-api-compat.sh --tools .api-tools --sibling aggrega-abi
 Its `--help` states the rule, the tools it pins, and what each
 language's comparison cannot see.
 
+The [compatibility page](https://aggrega.ai/docs/language-reference/compatibility/)
+of the Aggrega documentation states this rule beside what a release
+promises for the schemas, the command line and the error codes.
+
 ## Module-path identity
 
 The published module paths all use the `aggrega-ai` namespace as
