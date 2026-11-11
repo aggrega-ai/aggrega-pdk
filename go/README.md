@@ -74,7 +74,8 @@ authored, which `pkg/importer` reads as JSON.
 
 A file imported on its own arrives as the request's `Bytes`, and its name — the
 file's base name, with no directory — as its `Name`; a directory's files arrive
-as `Sources`, each under its own name, with `Name` empty. `importer.Sources`
+as `Sources`, each under its own name, with `Bytes` empty and the directory's
+base name as `Name`. `importer.Sources`
 hands the primary bytes on as a source with no name, and that is how
 `pkg/importer` drafts them. To name that file in what an importer reports, pass
 the source through `importer.Named`, as `importer.Import` does before its
@@ -118,10 +119,10 @@ The drafted Aggregate is named `<target_namespace>/<name>`, its `<name>` named
 after the source by `importer.DraftName`: the name the source gives itself, which
 the format's optional `Format.Title` reads off each source's tree — a flow's, a
 workflow's or an app's name, in the field the format declares it in — where every
-source drafted gives the same one; else the stem of the file the import was
-handed; else `flow`. Each is lowercased, with every run of characters other than
-ASCII letters and digits written as one hyphen and the hyphens at either end
-dropped. An importer drafting an Aggregate or a
+source drafted gives the same one; else the name of the directory the import was
+handed, whole, or the stem of the file it was handed; else `flow`. Each is
+lowercased, with every run of characters other than ASCII letters and digits
+written as one hyphen and the hyphens at either end dropped. An importer drafting an Aggregate or a
 Release of its own names it through `importer.DraftName` too, handing it the names
 its sources give themselves, so one source is named one way by every importer.
 

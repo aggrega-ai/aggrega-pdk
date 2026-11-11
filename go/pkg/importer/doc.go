@@ -30,7 +30,8 @@
 // component or draft a new one, renders each drafted Component and the Aggregate
 // composing them, and renders the whole result into files. The Aggregate is
 // named after the source, through the name the format's Title reads off it or
-// the name of the file the import was handed, as [DraftName] names it; an
+// the name of the directory or the file the import was handed, as [DraftName]
+// names it; an
 // importer drafting an Aggregate or a Release of its own names it through
 // DraftName too. [NodeList], [EdgeList]
 // and [ObjectEntries] read the shapes a walker commonly meets in a canonical tree.

@@ -20,12 +20,15 @@ import (
 )
 
 // TestDraftNameNamesTheDraftAfterTheSource holds DraftName to its order — the
-// titles the sources give themselves where they agree, then the stem of the file
-// the import was handed, then flow — and to the namespace the target_namespace
-// setting names, one row per case. Every row is asked twice, and must answer the
-// same both times.
+// titles the sources give themselves where they agree, then the name of the
+// directory the import was handed, whole, or the stem of the file it was handed,
+// then flow — and to the namespace the target_namespace setting names, one row
+// per case. A directory's request carries named sources and no primary bytes; a
+// file's carries its bytes, with or without named sources beside them. Every row
+// is asked twice, and must answer the same both times.
 func TestDraftNameNamesTheDraftAfterTheSource(t *testing.T) {
 	t.Parallel()
+	files := []aggrega.ImportSource{{Name: "compose.yaml", Bytes: []byte("services: {}\n")}}
 	for _, row := range []struct {
 		scenario string
 		in       aggrega.ImportInput
@@ -44,7 +47,19 @@ func TestDraftNameNamesTheDraftAfterTheSource(t *testing.T) {
 			"imported/compose"},
 		{"a file's stem reducing to nothing falls to flow", aggrega.ImportInput{Name: ".env"}, nil, "imported/flow"},
 		{"a title reducing to nothing and no file, flow", aggrega.ImportInput{}, []string{"!!!"}, "imported/flow"},
-		{"a directory, naming no file, and no title, flow", aggrega.ImportInput{}, nil, "imported/flow"},
+		{"no name and no title, flow", aggrega.ImportInput{}, nil, "imported/flow"},
+		{"no title, the directory's name", aggrega.ImportInput{Name: "shop", Sources: files}, nil, "imported/shop"},
+		{"a directory's name keeps what reads as an extension", aggrega.ImportInput{Name: "my.project", Sources: files},
+			nil, "imported/my-project"},
+		{"a title names a directory's draft", aggrega.ImportInput{Name: "shop", Sources: files}, []string{"Notes"},
+			"imported/notes"},
+		{"titles disagreeing fall to the directory", aggrega.ImportInput{Name: "shop", Sources: files},
+			[]string{"one", "two"}, "imported/shop"},
+		{"a directory's name reducing to nothing falls to flow", aggrega.ImportInput{Name: "__", Sources: files}, nil,
+			"imported/flow"},
+		{"a file handed beside named sources, the file's stem",
+			aggrega.ImportInput{Name: "compose.yaml", Bytes: []byte("services: {}\n"), Sources: files}, nil,
+			"imported/compose"},
 		{"target_namespace sets the first segment",
 			aggrega.ImportInput{Settings: json.RawMessage(`{"target_namespace":"team-a"}`)}, []string{"Support Chat"},
 			"team-a/support-chat"},
@@ -75,9 +90,9 @@ func titled(served Format, title string) Format {
 // package's three drafts — node by node, the platform carrying the flow, and the
 // module form — and reads the drafted Aggregate's name off its entity and off
 // the metadata.name its file writes: the format's title where it reads one, the
-// stem of the file where it reads none, flow where its title reduces to nothing
-// and no file is named, and the namespace the target_namespace setting names in
-// front.
+// stem of the file or the whole name of the directory where it reads none, flow
+// where its title reduces to nothing and nothing is named, and the namespace the
+// target_namespace setting names in front.
 //
 // 🔴 PLANTED DEFECT: in platformDraft.entity (platform.go), write the name as
 // d.settings.TargetNamespace + "/flow": every platform row naming anything other
@@ -96,20 +111,26 @@ func TestEveryDraftOfTheKitIsNamedAfterTheSource(t *testing.T) {
 	}
 	for _, d := range drafts {
 		for _, row := range []struct {
-			scenario string
-			served   Format
-			name     string
-			settings string
-			want     string
+			scenario  string
+			served    Format
+			name      string
+			directory bool
+			settings  string
+			want      string
 		}{
-			{"a title", titled(d.served, "Support Chat"), "export.json", "", "imported/support-chat"},
-			{"no title", d.served, "support-chat.json", "", "imported/support-chat"},
-			{"a title reducing to nothing, no file", titled(d.served, "  ---  "), "", "", "imported/flow"},
-			{"a target namespace", titled(d.served, "Support Chat"), "", `{"target_namespace":"team-a"}`,
+			{"a title", titled(d.served, "Support Chat"), "export.json", false, "", "imported/support-chat"},
+			{"no title", d.served, "support-chat.json", false, "", "imported/support-chat"},
+			{"a directory, no title", d.served, "support.chat", true, "", "imported/support-chat"},
+			{"a directory, a title", titled(d.served, "Notes"), "support.chat", true, "", "imported/notes"},
+			{"a title reducing to nothing, no file", titled(d.served, "  ---  "), "", false, "", "imported/flow"},
+			{"a target namespace", titled(d.served, "Support Chat"), "", false, `{"target_namespace":"team-a"}`,
 				"team-a/support-chat"},
 		} {
 			in := aggrega.ImportInput{Format: testFormatName, Bytes: []byte(d.source), Name: row.name,
 				Catalog: d.catalog}
+			if row.directory {
+				in.Bytes, in.Sources = nil, []aggrega.ImportSource{{Name: "flows/export.json", Bytes: []byte(d.source)}}
+			}
 			if row.settings != "" {
 				in.Settings = json.RawMessage(row.settings)
 			}

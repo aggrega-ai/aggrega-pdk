@@ -27,9 +27,17 @@ const fallbackSegment = "flow"
 //     segment, so a draft made from several sources that name themselves apart,
 //     or from one that names itself and one that does not, is named by the next
 //     rule;
-//   - the stem of the file the import was handed on its own: in.Name with its
-//     extension removed. A directory hands no such name;
+//   - the name of what the import was handed, in.Name. Where the import was
+//     handed a directory, it is the directory's name, whole: a directory hands
+//     its files as named sources and no primary bytes, so a request carrying
+//     named sources and empty primary bytes is read as a directory's, and
+//     my.project names the draft my-project. Otherwise it is the name of the
+//     file the import was handed on its own, its extension removed, so
+//     compose.yaml names the draft compose;
 //   - flow.
+//
+// So a directory whose sources name nothing is named after itself, as Compose
+// names a project after the directory holding it.
 //
 // A name is reduced to a segment as [UniqueKey] reduces one to a key: lowercased,
 // with every run of characters other than ASCII letters and digits written as
@@ -55,12 +63,22 @@ func draftSegment(in aggrega.ImportInput, titles []string) string {
 		return segment
 	}
 	if in.Name != "" {
-		base := path.Base(in.Name)
-		if segment := kebab(base[:len(base)-len(path.Ext(base))]); segment != "" {
+		name := path.Base(in.Name)
+		if !handedDirectory(in) {
+			name = name[:len(name)-len(path.Ext(name))]
+		}
+		if segment := kebab(name); segment != "" {
 			return segment
 		}
 	}
 	return fallbackSegment
+}
+
+// handedDirectory reports whether a request is the import of a directory: its
+// files arrive as named sources, and it carries no primary bytes, which carry a
+// file imported on its own.
+func handedDirectory(in aggrega.ImportInput) bool {
+	return len(in.Bytes) == 0 && len(in.Sources) > 0
 }
 
 // agreedTitle is the segment every title reduces to, empty where there is no
