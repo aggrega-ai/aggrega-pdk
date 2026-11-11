@@ -1,6 +1,6 @@
 [package]
 name = "aggrega-pdk-rust"
-version = "0.9.0"
+version = "0.9.0-rc.3"
 edition = "2021"
 description = "Plugin Development Kit for authoring Aggrega Wasm plugins in Rust."
 license = "Apache-2.0"
@@ -24,7 +24,7 @@ base64 = "0.22"
 # at a release tag to choose the aggrega-abi tag it compares with, which is the
 # release that tag was built on only under the precondition the check's --help
 # states under PAIRING.
-aggrega-abi = { path = "../../aggrega-abi/rust", version = "0.9.0" }
+aggrega-abi = { path = "../../aggrega-abi/rust", version = "0.9.0-rc.3" }
 
 [dev-dependencies]
 # JSON Schema 2020-12 validator. Selected over the `jsonschema` crate

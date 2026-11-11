@@ -1,6 +1,6 @@
 {
   "name": "@aggrega-ai/aggrega-pdk-typescript",
-  "version": "0.9.0",
+  "version": "0.9.0-rc.3",
   "description": "Plugin Development Kit for authoring Aggrega Wasm plugins in TypeScript.",
   "license": "Apache-2.0",
   "main": "./dist/index.js",
