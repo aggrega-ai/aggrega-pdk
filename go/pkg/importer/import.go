@@ -28,6 +28,13 @@ type Format struct {
 	// tree the parse callback returned for one source. A tree it does not
 	// recognise yields no nodes, which [Import] reports as a warning.
 	Walk func(tree json.RawMessage) ([]Node, []Edge)
+	// Title reads, off a source's tree, the name the source gives the flow, the
+	// workflow or the app it describes, in the field the format itself declares
+	// that name in, and is empty where the source gives none. The drafted
+	// Aggregate is named after the titles of the sources it is drafted from, as
+	// [DraftName] describes. Nil reads none, so the draft is named after the file
+	// the import was handed.
+	Title func(tree json.RawMessage) string
 	// Platform describes the platform a flow of the format runs on, for a format
 	// whose sources are flows a platform runs as they are written. A format
 	// carrying one is drafted as that platform carrying each source, unless the
@@ -121,6 +128,7 @@ func Import(in aggrega.ImportInput, served Format, parse func(syntax string, sou
 	}
 	agg := newAggregateBuilder(settings, format)
 	usedNames := map[string]bool{}
+	var titles []string
 
 	for _, src := range sources {
 		tree, err := parse(served.Syntax, src.Bytes)
@@ -133,6 +141,7 @@ func Import(in aggrega.ImportInput, served Format, parse func(syntax string, sou
 			out.Diagnostics = append(out.Diagnostics, noNodes(Named(in, src), format))
 			continue
 		}
+		titles = append(titles, titleOf(served, format, tree))
 
 		idToKey := map[string]string{}
 		for _, node := range nodes {
@@ -159,7 +168,7 @@ func Import(in aggrega.ImportInput, served Format, parse func(syntax string, sou
 
 	// The aggregate wiring the drafted and referenced components together is the
 	// last entity, emitted after the components it composes.
-	out.Entities = append(out.Entities, agg.entity())
+	out.Entities = append(out.Entities, agg.entity(in, titles))
 
 	out.Files = render(settings, out.Entities, out.Decisions)
 	return out
@@ -297,4 +306,14 @@ func walk(served Format, format string, tree json.RawMessage) ([]Node, []Edge) {
 		return nil, nil
 	}
 	return served.Walk(tree)
+}
+
+// titleOf reads the name one parsed source gives itself through the served
+// format's Title, empty where the format reads none — a request naming another
+// format among them, as walk reads nothing of one.
+func titleOf(served Format, format string, tree json.RawMessage) string {
+	if format != served.Name || served.Title == nil {
+		return ""
+	}
+	return served.Title(tree)
 }

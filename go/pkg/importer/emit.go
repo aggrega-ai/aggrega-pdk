@@ -376,13 +376,16 @@ func draftDescription(format string) string {
 	return "Draft Aggregate imported from a source in the " + format + " format."
 }
 
-// entity renders the aggregate as a draft EmittedEntity carrying hand-built YAML.
-func (a *aggregateBuilder) entity() aggrega.EmittedEntity {
+// entity renders the aggregate as a draft EmittedEntity carrying hand-built YAML,
+// named after the request in and the titles of the sources it is drafted from,
+// as [DraftName] names it.
+func (a *aggregateBuilder) entity(in aggrega.ImportInput, titles []string) aggrega.EmittedEntity {
+	name := draftName(a.settings, in, titles)
 	var b strings.Builder
 	b.WriteString("apiVersion: " + apiVersion + "\n")
 	b.WriteString("kind: Aggregate\n")
 	b.WriteString("metadata:\n")
-	b.WriteString("  name: " + a.settings.TargetNamespace + "/flow\n")
+	b.WriteString("  name: " + name + "\n")
 	b.WriteString("  version: 0.1.0\n")
 	b.WriteString("  description: " + draftDescription(a.format) + "\n")
 	b.WriteString("spec:\n")
@@ -411,7 +414,7 @@ func (a *aggregateBuilder) entity() aggrega.EmittedEntity {
 			}
 		}
 	}
-	return aggrega.EmittedEntity{Kind: "Aggregate", Name: a.settings.TargetNamespace + "/flow", Mode: "draft", Body: b.String()}
+	return aggrega.EmittedEntity{Kind: "Aggregate", Name: name, Mode: "draft", Body: b.String()}
 }
 
 func dedup(sorted []string) []string {

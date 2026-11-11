@@ -5,6 +5,7 @@ package importer
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/aggrega-ai/aggrega-pdk-go/pkg/aggrega"
@@ -71,12 +72,13 @@ func TestAFileImportedOnItsOwnIsNamedInWhatTheImportReports(t *testing.T) {
 	}
 }
 
-// TestTheRequestsNameMovesNothingTheImportDrafts holds the name to what an
-// import reports: the same file imported with and without the request's name
-// drafts the same entities, decisions and files, on the node-by-node draft and on
-// a platform format's, because a source is drafted under its own name and the
-// primary source carries none.
-func TestTheRequestsNameMovesNothingTheImportDrafts(t *testing.T) {
+// TestTheRequestsNameMovesOnlyTheDraftsName holds the name to what an import
+// reports and to the drafted Aggregate's name: the same file imported with and
+// without the request's name drafts the same entities, decisions and files, on
+// the node-by-node draft and on a platform format's, but for the Aggregate's
+// name, which a format reading no title of its own takes from the file's stem —
+// a source is drafted under its own name and the primary source carries none.
+func TestTheRequestsNameMovesOnlyTheDraftsName(t *testing.T) {
 	t.Parallel()
 	for _, row := range []struct {
 		scenario string
@@ -90,14 +92,31 @@ func TestTheRequestsNameMovesNothingTheImportDrafts(t *testing.T) {
 	} {
 		unnamed := Import(row.in, row.served, (&parseRecorder{}).parse)
 		named := row.in
-		named.Name = "flow.json"
+		named.Name = "support-chat.json"
 		got := Import(named, row.served, (&parseRecorder{}).parse)
 		if len(unnamed.Entities) == 0 {
 			t.Fatalf("%s: the import drafted nothing, so the comparison holds nothing", row.scenario)
 		}
-		if !reflect.DeepEqual(got.Entities, unnamed.Entities) || !reflect.DeepEqual(got.Decisions, unnamed.Decisions) ||
-			!reflect.DeepEqual(got.Files, unnamed.Files) {
-			t.Errorf("%s: naming the file moved the draft:\nnamed   %+v\nunnamed %+v", row.scenario, got, unnamed)
+		// The unnamed import, its Aggregate renamed as the file's stem names it.
+		const unnamedLine, namedLine = "\n  name: imported/flow\n", "\n  name: imported/support-chat\n"
+		want := unnamed
+		want.Entities = append([]aggrega.EmittedEntity(nil), unnamed.Entities...)
+		for i, e := range want.Entities {
+			if e.Kind == "Aggregate" && e.Mode == "draft" {
+				want.Entities[i].Name = "imported/support-chat"
+				want.Entities[i].Body = strings.Replace(e.Body, unnamedLine, namedLine, 1)
+			}
+		}
+		want.Files = append([]aggrega.ScaffoldFile(nil), unnamed.Files...)
+		for i, f := range want.Files {
+			if f.Path == "aggregate.yaml" {
+				want.Files[i].Content = strings.Replace(f.Content, unnamedLine, namedLine, 1)
+			}
+		}
+		if !reflect.DeepEqual(got.Entities, want.Entities) || !reflect.DeepEqual(got.Decisions, want.Decisions) ||
+			!reflect.DeepEqual(got.Files, want.Files) {
+			t.Errorf("%s: naming the file moved more than the Aggregate's name:\nnamed %+v\nwant  %+v", row.scenario,
+				got, want)
 		}
 	}
 }

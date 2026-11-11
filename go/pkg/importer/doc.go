@@ -28,7 +28,11 @@
 // callback, walks it, scores every node against the Components of the
 // workspace's catalog the request carries, decides whether to reference a
 // component or draft a new one, renders each drafted Component and the Aggregate
-// composing them, and renders the whole result into files. [NodeList], [EdgeList]
+// composing them, and renders the whole result into files. The Aggregate is
+// named after the source, through the name the format's Title reads off it or
+// the name of the file the import was handed, as [DraftName] names it; an
+// importer drafting an Aggregate or a Release of its own names it through
+// DraftName too. [NodeList], [EdgeList]
 // and [ObjectEntries] read the shapes a walker commonly meets in a canonical tree.
 //
 // # Scoring and decisions
@@ -174,7 +178,9 @@
 // one that is not valid JSON, leaves every setting at its default.
 //
 //   - target_namespace: the namespace drafted entities are named under, as
-//     <namespace>/<category>/<name>; default imported.
+//     <namespace>/<category>/<name> for a Component and <namespace>/<name> for
+//     the Aggregate, its <name> named after the source as [DraftName] names it;
+//     default imported.
 //   - reuse_mode: hints-only (the default), which references nothing, or
 //     auto-apply-above-threshold.
 //   - reuse_threshold: the score at or above which auto-apply references a

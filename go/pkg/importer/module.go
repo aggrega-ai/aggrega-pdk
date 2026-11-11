@@ -62,6 +62,7 @@ func importModule(in aggrega.ImportInput, served Format, settings importSettings
 			continue
 		}
 		drafted = true
+		draft.titles = append(draft.titles, titleOf(served, format, tree))
 
 		refOf := func(id string) string {
 			if multiSource {
@@ -104,7 +105,7 @@ func importModule(in aggrega.ImportInput, served Format, settings importSettings
 		})
 	}
 
-	out.Entities = append(out.Entities, draft.entity())
+	out.Entities = append(out.Entities, draft.entity(in))
 	out.Files = render(settings, out.Entities, out.Decisions)
 	return out
 }
@@ -127,15 +128,17 @@ func configuredInPlatform(ref string, node Node, what, platform string) aggrega.
 // of the module per source, under aggregates, passing each of them down and
 // carrying the source in the module's parameter, with the comment above it
 // naming what the Release supplies and that the import does not check the
-// catalog for the module.
-func (d *platformDraft) moduleEntity() aggrega.EmittedEntity {
+// catalog for the module. It is named after the request in and the titles of
+// the sources it carries, as [DraftName] names it.
+func (d *platformDraft) moduleEntity(in aggrega.ImportInput) aggrega.EmittedEntity {
 	p := d.platform
 	m := p.Module
+	name := draftName(d.settings, in, d.titles)
 	var b strings.Builder
 	b.WriteString("apiVersion: " + apiVersion + "\n")
 	b.WriteString("kind: Aggregate\n")
 	b.WriteString("metadata:\n")
-	b.WriteString("  name: " + d.settings.TargetNamespace + "/flow\n")
+	b.WriteString("  name: " + name + "\n")
 	b.WriteString("  version: 0.1.0\n")
 	b.WriteString("  description: " + draftDescription(d.format) + "\n")
 	b.WriteString("spec:\n")
@@ -178,5 +181,5 @@ func (d *platformDraft) moduleEntity() aggrega.EmittedEntity {
 				"flow is not carried."))
 		}
 	}
-	return aggrega.EmittedEntity{Kind: "Aggregate", Name: d.settings.TargetNamespace + "/flow", Mode: "draft", Body: b.String()}
+	return aggrega.EmittedEntity{Kind: "Aggregate", Name: name, Mode: "draft", Body: b.String()}
 }

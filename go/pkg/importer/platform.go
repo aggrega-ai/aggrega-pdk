@@ -407,6 +407,7 @@ func importPlatform(in aggrega.ImportInput, served Format, settings importSettin
 			continue
 		}
 		drafted = true
+		draft.titles = append(draft.titles, titleOf(served, format, tree))
 
 		refOf := func(id string) string {
 			if multiSource {
@@ -610,7 +611,7 @@ func importPlatform(in aggrega.ImportInput, served Format, settings importSettin
 		})
 	}
 
-	out.Entities = append(out.Entities, draft.entity())
+	out.Entities = append(out.Entities, draft.entity(in))
 	out.Files = render(settings, out.Entities, out.Decisions)
 	return out
 }
@@ -1333,26 +1334,31 @@ func (inst *platformInstance) carry(p *Platform, format, syntax string, src aggr
 }
 
 // platformDraft assembles the drafted Aggregate of a platform draft: each
-// instance of the platform, followed by the parts it is wired to.
+// instance of the platform, followed by the parts it is wired to. titles are
+// the names the sources it carries give themselves, one per instance.
 type platformDraft struct {
 	settings  importSettings
 	format    string
 	platform  *Platform
 	instances []*platformInstance
+	titles    []string
 }
 
 // entity renders the Aggregate as a draft EmittedEntity carrying hand-built
-// YAML, so key order is fixed and the output is byte-identical across runs.
-func (d *platformDraft) entity() aggrega.EmittedEntity {
+// YAML, so key order is fixed and the output is byte-identical across runs. It
+// is named after the request in and the titles of the sources it carries, as
+// [DraftName] names it.
+func (d *platformDraft) entity(in aggrega.ImportInput) aggrega.EmittedEntity {
 	p := d.platform
 	if p.Module != nil {
-		return d.moduleEntity()
+		return d.moduleEntity(in)
 	}
+	name := draftName(d.settings, in, d.titles)
 	var b strings.Builder
 	b.WriteString("apiVersion: " + apiVersion + "\n")
 	b.WriteString("kind: Aggregate\n")
 	b.WriteString("metadata:\n")
-	b.WriteString("  name: " + d.settings.TargetNamespace + "/flow\n")
+	b.WriteString("  name: " + name + "\n")
 	b.WriteString("  version: 0.1.0\n")
 	b.WriteString("  description: " + draftDescription(d.format) + "\n")
 	b.WriteString("spec:\n")
@@ -1436,7 +1442,7 @@ func (d *platformDraft) entity() aggrega.EmittedEntity {
 			}
 		}
 	}
-	return aggrega.EmittedEntity{Kind: "Aggregate", Name: d.settings.TargetNamespace + "/flow", Mode: "draft", Body: b.String()}
+	return aggrega.EmittedEntity{Kind: "Aggregate", Name: name, Mode: "draft", Body: b.String()}
 }
 
 // writeTargetAttachment writes, inside the platform's instance keyed key, the

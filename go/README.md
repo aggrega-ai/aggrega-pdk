@@ -114,6 +114,17 @@ tested on the host by handing `Import` a parse function of the test's own. Its
 package documentation carries the scoring signals, the tiers and the settings in
 full.
 
+The drafted Aggregate is named `<target_namespace>/<name>`, its `<name>` named
+after the source by `importer.DraftName`: the name the source gives itself, which
+the format's optional `Format.Title` reads off each source's tree — a flow's, a
+workflow's or an app's name, in the field the format declares it in — where every
+source drafted gives the same one; else the stem of the file the import was
+handed; else `flow`. Each is lowercased, with every run of characters other than
+ASCII letters and digits written as one hyphen and the hyphens at either end
+dropped. An importer drafting an Aggregate or a
+Release of its own names it through `importer.DraftName` too, handing it the names
+its sources give themselves, so one source is named one way by every importer.
+
 #### A format whose flows a platform runs
 
 A format whose flows run on a platform as they are written — a Langflow flow on
