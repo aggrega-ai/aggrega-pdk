@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2026 Cognitio S.r.l.
+// Copyright 2026 Cognitio s.r.l.
 
 // Observing fixture governance plugin for the ir-verdict role, for the Aggrega Wasm runtime.
 //

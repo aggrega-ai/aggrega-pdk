@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-# Copyright 2026 Cognitio S.r.l.
+# Copyright 2026 Cognitio s.r.l.
 #
 # Reference policy for the policy-opa-wasm adapter. It is compiled to a
 # WebAssembly module with OPA's own toolchain and committed as policy.wasm,

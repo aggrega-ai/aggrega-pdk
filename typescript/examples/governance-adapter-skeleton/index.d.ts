@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2026 Cognitio S.r.l.
+// Copyright 2026 Cognitio s.r.l.
 
 // Interface declaration consumed by extism-js at compile time. It names the
 // exports the four governance roles dispatch to; an adapter serving fewer roles

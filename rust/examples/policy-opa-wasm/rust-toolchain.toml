@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-# Copyright 2026 Cognitio S.r.l.
+# Copyright 2026 Cognitio s.r.l.
 #
 # This crate embeds a WebAssembly interpreter and is excluded from the enclosing
 # plugin workspace. It pins the current stable toolchain for its own build so

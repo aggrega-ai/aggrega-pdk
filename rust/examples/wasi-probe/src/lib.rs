@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2026 Cognitio S.r.l.
+// Copyright 2026 Cognitio s.r.l.
 
 //! Probe fixture exercising the host's stubbed-WASI subset
 //! end-to-end. The fixture imports a representative set of WASI

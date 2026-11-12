@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2026 Cognitio S.r.l.
+// Copyright 2026 Cognitio s.r.l.
 
 // Package importer is the library an importer plugin is built on: everything
 // about turning a foreign flow definition into draft Aggrega entities that does

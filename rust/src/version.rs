@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2026 Cognitio S.r.l.
+// Copyright 2026 Cognitio s.r.l.
 
 /// The Aggrega Wasm plugin ABI version this PDK targets, re-exported from the
 /// portable `aggrega-abi` crate so a plugin author writes `API_VERSION` while

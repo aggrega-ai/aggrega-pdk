@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2026 Cognitio S.r.l.
+// Copyright 2026 Cognitio s.r.l.
 
 // Negative-path producer step for the Aggrega feature-recipe pipeline, authored
 // with the Go PDK for GOOS=wasip1. It exists to exercise the host's typed
