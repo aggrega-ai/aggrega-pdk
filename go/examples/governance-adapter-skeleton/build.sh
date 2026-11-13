@@ -27,6 +27,6 @@ PLUGIN_VERSION="${AGGREGA_PLUGIN_VERSION:-0.1.0}"
 
 mkdir -p "${OUT_DIR}"
 (cd "${SCRIPT_DIR}" && GOOS=wasip1 GOARCH=wasm go build -buildmode=c-shared \
-    -ldflags "-X github.com/aggrega-ai/aggrega-pdk-go/pkg/aggrega.Version=${PLUGIN_VERSION}" \
+    -ldflags "-X github.com/aggrega-ai/aggrega-pdk/go/pkg/aggrega.Version=${PLUGIN_VERSION}" \
     -o "${OUT_DIR}/${ARTIFACT}" ./)
 echo "Wrote ${OUT_DIR}/${ARTIFACT}"

@@ -9,7 +9,7 @@ import (
 	"path"
 	"strings"
 
-	"github.com/aggrega-ai/aggrega-pdk-go/pkg/aggrega"
+	"github.com/aggrega-ai/aggrega-pdk/go/pkg/aggrega"
 )
 
 // This file holds the module form of the platform draft: a format whose

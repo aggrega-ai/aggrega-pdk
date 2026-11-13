@@ -3,7 +3,7 @@
 
 package aggrega
 
-import abi "github.com/aggrega-ai/aggrega-abi-go/pkg/abi"
+import abi "github.com/aggrega-ai/aggrega-abi/go/pkg/abi"
 
 // The mutator and linter socket wire types are generated from the canonical
 // schemas into the portable aggrega-abi module and re-exported here as aliases,

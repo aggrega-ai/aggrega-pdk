@@ -29,10 +29,10 @@ import (
 	"encoding/json"
 	"sort"
 
-	abi "github.com/aggrega-ai/aggrega-abi-go/pkg/abi"
+	abi "github.com/aggrega-ai/aggrega-abi/go/pkg/abi"
 	pdk "github.com/extism/go-pdk"
 
-	"github.com/aggrega-ai/aggrega-pdk-go/pkg/aggrega"
+	"github.com/aggrega-ai/aggrega-pdk/go/pkg/aggrega"
 )
 
 func descriptor() aggrega.PluginDescriptor {

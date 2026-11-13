@@ -40,6 +40,6 @@ mkdir -p "${OUT_DIR}"
 # toolchain's full GC and runtime decode the import payload through the generated
 # ABI codec without the collector caveats the bare-Wasm targets carry.
 GOOS=wasip1 GOARCH=wasm go build -buildmode=c-shared \
-    -ldflags "-X github.com/aggrega-ai/aggrega-pdk-go/pkg/aggrega.Version=${PLUGIN_VERSION}" \
+    -ldflags "-X github.com/aggrega-ai/aggrega-pdk/go/pkg/aggrega.Version=${PLUGIN_VERSION}" \
     -o "${OUT_DIR}/import-go.wasm" ./
 echo "Wrote ${OUT_DIR}/import-go.wasm"

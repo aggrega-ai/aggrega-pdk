@@ -39,9 +39,9 @@ import (
 
 	pdk "github.com/extism/go-pdk"
 
-	abi "github.com/aggrega-ai/aggrega-abi-go/pkg/abi"
+	abi "github.com/aggrega-ai/aggrega-abi/go/pkg/abi"
 
-	"github.com/aggrega-ai/aggrega-pdk-go/pkg/aggrega"
+	"github.com/aggrega-ai/aggrega-pdk/go/pkg/aggrega"
 )
 
 // proofLabelKey / proofLabelValue mirror the mutator-proof fixture: reusing the

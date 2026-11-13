@@ -25,14 +25,14 @@
 // with an ImportInput as input.
 //
 // The import payload is decoded and the result encoded through the generated ABI
-// codec (github.com/aggrega-ai/aggrega-abi-go/pkg/abi, re-exported by this PDK)
+// codec (github.com/aggrega-ai/aggrega-abi/go/pkg/abi, re-exported by this PDK)
 // rather than hand-declared wire types, so the wire shape stays single-sourced
 // from the schema. The importer socket carries canonical CBOR in both directions:
 // the input arrives as canonical CBOR and the output is returned the same way.
 //
 // Build: ./build.sh, which stamps the version the guest reports through
 // describe() (AGGREGA_PLUGIN_VERSION, default 1.0.0) into
-// GOOS=wasip1 GOARCH=wasm go build -buildmode=c-shared -ldflags "-X github.com/aggrega-ai/aggrega-pdk-go/pkg/aggrega.Version=<version>" -o import-go.wasm ./
+// GOOS=wasip1 GOARCH=wasm go build -buildmode=c-shared -ldflags "-X github.com/aggrega-ai/aggrega-pdk/go/pkg/aggrega.Version=<version>" -o import-go.wasm ./
 package main
 
 import (
@@ -41,7 +41,7 @@ import (
 
 	pdk "github.com/extism/go-pdk"
 
-	"github.com/aggrega-ai/aggrega-pdk-go/pkg/aggrega"
+	"github.com/aggrega-ai/aggrega-pdk/go/pkg/aggrega"
 )
 
 // descriptor is the static describe() self-report: an importer plugin

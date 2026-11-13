@@ -6,7 +6,7 @@ package importer
 import (
 	"path"
 
-	"github.com/aggrega-ai/aggrega-pdk-go/pkg/aggrega"
+	"github.com/aggrega-ai/aggrega-pdk/go/pkg/aggrega"
 )
 
 // fallbackSegment is the second segment of a drafted Aggregate's name where

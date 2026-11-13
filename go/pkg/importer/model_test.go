@@ -10,7 +10,7 @@ import (
 	"testing"
 	"text/template"
 
-	"github.com/aggrega-ai/aggrega-pdk-go/pkg/aggrega"
+	"github.com/aggrega-ai/aggrega-pdk/go/pkg/aggrega"
 )
 
 // testModel is the test format's Model: a node whose data carries model names

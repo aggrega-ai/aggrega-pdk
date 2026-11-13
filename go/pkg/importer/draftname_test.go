@@ -16,7 +16,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aggrega-ai/aggrega-pdk-go/pkg/aggrega"
+	"github.com/aggrega-ai/aggrega-pdk/go/pkg/aggrega"
 )
 
 // TestDraftNameNamesTheDraftAfterTheSource holds DraftName to its order — the

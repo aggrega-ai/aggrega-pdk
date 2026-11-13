@@ -12,7 +12,7 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/aggrega-ai/aggrega-pdk-go/pkg/aggrega"
+	"github.com/aggrega-ai/aggrega-pdk/go/pkg/aggrega"
 )
 
 // This file holds the one decision an import makes over the credential values a

@@ -19,7 +19,7 @@
 // a ParseInput as input.
 //
 // The parse payload is decoded and re-encoded through the generated ABI codec
-// (github.com/aggrega-ai/aggrega-abi-go/pkg/abi, re-exported by this PDK) rather
+// (github.com/aggrega-ai/aggrega-abi/go/pkg/abi, re-exported by this PDK) rather
 // than hand-declared wire types, so the wire shape stays single-sourced from
 // the schema. The parser socket carries canonical CBOR in both directions: the
 // input is read with ParseInput.DecodeCBOR and the output written with
@@ -34,7 +34,7 @@ import (
 
 	pdk "github.com/extism/go-pdk"
 
-	"github.com/aggrega-ai/aggrega-pdk-go/pkg/aggrega"
+	"github.com/aggrega-ai/aggrega-pdk/go/pkg/aggrega"
 )
 
 // descriptor is the static describe() self-report: a parser plugin

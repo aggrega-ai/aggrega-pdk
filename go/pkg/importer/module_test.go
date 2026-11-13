@@ -12,7 +12,7 @@ import (
 	"testing"
 	"text/template"
 
-	"github.com/aggrega-ai/aggrega-pdk-go/pkg/aggrega"
+	"github.com/aggrega-ai/aggrega-pdk/go/pkg/aggrega"
 )
 
 // testModuleName is the Aggregate the test's module format drafts an entry of.

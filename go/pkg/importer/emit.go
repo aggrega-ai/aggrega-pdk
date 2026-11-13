@@ -9,7 +9,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/aggrega-ai/aggrega-pdk-go/pkg/aggrega"
+	"github.com/aggrega-ai/aggrega-pdk/go/pkg/aggrega"
 )
 
 // apiVersion is the apiVersion every document this package drafts declares —

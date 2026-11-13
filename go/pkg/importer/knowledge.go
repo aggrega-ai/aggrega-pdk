@@ -3,7 +3,7 @@
 
 package importer
 
-import "github.com/aggrega-ai/aggrega-pdk-go/pkg/aggrega"
+import "github.com/aggrega-ai/aggrega-pdk/go/pkg/aggrega"
 
 // This file holds what the scorer weighs a node against: the candidate
 // components and the mapping lookup.

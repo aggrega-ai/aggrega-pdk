@@ -24,7 +24,7 @@
 // input.
 //
 // The step payload is decoded and re-encoded through the generated ABI
-// codec (github.com/aggrega-ai/aggrega-abi-go/pkg/abi) rather than
+// codec (github.com/aggrega-ai/aggrega-abi/go/pkg/abi) rather than
 // hand-declared wire types. The socket carries canonical CBOR in both
 // directions, so the step reads its input with DecodeCBOR and writes its
 // output with EncodeCBOR. The codec is dispatch-free on the typed path (it
@@ -39,10 +39,10 @@ import (
 	"encoding/json"
 	"sort"
 
-	abi "github.com/aggrega-ai/aggrega-abi-go/pkg/abi"
+	abi "github.com/aggrega-ai/aggrega-abi/go/pkg/abi"
 	pdk "github.com/extism/go-pdk"
 
-	"github.com/aggrega-ai/aggrega-pdk-go/pkg/aggrega"
+	"github.com/aggrega-ai/aggrega-pdk/go/pkg/aggrega"
 )
 
 // descriptor is the static describe() self-report: a pipeline-step plugin

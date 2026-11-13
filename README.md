@@ -5,7 +5,7 @@ This repository holds the Plugin Development Kits for authoring
 language.
 
 - **`go/`** — Go PDK; targets publication to `pkg.go.dev` as
-  `github.com/aggrega-ai/aggrega-pdk-go`.
+  `github.com/aggrega-ai/aggrega-pdk/go`.
 - **`rust/`** — Rust PDK; targets publication to `crates.io` as
   `aggrega-pdk-rust`.
 - **`typescript/`** — TypeScript PDK; targets publication to npm as
@@ -187,7 +187,7 @@ promises for the schemas, the command line and the error codes.
 The published module paths all use the `aggrega-ai` namespace as
 their identity:
 
-- Go: `github.com/aggrega-ai/aggrega-pdk-go`
+- Go: `github.com/aggrega-ai/aggrega-pdk/go`
 - Cargo: `aggrega-pdk-rust` (Cargo crate names are unscoped)
 - npm: `@aggrega-ai/aggrega-pdk-typescript`
 

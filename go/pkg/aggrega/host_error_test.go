@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"testing"
 
-	abi "github.com/aggrega-ai/aggrega-abi-go/pkg/abi"
+	abi "github.com/aggrega-ai/aggrega-abi/go/pkg/abi"
 )
 
 // TestHostError_MatchByCode proves a guest branches on a host failure by code

@@ -7,7 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	abi "github.com/aggrega-ai/aggrega-abi-go/pkg/abi"
+	abi "github.com/aggrega-ai/aggrega-abi/go/pkg/abi"
 	pdk "github.com/extism/go-pdk"
 )
 

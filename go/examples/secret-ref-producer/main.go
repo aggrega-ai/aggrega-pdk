@@ -21,7 +21,7 @@
 // that schema after the step runs.
 //
 // The step payload is decoded and re-encoded through the generated ABI codec
-// (github.com/aggrega-ai/aggrega-abi-go/pkg/abi) rather than hand-declared wire
+// (github.com/aggrega-ai/aggrega-abi/go/pkg/abi) rather than hand-declared wire
 // types, so the wire shape stays single-sourced from the schema. The socket
 // carries canonical CBOR in both directions, so the step reads its input with
 // DecodeCBOR and writes its output with EncodeCBOR.
@@ -32,10 +32,10 @@ package main
 import (
 	"encoding/json"
 
-	abi "github.com/aggrega-ai/aggrega-abi-go/pkg/abi"
+	abi "github.com/aggrega-ai/aggrega-abi/go/pkg/abi"
 	pdk "github.com/extism/go-pdk"
 
-	"github.com/aggrega-ai/aggrega-pdk-go/pkg/aggrega"
+	"github.com/aggrega-ai/aggrega-pdk/go/pkg/aggrega"
 )
 
 // managedSecretName is the deterministic name the producer writes into its

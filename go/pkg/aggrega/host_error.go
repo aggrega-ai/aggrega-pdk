@@ -3,7 +3,7 @@
 
 package aggrega
 
-import abi "github.com/aggrega-ai/aggrega-abi-go/pkg/abi"
+import abi "github.com/aggrega-ai/aggrega-abi/go/pkg/abi"
 
 // HostError is the error a host-function wrapper returns when the host reports
 // an in-band failure. It carries the machine-matchable Code beside the

@@ -12,7 +12,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/aggrega-ai/aggrega-pdk-go/pkg/aggrega"
+	"github.com/aggrega-ai/aggrega-pdk/go/pkg/aggrega"
 )
 
 // Platform describes the platform a format's flows run on — the catalog

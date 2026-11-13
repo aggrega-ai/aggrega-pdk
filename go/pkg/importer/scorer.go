@@ -6,7 +6,7 @@ package importer
 import (
 	"sort"
 
-	"github.com/aggrega-ai/aggrega-pdk-go/pkg/aggrega"
+	"github.com/aggrega-ai/aggrega-pdk/go/pkg/aggrega"
 )
 
 // The confidence scorer is deterministic and holds no model: it weighs a source

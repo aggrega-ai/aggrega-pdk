@@ -37,7 +37,7 @@ import (
 
 	pdk "github.com/extism/go-pdk"
 
-	"github.com/aggrega-ai/aggrega-pdk-go/pkg/aggrega"
+	"github.com/aggrega-ai/aggrega-pdk/go/pkg/aggrega"
 )
 
 // outputPath is the fixed on-disk path the fixture emits its single file

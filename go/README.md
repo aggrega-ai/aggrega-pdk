@@ -1,10 +1,10 @@
-# aggrega-pdk-go
+# aggrega-pdk/go
 
 Go PDK for authoring Aggrega Wasm plugins.
 
-Import paths: `github.com/aggrega-ai/aggrega-pdk-go/pkg/aggrega` (the socket payload
+Import paths: `github.com/aggrega-ai/aggrega-pdk/go/pkg/aggrega` (the socket payload
 types and the host-function bindings every plugin uses) and
-`github.com/aggrega-ai/aggrega-pdk-go/pkg/importer` (the library an importer plugin is
+`github.com/aggrega-ai/aggrega-pdk/go/pkg/importer` (the library an importer plugin is
 built on — see [Writing an importer](#writing-an-importer)).
 
 The canonical reference for the plugin author's contract — what a plugin is,
@@ -316,7 +316,7 @@ are providers built this way.
 A pipeline step's `step` export reads its input and writes its output in
 canonical CBOR. Decode the input with `abi.FRPStepInput`'s `DecodeCBOR` and return
 the `abi.FRPStepOutput` encoded with `EncodeCBOR`; the step types come from the
-ABI package (`github.com/aggrega-ai/aggrega-abi-go/pkg/abi`) directly. The step's
+ABI package (`github.com/aggrega-ai/aggrega-abi/go/pkg/abi`) directly. The step's
 `with` input, its outputs and its two document sets are order-keeping maps, so the
 outputs a step sets reach `.steps.<id>.outputs` in the order it set them.
 [`examples/frp-step/`](examples/frp-step) and the producer and injector examples
@@ -380,8 +380,8 @@ targeting the PDK's package-qualified symbols:
 
 ```sh
 GOOS=wasip1 GOARCH=wasm go build -buildmode=c-shared -o plugin.wasm \
-  -ldflags "-X github.com/aggrega-ai/aggrega-pdk-go/pkg/aggrega.Version=1.2.3 \
-            -X github.com/aggrega-ai/aggrega-pdk-go/pkg/aggrega.Commit=abc1234" \
+  -ldflags "-X github.com/aggrega-ai/aggrega-pdk/go/pkg/aggrega.Version=1.2.3 \
+            -X github.com/aggrega-ai/aggrega-pdk/go/pkg/aggrega.Commit=abc1234" \
   ./
 ```
 
@@ -420,7 +420,7 @@ rule and the check that holds it.
 ```text
 go/
 ├── README.md         (this file)
-├── go.mod            (module github.com/aggrega-ai/aggrega-pdk-go)
+├── go.mod            (module github.com/aggrega-ai/aggrega-pdk/go)
 ├── pkg/aggrega/
 │   ├── doc.go        (package doc)
 │   ├── version.go    (APIVersion constant)

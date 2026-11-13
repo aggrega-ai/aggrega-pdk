@@ -18,7 +18,7 @@ package main
 import (
 	pdk "github.com/extism/go-pdk"
 
-	"github.com/aggrega-ai/aggrega-pdk-go/pkg/aggrega"
+	"github.com/aggrega-ai/aggrega-pdk/go/pkg/aggrega"
 )
 
 // fixtureOutput is the constant no-verdict-fired output. The plugin does not

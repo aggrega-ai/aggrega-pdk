@@ -32,6 +32,6 @@ PLUGIN_VERSION="${AGGREGA_PLUGIN_VERSION:-1.0.0}"
 
 mkdir -p "${OUT_DIR}"
 GOOS=wasip1 GOARCH=wasm go build -buildmode=c-shared \
-    -ldflags "-X github.com/aggrega-ai/aggrega-pdk-go/pkg/aggrega.Version=${PLUGIN_VERSION}" \
+    -ldflags "-X github.com/aggrega-ai/aggrega-pdk/go/pkg/aggrega.Version=${PLUGIN_VERSION}" \
     -o "${OUT_DIR}/governance-attachment-facts-go.wasm" ./
 echo "Wrote ${OUT_DIR}/governance-attachment-facts-go.wasm"

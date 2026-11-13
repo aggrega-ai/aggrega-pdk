@@ -3,7 +3,7 @@
 
 package aggrega
 
-import abi "github.com/aggrega-ai/aggrega-abi-go/pkg/abi"
+import abi "github.com/aggrega-ai/aggrega-abi/go/pkg/abi"
 
 // APIVersion is the Aggrega Wasm plugin ABI version this PDK targets,
 // re-exported from the portable aggrega-abi module so a plugin author writes
@@ -18,8 +18,8 @@ const APIVersion = abi.AbiVersion
 // linker, targeting these package-qualified symbols:
 //
 //	go build -buildmode=c-shared -o plugin.wasm \
-//	  -ldflags "-X github.com/aggrega-ai/aggrega-pdk-go/pkg/aggrega.Version=1.2.3 \
-//	            -X github.com/aggrega-ai/aggrega-pdk-go/pkg/aggrega.Commit=abc1234" \
+//	  -ldflags "-X github.com/aggrega-ai/aggrega-pdk/go/pkg/aggrega.Version=1.2.3 \
+//	            -X github.com/aggrega-ai/aggrega-pdk/go/pkg/aggrega.Commit=abc1234" \
 //	  ./
 //
 // [MarshalDescriptor] folds each set value into the descriptor's metadata. A
