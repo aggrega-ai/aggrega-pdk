@@ -4,7 +4,7 @@ version = 4
 
 [[package]]
 name = "aggrega-abi"
-version = "0.9.0-rc.3"
+version = "0.9.0-rc.6"
 dependencies = [
  "serde",
  "serde_json",
@@ -12,7 +12,7 @@ dependencies = [
 
 [[package]]
 name = "aggrega-pdk-rust"
-version = "0.9.0-rc.3"
+version = "0.9.0-rc.6"
 dependencies = [
  "aggrega-abi",
  "base64",
