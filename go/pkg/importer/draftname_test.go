@@ -217,8 +217,9 @@ func TestSeveralSourcesNamedApartFallToTheFile(t *testing.T) {
 // reference — to a name draftName returned: the call itself, or a variable every
 // assignment of which, in the function building the entity, is that call, by :=,
 // by = or by a var declaration — or to the Name of an EmittedEntity the function
-// is handed as a parameter, as DraftRelease names the Release after the drafted
-// Aggregate it is handed: every drafted Aggregate is itself held to draftName
+// is handed as a parameter and leaves as handed, never assigning it, its Name or
+// a variable of its name and never taking its address, as DraftRelease names the
+// Release after the drafted Aggregate it is handed: every drafted Aggregate is itself held to draftName
 // where it is built, by this check and by its twin over the compiler's importers,
 // so a Release named after one is named through draftName. The three Aggregate
 // drafts the package makes and
@@ -270,16 +271,46 @@ func handedAName(in aggrega.ImportInput, aggregate string) []aggrega.EmittedEnti
 func handedSomethingElse(in aggrega.ImportInput, other struct{ Name string }) []aggrega.EmittedEntity {
 	return []aggrega.EmittedEntity{{Kind: "Release", Name: other.Name, Mode: "draft"}}
 }
+
+func handedReassigned(in aggrega.ImportInput, aggregate aggrega.EmittedEntity) []aggrega.EmittedEntity {
+	aggregate = pick(in)
+	return []aggrega.EmittedEntity{{Kind: "Release", Name: aggregate.Name, Mode: "draft"}}
+}
+
+func handedRenamed(in aggrega.ImportInput, aggregate aggrega.EmittedEntity) []aggrega.EmittedEntity {
+	aggregate.Name = "imported/flow"
+	return []aggrega.EmittedEntity{{Kind: "Release", Name: aggregate.Name, Mode: "draft"}}
+}
+
+func handedAppended(in aggrega.ImportInput, aggregate aggrega.EmittedEntity) []aggrega.EmittedEntity {
+	aggregate.Name += "-release"
+	return []aggrega.EmittedEntity{{Kind: "Release", Name: aggregate.Name, Mode: "draft"}}
+}
+
+func handedAddressed(in aggrega.ImportInput, aggregate aggrega.EmittedEntity) []aggrega.EmittedEntity {
+	rename(&aggregate)
+	return []aggrega.EmittedEntity{{Kind: "Release", Name: aggregate.Name, Mode: "draft"}}
+}
+
+func handedShadowed(in aggrega.ImportInput, aggregate aggrega.EmittedEntity) []aggrega.EmittedEntity {
+	if in.Target != "" {
+		aggregate := pick(in)
+		return []aggrega.EmittedEntity{{Kind: "Release", Name: aggregate.Name, Mode: "draft"}}
+	}
+	return nil
+}
 `
 	found := draftsNamedApart(t, "planted.go", []byte(planted))
 	var refused []bool
 	for _, e := range found {
 		refused = append(refused, e.bypass != "")
 	}
-	if want := []bool{true, true, true, false, false, true, true}; !slices.Equal(refused, want) {
+	if want := []bool{true, true, true, false, false, true, true, true, true, true, true, true}; !slices.Equal(refused,
+		want) {
 		t.Fatalf("the check found %+v in the planted source; want the selected, bare and elided literals refused, "+
 			"the one whose var declaration calls draftName and the one named after a drafted entity it is handed "+
-			"passed, and the ones named after a string or another value's Name refused", found)
+			"passed, the ones named after a string or another value's Name refused, and the ones named after a "+
+			"handed entity the body reassigns, renames, appends to, hands its address on or shadows refused", found)
 	}
 
 	paths, err := filepath.Glob("*.go")
@@ -333,8 +364,9 @@ func draftsNamedApart(t *testing.T, at string, src []byte) []namedDraft {
 		}
 		assigned := map[string][]ast.Expr{}
 		// handed are the function's parameters that are EmittedEntity values,
-		// written with its package or bare.
-		handed := map[string]bool{}
+		// written with its package or bare; touched are those the body changes or
+		// could change: assigned whole, its Name assigned, or its address taken.
+		handed, touched := map[string]bool{}, map[string]bool{}
 		for _, field := range fn.Type.Params.List {
 			if field.Type != nil && emittedEntityType(field.Type) {
 				for _, id := range field.Names {
@@ -344,9 +376,19 @@ func draftsNamedApart(t *testing.T, at string, src []byte) []namedDraft {
 		}
 		ast.Inspect(fn.Body, func(n ast.Node) bool {
 			switch s := n.(type) {
+			case *ast.UnaryExpr:
+				if id, ok := s.X.(*ast.Ident); ok && s.Op == token.AND {
+					touched[id.Name] = true
+				}
 			case *ast.AssignStmt:
 				for i, lhs := range s.Lhs {
+					if sel, ok := lhs.(*ast.SelectorExpr); ok && sel.Sel.Name == "Name" {
+						if id, ok := sel.X.(*ast.Ident); ok {
+							touched[id.Name] = true
+						}
+					}
 					if id, ok := lhs.(*ast.Ident); ok {
+						touched[id.Name] = true
 						var rhs ast.Expr
 						if len(s.Rhs) == len(s.Lhs) {
 							rhs = s.Rhs[i]
@@ -382,8 +424,12 @@ func draftsNamedApart(t *testing.T, at string, src []byte) []namedDraft {
 			if (kind != "Aggregate" && kind != "Release") || mode == "reference" {
 				return true
 			}
+			untouched := map[string]bool{}
+			for name := range handed {
+				untouched[name] = !touched[name]
+			}
 			out = append(out, namedDraft{at: at + ":" + strconv.Itoa(fset.Position(lit.Pos()).Line), kind: kind,
-				bypass: draftNameBypass(fields["Name"], assigned, handed)})
+				bypass: draftNameBypass(fields["Name"], assigned, untouched)})
 			return true
 		})
 	}
@@ -419,7 +465,9 @@ func literalText(e ast.Expr) string {
 
 // draftNameBypass says why a drafted entity's Name is not one draftName
 // returned, and is empty where it is: the call, a variable assigned only from
-// it, or the Name of an EmittedEntity parameter of the function, one of handed.
+// it, or the Name of an EmittedEntity parameter of the function the body leaves
+// as it was handed, one handed marks true — never assigned whole, its Name never
+// assigned, its address never taken.
 func draftNameBypass(name ast.Expr, assigned map[string][]ast.Expr, handed map[string]bool) string {
 	isDraftName := func(e ast.Expr) bool {
 		call, ok := e.(*ast.CallExpr)

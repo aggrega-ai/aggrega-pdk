@@ -1545,18 +1545,7 @@ func (d *platformDraft) entity(in aggrega.ImportInput) aggrega.EmittedEntity {
 			// them for the import's target, where the instance draws a connection,
 			// whose credential could otherwise arrive under the same key: live for a
 			// target needing them, commented out where the import names none.
-			inFeatures := attach
-			for _, s := range p.Secrets {
-				decl := s.Declaration(in.Target)
-				if len(decl.Lines) == 0 {
-					continue
-				}
-				if decl.Live && !inFeatures {
-					b.WriteString("      features:\n")
-					inFeatures = true
-				}
-				writeDeclaration(&b, "      ", inst.key, decl, inFeatures)
-			}
+			b.WriteString(DeclarationsText(in.Target, "      ", inst.key, p.Secrets, attach))
 		}
 		b.WriteString("      values:\n")
 		if inst.idNote != "" {
@@ -1584,9 +1573,7 @@ func (d *platformDraft) entity(in aggrega.ImportInput) aggrega.EmittedEntity {
 					b.WriteString("          " + c.alias + ":\n")
 					b.WriteString("            target: " + c.target + "\n")
 					if s, attached := credentials[socket+"\x00"+c.alias]; attached {
-						if decl := s.Declaration(in.Target); len(decl.Lines) > 0 {
-							writeDeclaration(&b, "            ", c.alias, decl, false)
-						}
+						b.WriteString(s.Declaration(in.Target).Text("            ", c.alias, false))
 					}
 				}
 			}
@@ -1608,35 +1595,4 @@ func (d *platformDraft) entity(in aggrega.ImportInput) aggrega.EmittedEntity {
 		}
 	}
 	return aggrega.EmittedEntity{Kind: "Aggregate", Name: name, Mode: "draft", Body: b.String()}
-}
-
-// writeDeclaration writes, inside what is keyed key — the platform's instance,
-// or one of its connections — the lines of decl, beneath a comment saying which
-// target needs them and why ([DeclarationWhy]). Where decl is live they are
-// written as declarations; otherwise each is commented out in place, so an author
-// building for that target uncomments them where they stand. Where inFeatures is
-// set what the lines are written in already declares features, so they are
-// written inside that block, without a second features key; otherwise a features
-// key opens them. at is the indentation of what they are written in's own keys.
-func writeDeclaration(b *strings.Builder, at, key string, decl SecretDeclaration, inFeatures bool) {
-	indent, lines := at+"  ", decl.Lines
-	if !inFeatures {
-		indent, lines = at, []string{"features:"}
-		for _, line := range decl.Lines {
-			lines = append(lines, "  "+line)
-		}
-	}
-	if decl.Live {
-		b.WriteString(CommentLine(indent, "For the "+decl.Target+" target, the lines below declare "+decl.Slot+" on "+
-			key+": "+DeclarationWhy+"."))
-		for _, line := range lines {
-			b.WriteString(indent + line + "\n")
-		}
-		return
-	}
-	b.WriteString(CommentLine(indent, "For the "+decl.Target+" target only, uncomment the lines below, which declare "+
-		decl.Slot+" on "+key+": "+DeclarationWhy+"."))
-	for _, line := range lines {
-		b.WriteString(CommentLine(indent, line))
-	}
 }

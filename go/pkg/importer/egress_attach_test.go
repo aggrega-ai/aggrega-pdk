@@ -157,8 +157,8 @@ func TestTheAttachEgressAllowlistSettingAttachesTheFeatureToThePlatform(t *testi
 // setting true, declares the lines inside that one features block.
 //
 // 🔴 PLANTED DEFECT: in (*platformDraft).entity (platform.go), replace
-// `writeDeclaration(&b, "      ", inst.key, decl, inFeatures)` with
-// `writeDeclaration(&b, "      ", inst.key, decl, false)`: the draft writes a
+// `DeclarationsText(in.Target, "      ", inst.key, p.Secrets, attach)` with
+// `DeclarationsText(in.Target, "      ", inst.key, p.Secrets, false)`: the draft writes a
 // second features key inside the instance and this test fails.
 func TestTheTargetLinesSitInsideTheFeaturesTheAttachmentOpens(t *testing.T) {
 	t.Parallel()

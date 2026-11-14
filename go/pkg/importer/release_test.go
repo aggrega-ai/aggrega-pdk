@@ -10,6 +10,7 @@ import (
 	"go/token"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"sort"
 	"strconv"
@@ -308,6 +309,79 @@ func TestASecretIsWrittenForTheTargetAsAReference(t *testing.T) {
 	}
 }
 
+// TestASetAndANamedRealizationAreWrittenForTheTarget pins how DraftRelease writes
+// a secret set — a server's environment, one variable holding a variable
+// reference and one holding a value still owed — and an entry naming the Recipe
+// realizing its instance: for compose and for no target, the set as
+// core/referenced-secret-set with its entries as given; for helm, as
+// core/referenced-secret named by a Secret holding one data key per variable,
+// listed by name, its value never written. Given a target, the Manifest maps the
+// instance by its key to <target>/<realization>, and, for helm, the secret type
+// to helm/k8s-existing-secret; given none, no Manifest is drafted.
+//
+// 🔴 PLANTED DEFECT: in DraftRelease (release.go), drop `&& in.Target != ""`: the
+// no-target row fails, a Manifest mapping the instance to "/mcp-stdio-bridge".
+func TestASetAndANamedRealizationAreWrittenForTheTarget(t *testing.T) {
+	t.Parallel()
+	set := Secret{Path: "features.server_env", Text: "the environment github is started with",
+		Entries: []SecretEntry{{Key: "TOKEN", Value: "${GITHUB_TOKEN}"}, {Key: "OWNER", Value: ""}}}
+	asEntries := "      features:\n" +
+		"        server_env:\n" +
+		"          type: core/referenced-secret-set\n" +
+		"          infra:\n" +
+		"            # Attached by reference wherever the source names a variable: the environment github is " +
+		"started with, one entry per variable, each written as the source writes it, so a variable reference stays " +
+		"one, which a target substituting variable references, as Docker Compose does when the stack starts, reads " +
+		"from the environment, and an empty value is one still owed.\n" +
+		"            entries:\n" +
+		"              - key: \"TOKEN\"\n" +
+		"                value: \"${GITHUB_TOKEN}\"\n" +
+		"              - key: \"OWNER\"\n" +
+		"                value: \"\"\n"
+	inHelm := "      features:\n" +
+		"        server_env:\n" +
+		"          type: core/referenced-secret\n" +
+		"          infra:\n" +
+		"            # Left for the Release, since the source cannot supply it: the name of a Kubernetes Secret " +
+		"already in the namespace holding the environment github is started with, one data key per variable, each " +
+		"named as the variable it holds: TOKEN, OWNER.\n" +
+		"            origin: \"\"\n"
+	manifest := func(target, features string) string {
+		return "apiVersion: aggrega.ai/v1beta1\n" +
+			"kind: Manifest\n" +
+			"metadata:\n" +
+			"  name: imported/mcp\n" +
+			"  version: 0.1.0\n" +
+			"spec:\n" +
+			"  mappings:\n" +
+			"    components:\n" +
+			"      name:\n" +
+			"        github: " + target + "/mcp-stdio-bridge\n" + features
+	}
+	for _, row := range []struct {
+		scenario, target, wantBody, wantManifest string
+	}{
+		{"compose", "compose", asEntries, manifest("compose", "")},
+		{"no target", "", asEntries, ""},
+		{"helm", "helm", inHelm, manifest("helm", "    features:\n      type:\n"+
+			"        core/referenced-secret: helm/k8s-existing-secret\n")},
+	} {
+		in := aggrega.ImportInput{Format: testFormatName, Target: row.target}
+		out := DraftRelease(in, draftedAggregate("imported/mcp"), ReleaseDraft{Entries: []ReleaseEntry{{Key: "github",
+			Realization: "mcp-stdio-bridge", Secrets: []Secret{set}}}})
+		if want := releaseHead("imported/mcp") + "  components:\n    github:\n" + row.wantBody; out[0].Body != want {
+			t.Errorf("%s: DraftRelease wrote\n%s\nwant\n%s", row.scenario, out[0].Body, want)
+		}
+		switch {
+		case row.wantManifest == "" && len(out) != 1:
+			t.Errorf("%s: DraftRelease returned %d entities, want the Release alone", row.scenario, len(out))
+		case row.wantManifest != "" && (len(out) != 2 || out[1].Body != row.wantManifest):
+			t.Errorf("%s: DraftRelease returned %+v, want the Release and the Manifest\n%s", row.scenario, out,
+				row.wantManifest)
+		}
+	}
+}
+
 // TestConnectionCredentialNamesTheCredentialOnItsConnection pins the secret an
 // entry attaches for the credential its instance presents on one connection: the
 // path the Release attaches it at under that connection, the variable it is read
@@ -327,7 +401,8 @@ func TestConnectionCredentialNamesTheCredentialOnItsConnection(t *testing.T) {
 			Secret{Path: "uses.tools.docs.features.credential", Variable: "DOCS_SEARCH_CREDENTIAL",
 				Text: "the credential flow presents to docs-search on its tools connection"}},
 	} {
-		if got := ConnectionCredential(row.key, row.socket, row.alias, row.target, row.variable); got != row.want {
+		if got := ConnectionCredential(row.key, row.socket, row.alias, row.target, row.variable); !reflect.DeepEqual(got,
+			row.want) {
 			t.Errorf("%s: ConnectionCredential wrote %+v, want %+v", row.scenario, got, row.want)
 		}
 	}

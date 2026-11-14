@@ -50,6 +50,13 @@ type ReleaseEntry struct {
 	// aggregates — a module the Aggregate composes — which the Release routes
 	// under its boundary's aggregates rather than naming under components.
 	Module bool
+	// Realization, where set, is the name of the Recipe that realizes this
+	// instance on the import's target, where the target offers several for its
+	// type and the importer knows which one the instance needs, such as the
+	// realization running a server from its command line rather than from an
+	// image. A draft given a target maps the instance to <target>/<Realization>
+	// by its key in the Manifest it writes; one given none maps nothing.
+	Realization string
 	// Values are the values the draft sets in the entry, each written at its
 	// path, in the order given, after what Lines write.
 	Values []ReleaseValue
@@ -171,12 +178,14 @@ func leftLine(item LeftItem) string {
 // Each secret is written for the request's target in the form [Secret.Form]
 // gives it. Where a form names a realization — a secret named by reference on
 // helm, whose realization reading the name as a Secret already in the namespace
-// is one of several the catalog offers — the draft also writes a Manifest, named
-// and versioned as the Release, mapping each such type to its realization, in
-// the order the secrets first name it; the host completes the rest of the
-// Manifest. It returns the Release, then that Manifest where there is one, as
-// drafted entities, which the package's renderer writes as [ReleaseFileName] and
-// [ManifestFileName].
+// is one of several the catalog offers — or, the import naming a target, an
+// entry names its [ReleaseEntry.Realization], the draft also writes a Manifest,
+// named and versioned as the Release, mapping each such entry's instance by its
+// key to <target>/<realization>, in the order of the entries, and each such
+// secret type to its realization, in the order the secrets first name it; the
+// host completes the rest of the Manifest. It returns the Release, then that
+// Manifest where there is one, as drafted entities, which the package's renderer
+// writes as [ReleaseFileName] and [ManifestFileName].
 func DraftRelease(in aggrega.ImportInput, aggregate aggrega.EmittedEntity, draft ReleaseDraft) []aggrega.EmittedEntity {
 	name := aggregate.Name
 	var b strings.Builder
@@ -204,13 +213,16 @@ func DraftRelease(in aggrega.ImportInput, aggregate aggrega.EmittedEntity, draft
 	}
 
 	var components, modules []ReleaseEntry
-	var realized []string
+	var realized, named []string
 	realization := map[string]string{}
 	for _, e := range draft.Entries {
 		if e.Module {
 			modules = append(modules, e)
 		} else {
 			components = append(components, e)
+		}
+		if e.Realization != "" && in.Target != "" {
+			named = append(named, e.Key+": "+in.Target+"/"+e.Realization)
 		}
 		for _, s := range e.Secrets {
 			if form := s.Form(in.Target); form.Realization != "" && realization[form.Type] == "" {
@@ -234,18 +246,20 @@ func DraftRelease(in aggrega.ImportInput, aggregate aggrega.EmittedEntity, draft
 		writeReleaseEntries(&b, "      ", "aggregates", modules, in.Target)
 	}
 	out := []aggrega.EmittedEntity{{Kind: "Release", Name: aggregate.Name, Mode: "draft", Body: b.String()}}
-	if len(realized) > 0 {
+	if len(realized) > 0 || len(named) > 0 {
 		out = append(out, aggrega.EmittedEntity{Kind: "Manifest", Name: name, Mode: "draft",
-			Body: realizedSecretsManifest(name, realized, realization)})
+			Body: realizedManifest(name, named, realized, realization)})
 	}
 	return out
 }
 
-// realizedSecretsManifest is the Manifest a draft writes where the form of a
-// secret it attaches names a realization, named name: each type in types mapped
-// to its realization, the mappings only the import chooses, which the host
-// completes with every other mapping the drafts need.
-func realizedSecretsManifest(name string, types []string, realization map[string]string) string {
+// realizedManifest is the Manifest a draft writes where it knows a realization
+// only the import can choose, named name: each line of named, an instance's key
+// and the Recipe realizing it, under the components' name mappings; and each
+// type in types mapped to its realization, under the features' type mappings —
+// the mappings only the import chooses, which the host completes with every
+// other mapping the drafts need.
+func realizedManifest(name string, named, types []string, realization map[string]string) string {
 	var b strings.Builder
 	b.WriteString("apiVersion: " + apiVersion + "\n")
 	b.WriteString("kind: Manifest\n")
@@ -254,10 +268,19 @@ func realizedSecretsManifest(name string, types []string, realization map[string
 	b.WriteString("  version: 0.1.0\n")
 	b.WriteString("spec:\n")
 	b.WriteString("  mappings:\n")
-	b.WriteString("    features:\n")
-	b.WriteString("      type:\n")
-	for _, typ := range types {
-		b.WriteString("        " + typ + ": " + realization[typ] + "\n")
+	if len(named) > 0 {
+		b.WriteString("    components:\n")
+		b.WriteString("      name:\n")
+		for _, line := range named {
+			b.WriteString("        " + line + "\n")
+		}
+	}
+	if len(types) > 0 {
+		b.WriteString("    features:\n")
+		b.WriteString("      type:\n")
+		for _, typ := range types {
+			b.WriteString("        " + typ + ": " + realization[typ] + "\n")
+		}
 	}
 	return b.String()
 }

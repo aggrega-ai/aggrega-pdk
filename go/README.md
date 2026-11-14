@@ -252,7 +252,14 @@ there:
   under one; an import naming no target shows those lines commented out for an author
   to uncomment. An importer attaching a connection's credential of its own builds it
   with `importer.ConnectionCredential`, and an importer writing an Aggregate of its own
-  declares each secret through `Secret.Declaration`.
+  declares each secret through `Secret.Declaration`, writing an instance's own with
+  `importer.DeclarationsText` and a connection's with `SecretDeclaration.Text`. A
+  secret holding several variables, such as a server's
+  environment, lists them under `Secret.Entries`: `core/referenced-secret-set` with
+  each entry's value as written, or, for `helm`, a Secret holding one data key per
+  variable. Where a target offers several Recipes for one type and the importer knows
+  which one an instance needs, `ReleaseEntry.Realization` names it, and the drafted
+  Manifest maps the instance to it by its key.
 - **A platform that is a whole installation.** `Module`, an `importer.Module`, names
   the catalog Aggregate assembling the platform, `Component` among its parts, and the
   `Parameter` of it that takes the flow. Each source is then drafted in the module
