@@ -223,9 +223,10 @@
 //   - attach_egress_allowlist: whether each platform instance the platform
 //     layout drafts carries core/egress-allowlist, attached as egress-allowlist,
 //     so the platform connects only to the components it is wired to; default
-//     false. The draft sets none of the Feature's infrastructure, and the
-//     drafted Release's entry for the instance leaves the two members the
-//     Release sets: infra.control_plane_present and infra.admitted_destinations. A draft made
+//     false. The draft sets none of the Feature's infrastructure: the comment
+//     above the drafted Release's entry for the instance names the two members
+//     the Release sets, infra.control_plane_present, a boolean, and
+//     infra.admitted_destinations, a list, and the entry writes neither. A draft made
 //     node by node attaches nothing, and the import warns where this is true.
 //
 // # Building and testing

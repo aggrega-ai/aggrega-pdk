@@ -17,38 +17,45 @@ import (
 // drafted platform instance.
 const attachOn = `{"attach_egress_allowlist":true}`
 
-// egressReleaseLines is the line the comment above the drafted Release's entry
+// egressReleaseLines are the lines the comment above the drafted Release's entry
 // for a platform instance keyed key gains when the attachment is drafted: the
-// namespace the attachment's realization halts without, which no key of the
-// entry holds.
+// affirmation, a boolean, and the address ranges, a list — so neither is written
+// into the entry as an empty string — and the namespace the attachment's
+// realization halts without, which no key of the entry holds.
 func egressReleaseLines(key string) string {
-	return "    #   - aggrega.ai/namespace on the boundary holding " + key + ", where the target emits its workloads into no " +
+	return "    #   - features.egress-allowlist.infra.control_plane_present, true, the affirmation that the cluster's " +
+		"network plugin enforces network policy, which only the operator gives and without which the build halts\n" +
+		"    #   - features.egress-allowlist.infra.admitted_destinations, a list holding, for each connection whose " +
+		"target the cluster does not run, such as a hosted model, an entry naming that target and an address range, " +
+		"without which the build halts naming that connection\n" +
+		"    #   - aggrega.ai/namespace on the boundary holding " + key + ", where the target emits its workloads into no " +
 		"namespace: the attachment's network policy is placed in its workload's namespace, and the build halts " +
 		"without one\n"
 }
 
-// egressReleaseBody is what the drafted Release's entry for a platform instance
-// writes, after its image, when the attachment is drafted: what of it the Release
-// sets, each written empty beneath the comment naming it.
-const egressReleaseBody = "      features:\n" +
-	"        egress-allowlist:\n" +
-	"          infra:\n" +
-	"            # Left for the Release, since the source cannot supply it: " +
-	"features.egress-allowlist.infra.control_plane_present, the affirmation that the cluster's network plugin enforces " +
-	"network policy, without which the build halts\n" +
-	"            control_plane_present: \"\"\n" +
-	"            # Left for the Release, since the source cannot supply it: " +
-	"features.egress-allowlist.infra.admitted_destinations, an address range for each connection whose target the " +
-	"cluster does not run, such as a hosted model, without which the build halts naming that connection\n" +
-	"            admitted_destinations: \"\"\n"
-
 // withEgressRelease is the default Release of a platform instance keyed key,
-// release, as the attachment drafts it: the namespace named last above the entry,
-// and what the Release sets of the attachment written after the image.
+// release, as the attachment drafts it: what the Release sets of the attachment
+// named last above the entry, and its body the default's.
 func withEgressRelease(release, key, lastAbove string) string {
-	release = strings.Replace(release, lastAbove, lastAbove+egressReleaseLines(key), 1)
-	image := "        image: \"\"\n"
-	return strings.Replace(release, image, image+egressReleaseBody, 1)
+	return strings.Replace(release, lastAbove, lastAbove+egressReleaseLines(key), 1)
+}
+
+// typedEgressKeys are the keys of the attachment's infrastructure whose value is
+// no string, which no drafted Release writes.
+var typedEgressKeys = []string{"control_plane_present:", "admitted_destinations:"}
+
+// writesTypedEgressKey returns the first line of release writing a key of
+// typedEgressKeys, a comment aside, and whether there is one.
+func writesTypedEgressKey(release string) (string, bool) {
+	for _, line := range strings.Split(release, "\n") {
+		trimmed := strings.TrimSpace(line)
+		for _, key := range typedEgressKeys {
+			if strings.HasPrefix(trimmed, key) {
+				return line, true
+			}
+		}
+	}
+	return "", false
 }
 
 // egressFeatures is the features block a drafted platform instance keyed key
@@ -76,14 +83,19 @@ func egressAttachedMessage(key string) string {
 // for byte but for one addition: the instance opens a features block attaching
 // core/egress-allowlist as egress-allowlist, with its type and nothing else — no
 // infra, which an Aggregate's attachment does not carry, and so no affirmation.
-// The drafted Release is the default's byte for byte but for the platform's
-// entry, whose comment names, after the default's items, the namespace the
-// attachment's realization halts without, and whose body writes the affirmation
-// and the address ranges empty, each beneath its comment. Every drafted Component file is the default's. Each wired part's decision says the attachment admits its
+// The drafted Release is the default's byte for byte but for the comment above
+// the platform's entry, which names, after the default's items, the affirmation
+// (a boolean), the address ranges (a list) and the namespace the attachment's
+// realization halts without: the entry's body is the default's, writing neither
+// typed key, so no value is drafted as an empty string where the Feature's
+// schema takes a boolean or a list. Every drafted Component file is the
+// default's. Each wired part's decision says the attachment admits its
 // connection, every other decision is the default's, and the import raises one
 // info naming the attachment and what the Release sets.
 //
 // 🔴 PLANTED DEFECTS:
+//   - in egressLeft (platform.go), drop `NonString: true` from the affirmation:
+//     the Release writes control_plane_present: "" and this test fails;
 //   - in (*platformDraft).entity (platform.go), replace the condition opening the
 //     features block, `if attach {` before `b.WriteString("      features:\n")`,
 //     with `if attach && false {`: the draft carries no attachment and this test
@@ -122,6 +134,16 @@ func TestTheAttachEgressAllowlistSettingAttachesTheFeatureToThePlatform(t *testi
 	for _, absent := range []string{"infra:", "control_plane_present:", "admitted_destinations:"} {
 		if strings.Contains(agg, absent) {
 			t.Errorf("the draft writes %q; an Aggregate's attachment carries no infrastructure", absent)
+		}
+	}
+	release := releaseFile(out)
+	if line, ok := writesTypedEgressKey(release); ok {
+		t.Errorf("the Release writes %q; a boolean or a list is never drafted as an empty string", line)
+	}
+	for _, named := range []string{"features.egress-allowlist.infra.control_plane_present, true, ",
+		"features.egress-allowlist.infra.admitted_destinations, a list "} {
+		if !strings.Contains(release, "    #   - "+named) {
+			t.Errorf("the comment above the platform's entry does not name %q:\n%s", named, release)
 		}
 	}
 
@@ -300,17 +322,16 @@ func TestEveryPlatformInstanceCarriesTheAttachment(t *testing.T) {
 		aggrega.ImportSource{Name: "b.json", Bytes: []byte(platformSource)},
 	)
 	agg := aggregateFile(out)
-	release := out.Files[len(out.Files)-1].Content
+	release := releaseFile(out)
+	if line, ok := writesTypedEgressKey(release); ok {
+		t.Errorf("the Release writes %q; a boolean or a list is never drafted as an empty string", line)
+	}
 	for _, key := range []string{"testplat", "testplat-2"} {
 		if want := "    " + key + ":\n      type: core/ai-agent/testplat\n" + egressFeatures(key); !strings.Contains(agg, want) {
 			t.Errorf("the Aggregate does not carry\n%s\nit reads\n%s", want, agg)
 		}
-		if n := strings.Count(release, egressReleaseBody); n != 2 {
-			t.Errorf("the Release writes what it sets of the attachment %d times, want once per instance:\n%s", n,
-				release)
-		}
 		if !strings.Contains(release, egressReleaseLines(key)+"    "+key+":\n") {
-			t.Errorf("the comment above %s does not name the namespace the Release sets:\n%s", key, release)
+			t.Errorf("the comment above %s does not name what the Release sets of its attachment:\n%s", key, release)
 		}
 	}
 	want := []aggrega.Diagnostic{

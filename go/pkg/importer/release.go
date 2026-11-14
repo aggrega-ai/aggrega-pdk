@@ -72,9 +72,10 @@ type ReleaseEntry struct {
 	Values []ReleaseValue
 	// Left are the values the entry leaves for the Release to supply, since no
 	// source holds them, in the order given, as [LeftItem] describes: each with a
-	// path is written at it holding an empty string, after the values, with a
-	// comment naming it directly above it; each other is written into one comment
-	// above the entry, under one heading, one line each.
+	// path holding a string is written at it holding an empty string, after the
+	// values, with a comment naming it directly above it; each other — one naming
+	// no key, or one whose value is no string — is written into one comment above
+	// the entry, under one heading, one line each.
 	Left []LeftItem
 	// Secrets are the secrets the entry attaches, each written at its path as
 	// [Secret] describes, after what it leaves for the Release.
@@ -130,6 +131,13 @@ type LeftItem struct {
 	// into a comment as it is, so it carries nothing read from a source a comment
 	// cannot carry.
 	Text string
+	// NonString says the value at Path is not a string — a boolean, a list — so
+	// an empty string written there would be neither a value still owed nor a
+	// valid one. An entry's left item so marked is never written into its body: it
+	// is named, its path and its text, in the comment above the entry, as an item
+	// naming no key is, and Text says what the Release writes there. It is not
+	// read for a parameter, which [ReleaseDraft.Parameters] writes as a string.
+	NonString bool
 }
 
 // LeftImage is the value an entry leaves for the Release where no source names
@@ -177,8 +185,10 @@ func leftLine(item LeftItem) string {
 // with what it leaves for the Release that names no key above it — "Left for the
 // Release, since the source cannot supply it:", then one "  - <path>, <text>"
 // line per item — then its comments, then its key and its body beneath it: its
-// lines, its values, each left item naming a key as that key holding an empty
-// string beneath a comment beginning with the same heading, and its secrets, each
+// lines, its values, each left item naming a key that holds a string as that key
+// holding an empty string beneath a comment beginning with the same heading — a
+// left item whose value is no string is named in the comment above the entry
+// instead, so a typed key is never drafted as an empty string — and its secrets, each
 // written into the mapping its path names; an entry with nothing to write as an
 // empty mapping. An item whose key the body already writes, or whose path runs
 // through a value or a list the body writes, is not written into the body; a left
@@ -355,7 +365,8 @@ func writeReleaseEntries(b *strings.Builder, indent, key string, entries []Relea
 
 // entryBody is the body of e, as [DraftRelease] writes it for target, and the
 // left items it does not write into the body, in their order: those naming no
-// key, and those whose key the body already writes.
+// key, those whose value is no string, and those whose key the body already
+// writes.
 func entryBody(e ReleaseEntry, target string) ([]*bodyNode, []LeftItem) {
 	body := parseBody(e.Lines)
 	for _, v := range e.Values {
@@ -367,7 +378,7 @@ func entryBody(e ReleaseEntry, target string) ([]*bodyNode, []LeftItem) {
 	}
 	var passed []LeftItem
 	for _, item := range e.Left {
-		if item.Path == "" {
+		if item.Path == "" || item.NonString {
 			passed = append(passed, item)
 			continue
 		}

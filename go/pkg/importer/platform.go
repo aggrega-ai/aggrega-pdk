@@ -734,16 +734,20 @@ func imageComment(p *Platform, sourceVersion string) string {
 
 // egressLeft is what of the core/egress-allowlist attachment the Release sets
 // on a platform instance, where the attach_egress_allowlist setting is true;
-// nothing otherwise.
+// nothing otherwise. The affirmation is a boolean and the address ranges a
+// list, so neither is drafted as an empty string: each is named in the comment
+// above the instance's entry. The affirmation is the operator's to give, so the
+// draft never writes it true.
 func (d *platformDraft) egressLeft(inst *platformInstance) []LeftItem {
 	var left []LeftItem
 	if d.settings.AttachEgressAllowlist {
 		left = append(left,
-			LeftItem{Path: "features." + egressAllowlistKey + "." + egressAffirmation, Text: "the affirmation that the " +
-				"cluster's network plugin enforces network policy, without which the build halts"},
-			LeftItem{Path: "features." + egressAllowlistKey + "." + egressRanges, Text: "an address range for each " +
-				"connection whose target the cluster does not run, such as a hosted model, without which the build halts " +
-				"naming that connection"},
+			LeftItem{Path: "features." + egressAllowlistKey + "." + egressAffirmation, NonString: true, Text: "true, " +
+				"the affirmation that the cluster's network plugin enforces network policy, which only the operator gives " +
+				"and without which the build halts"},
+			LeftItem{Path: "features." + egressAllowlistKey + "." + egressRanges, NonString: true, Text: "a list " +
+				"holding, for each connection whose target the cluster does not run, such as a hosted model, an entry " +
+				"naming that target and an address range, without which the build halts naming that connection"},
 			LeftItem{Text: "aggrega.ai/namespace on the boundary holding " + inst.key + ", where the target emits its " +
 				"workloads into no namespace: the attachment's network policy is placed in its workload's namespace, and " +
 				"the build halts without one"})

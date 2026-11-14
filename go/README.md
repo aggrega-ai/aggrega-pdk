@@ -284,9 +284,9 @@ Component of the platform's name, the platform is drafted all the same, no part 
 wired, and the import warns with `platform-not-in-catalog`. With the
 `attach_egress_allowlist` setting `true`, every importer built on the package attaches
 `core/egress-allowlist` to each platform instance it drafts, under the key
-`egress-allowlist`, and sets none of the Feature's infrastructure: the drafted Release's
-entry for the instance leaves `infra.control_plane_present` and
-`infra.admitted_destinations` for the Release, and the import reports the attachment as
+`egress-allowlist`, and sets none of the Feature's infrastructure: the comment above the
+drafted Release's entry for the instance names `infra.control_plane_present`, a boolean,
+and `infra.admitted_destinations`, a list, writing neither, and the import reports the attachment as
 `feature-attached`. A draft made
 node by node attaches nothing, and warns with `feature-not-attached`. The package
 documentation carries the layout in full.

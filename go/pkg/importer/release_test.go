@@ -31,6 +31,17 @@ func aggregateFile(out aggrega.ImportOutput) string {
 	return ""
 }
 
+// releaseFile returns the content of the drafted Release's file out holds,
+// empty where it holds none.
+func releaseFile(out aggrega.ImportOutput) string {
+	for _, f := range out.Files {
+		if f.Path == ReleaseFileName {
+			return f.Content
+		}
+	}
+	return ""
+}
+
 // withHintsOnly returns the settings document given — "" for none — asking for
 // the hints-only reuse mode besides what it asks for, so a case reading what a
 // drafted part renders as reads the draft it was written against.
@@ -78,7 +89,8 @@ func releaseHead(name string) string {
 // its body beneath its key: its lines, then its values, each left item naming a
 // key as that key holding an empty string beneath its comment, written into a
 // mapping its lines already write, and its secrets — one whose key its lines
-// write, or whose path runs through a list, named above the entry instead; an
+// write, or whose path runs through a list, or whose value is no string, named
+// above the entry instead, so no mapping is opened for it; an
 // entry with nothing to write as an empty mapping — under components, or, where
 // one is a module, under the one boundary the draft names, the instances under
 // its components and the modules under its aggregates, each in the order given.
@@ -91,7 +103,10 @@ func releaseHead(name string) string {
 //     rows fail;
 //   - in place, write the node where the last segment's key is already written
 //     instead of reporting false: the "already written" row fails with two
-//     image keys.
+//     image keys;
+//   - in entryBody, drop `|| item.NonString` from the condition passing a left
+//     item over: the "no string" row fails, writing enabled and ranges empty
+//     under a features mapping.
 func TestDraftReleaseWritesTheReleaseOfTheDraft(t *testing.T) {
 	t.Parallel()
 	in := aggrega.ImportInput{Format: testFormatName, Name: "support.json"}
@@ -148,6 +163,19 @@ func TestDraftReleaseWritesTheReleaseOfTheDraft(t *testing.T) {
 				"        port: 80\n" +
 				"        command:\n" +
 				"          - \"\"\n"},
+		{"a value that is no string", in, "imported/support", ReleaseDraft{Entries: []ReleaseEntry{
+			{Key: "gate", Left: []LeftItem{{Path: "features.limit.infra.enabled", NonString: true, Text: "true, to enable it"},
+				{Path: "infra.port", Text: "the port"}, {Path: "features.limit.infra.ranges", NonString: true, Text: "a list"}}},
+		}},
+			releaseHead("imported/support") +
+				"  components:\n" +
+				"    # Left for the Release, since the source cannot supply it:\n" +
+				"    #   - features.limit.infra.enabled, true, to enable it\n" +
+				"    #   - features.limit.infra.ranges, a list\n" +
+				"    gate:\n" +
+				"      infra:\n" +
+				"        # Left for the Release, since the source cannot supply it: infra.port, the port\n" +
+				"        port: \"\"\n"},
 		{"values and secrets", in, "imported/support", ReleaseDraft{Entries: []ReleaseEntry{
 			{Key: "flow", Values: []ReleaseValue{{Path: "infra.image", Value: `"flow:1"`, Comment: "The image."}},
 				Left:    []LeftItem{{Path: "infra.owner", Text: "the owner"}},
