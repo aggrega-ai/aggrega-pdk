@@ -81,7 +81,7 @@ func moduleTestFormat(empty *emptyRecorder) Format {
 			return ""
 		},
 		EmptyInSource:  empty.empty,
-		LeftForRelease: []string{"infra.owner, the platform's owner"},
+		LeftForRelease: []LeftItem{{Path: "infra.owner", Text: "the platform's owner"}},
 	}
 	return f
 }
@@ -100,8 +100,6 @@ metadata:
 spec:
   aggregates:
     # An import sees the Components of the workspace's catalog and none of its Aggregates, so it does not check that the catalog holds core/testmod.
-    # Left for the Release, since the source cannot supply it:
-    #   - infra.owner, the platform's owner
     testmod:
       type: core/testmod
       parameters:
@@ -109,6 +107,30 @@ spec:
           ` + escaped + `
 `
 }
+
+// renderedModuleRelease is the Release the module form drafts for one source: a
+// Release places a module only under a boundary, so the entry of the module is
+// routed under the aggregates of the boundary the platform runs in, with what the
+// platform leaves for the Release above it.
+const renderedModuleRelease = `apiVersion: aggrega.ai/v1beta1
+kind: Release
+metadata:
+  name: imported/flow
+  # environment is a drafted default, since no source names the environment this Release deploys to; change it to name the one it deploys to.
+  environment: development
+  version: 0.1.0
+  description: Draft Release imported from a source in the testflow format.
+spec:
+  aggregate: imported/flow
+  # manifest: left empty, since the import was given no target; an import given a target drafts the Manifest and names it here.
+  manifest: ""
+  boundaries:
+    platform:
+      aggregates:
+        # Left for the Release, since the source cannot supply it:
+        #   - infra.owner, the platform's owner
+        testmod: {}
+`
 
 // keptByModule is the rationale of a node the module form keeps in the flow,
 // opening with what it names where it names something.
@@ -126,9 +148,10 @@ func keptByModule(names string) string {
 // Aggregate composes one entry of the module, keyed by the last segment of its
 // name, carrying the flow as written — its double braces escaped — in the
 // module's parameter, with no identifier and nothing wired, and the comment
-// naming what the Release supplies and that the import does not check the
-// catalog for the module. No Component is drafted: the entities are the module,
-// referenced, and the drafted Aggregate. Every node is kept in the flow; the node
+// saying the import does not check the catalog for the module; the Release
+// beside it routes that entry under its one boundary, naming what the Release
+// supplies for it. No Component is drafted: the entities are the module, referenced,
+// the drafted Aggregate and the drafted Release. Every node is kept in the flow; the node
 // the format says names what the platform configures for itself says so in its
 // decision and in a part-configured-in-platform warning, after the report of the
 // credential value carried as written. The format's writer is never asked.
@@ -140,7 +163,8 @@ func TestTheModuleFormDraftsAnEntryOfTheModuleCarryingTheFlow(t *testing.T) {
 	empty := &emptyRecorder{}
 	out := platformImport(t, moduleTestFormat(empty), platformCatalog(), "", oneSource(moduleSource))
 
-	want := []aggrega.ScaffoldFile{{Path: "aggregate.yaml", Content: renderedModuleAggregate(moduleSourceLine)}}
+	want := []aggrega.ScaffoldFile{{Path: "aggregate.yaml", Content: renderedModuleAggregate(moduleSourceLine)},
+		{Path: ReleaseFileName, Content: renderedModuleRelease}}
 	if !reflect.DeepEqual(out.Files, want) {
 		t.Errorf("the module form wrote\n%+v\nwant\n%+v", out.Files, want)
 	}
@@ -148,7 +172,8 @@ func TestTheModuleFormDraftsAnEntryOfTheModuleCarryingTheFlow(t *testing.T) {
 	for _, e := range out.Entities {
 		kinds = append(kinds, e.Kind+" "+e.Mode+" "+e.Name)
 	}
-	if want := []string{"Aggregate reference " + testModuleName, "Aggregate draft imported/flow"}; !reflect.DeepEqual(kinds, want) {
+	if want := []string{"Aggregate reference " + testModuleName, "Aggregate draft imported/flow",
+		"Release draft imported/flow"}; !reflect.DeepEqual(kinds, want) {
 		t.Errorf("the import emitted %v, want %v", kinds, want)
 	}
 	wantDiags := []aggrega.Diagnostic{
@@ -268,9 +293,8 @@ func passingDownFormat(empty *emptyRecorder) Format {
 }
 
 // passedDownHead is the head of the Aggregate the module form drafts with
-// signing_key passed down, up to the first entry's key: the parameter declared
-// once, required with no default, and the comment above each entry naming it
-// first among what the Release supplies.
+// signing_key passed down, up to the first entry's comment: the parameter
+// declared once, required with no default.
 const passedDownHead = "apiVersion: aggrega.ai/v1beta1\n" +
 	"kind: Aggregate\n" +
 	"metadata:\n" +
@@ -286,13 +310,18 @@ const passedDownHead = "apiVersion: aggrega.ai/v1beta1\n" +
 	"      description: \"The key the \\\"platform\\\" signs with, {{`{{`}} not an action }} and a back\\\\slash.\"\n" +
 	"  aggregates:\n"
 
-// passedDownComment is the comment the module form writes above each entry with
-// signing_key passed down.
+// passedDownComment is the comment the module form writes above each entry of
+// the Aggregate.
 const passedDownComment = "    # An import sees the Components of the workspace's catalog and none of its Aggregates, so it does " +
-	"not check that the catalog holds core/testmod.\n" +
-	"    # Left for the Release, since the source cannot supply it:\n" +
-	"    #   - the signing_key parameter declared above, which this entry passes down to core/testmod\n" +
-	"    #   - infra.owner, the platform's owner\n"
+	"not check that the catalog holds core/testmod.\n"
+
+// passedDownLeft is the comment the module form writes above each entry of the
+// Release with signing_key passed down: the parameter named first among what the
+// Release supplies.
+const passedDownLeft = "        # Left for the Release, since the source cannot supply it:\n" +
+	"        #   - the signing_key parameter, under the Release's spec.parameters, which the drafted Aggregate " +
+	"declares and passes down to core/testmod\n" +
+	"        #   - infra.owner, the platform's owner\n"
 
 // evaluated evaluates a drafted Aggregate as a template, as the compiler does
 // before it reads the Aggregate as YAML, with the Release fulfilling signing_key
@@ -315,9 +344,9 @@ func evaluated(t *testing.T, aggregate, fulfilled string) string {
 //
 //   - one source carried: the drafted Aggregate declares signing_key once, under
 //     spec.parameters, as a required string of at least one character with no
-//     default and the description given, names it first in the comment of what
-//     the Release supplies, and passes it down to the entry by name ahead of the
-//     carried flow — byte for byte;
+//     default and the description given, and passes it down to the entry by name
+//     ahead of the carried flow — byte for byte — and the Release names it first
+//     in the comment of what it supplies for the entry;
 //   - one source not carried, its writer refusing: the entry passes signing_key
 //     down all the same, under a parameters key of its own, with the comment
 //     saying why the flow is left unset;
@@ -364,8 +393,14 @@ func TestTheModuleFormPassesDownTheParametersItDeclares(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			out := platformImport(t, passingDownFormat(tc.writer), platformCatalog(), tc.settings, tc.sources...)
-			if len(out.Files) != 1 || out.Files[0].Path != "aggregate.yaml" {
-				t.Fatalf("the module form wrote %+v, want the Aggregate alone", out.Files)
+			if len(out.Files) != 2 || out.Files[0].Path != "aggregate.yaml" || out.Files[1].Path != ReleaseFileName {
+				t.Fatalf("the module form wrote %+v, want the Aggregate and the Release alone", out.Files)
+			}
+			release := out.Files[1].Content
+			for _, entry := range tc.entries {
+				if !strings.Contains(release, passedDownLeft+"        "+entry+": {}\n") {
+					t.Errorf("the Release does not name signing_key above %s:\n%s", entry, release)
+				}
 			}
 			agg := out.Files[0].Content
 			if tc.want != "" && agg != tc.want {
@@ -415,8 +450,9 @@ func TestTheModuleFormReportsWhatItCannotDo(t *testing.T) {
 	t.Parallel()
 	out := platformImport(t, moduleTestFormat(&emptyRecorder{}), standardCatalog, `{"attach_egress_allowlist":true}`,
 		oneSource(moduleSource))
-	if want := renderedModuleAggregate(moduleSourceLine); len(out.Files) != 1 || out.Files[0].Content != want {
-		t.Errorf("the module form wrote %+v, want the Aggregate alone carrying the flow", out.Files)
+	if want := renderedModuleAggregate(moduleSourceLine); len(out.Files) != 2 || out.Files[0].Content != want ||
+		out.Files[1].Content != renderedModuleRelease {
+		t.Errorf("the module form wrote %+v, want the Aggregate carrying the flow and the Release", out.Files)
 	}
 	var notAttached, notInCatalog string
 	for _, d := range out.Diagnostics {

@@ -65,7 +65,8 @@ func referenceCarriedAs(apiKey, arg0, arg1, auth string) string {
 // ${API_KEY}, the first argument a server is started with ${TOKEN}, the header
 // the format marks as none ${env:AUTH} — beside a second argument holding a
 // key-shaped value, under the empty_credentials setting absent and at each value
-// it takes:
+// it takes, each under the hints-only reuse mode, so the Aggregate read is the
+// one renderedPlatformAggregate pins:
 //
 //   - every reference is carried as written, in the flow and nowhere else, and
 //     named in no warning, under every value of the setting;
@@ -116,8 +117,8 @@ func TestAValueThatIsWhollyAVariableReferenceIsLeftAsWritten(t *testing.T) {
 			diagnostics: []aggrega.Diagnostic{emptiedWarning("finder", "args.1", testArgumentDetail)}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			out := platformImport(t, platformTestFormat(), platformCatalog(), tc.settings, oneSource(source))
-			if agg := out.Files[len(out.Files)-1].Content; agg != tc.aggregate {
+			out := platformImport(t, platformTestFormat(), platformCatalog(), withHintsOnly(tc.settings), oneSource(source))
+			if agg := aggregateFile(out); agg != tc.aggregate {
 				t.Errorf("the Aggregate is not the source carried as the setting asks:\n%s\nwant\n%s", agg, tc.aggregate)
 			}
 			if !reflect.DeepEqual(out.Diagnostics, tc.diagnostics) {
@@ -151,8 +152,8 @@ func TestAValueThatIsWhollyAVariableReferenceIsLeftAsWritten(t *testing.T) {
 			}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			out := platformImport(t, platformTestFormat(), platformCatalog(), tc.settings, oneSource(valued))
-			if agg := out.Files[len(out.Files)-1].Content; agg != tc.aggregate {
+			out := platformImport(t, platformTestFormat(), platformCatalog(), withHintsOnly(tc.settings), oneSource(valued))
+			if agg := aggregateFile(out); agg != tc.aggregate {
 				t.Errorf("the Aggregate is not the source carried as the setting asks:\n%s\nwant\n%s", agg, tc.aggregate)
 			}
 			if !reflect.DeepEqual(out.Diagnostics, tc.diagnostics) {
@@ -200,8 +201,8 @@ func TestAValueThatIsWhollyAVariableReferenceIsLeftAsWritten(t *testing.T) {
 			}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			out := platformImport(t, platformTestFormat(), platformCatalog(), tc.settings, oneSource(operated))
-			if agg := out.Files[len(out.Files)-1].Content; agg != tc.aggregate {
+			out := platformImport(t, platformTestFormat(), platformCatalog(), withHintsOnly(tc.settings), oneSource(operated))
+			if agg := aggregateFile(out); agg != tc.aggregate {
 				t.Errorf("the Aggregate is not the source carried as the setting asks:\n%s\nwant\n%s", agg, tc.aggregate)
 			}
 			if !reflect.DeepEqual(out.Diagnostics, tc.diagnostics) {

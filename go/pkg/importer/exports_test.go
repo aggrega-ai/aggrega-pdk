@@ -208,12 +208,14 @@ func TestADecisionAndARenderingMadeNodeByNodeAreImportsOwn(t *testing.T) {
 		`"traits":{"datastore.aggrega.ai/engine":"kv"},"vendor":"redis"}}}`
 	for _, settings := range []string{
 		`{}`,
+		`{"reuse_mode":"hints-only"}`,
 		`{"reuse_mode":"auto-apply-above-threshold",` + override + `}`,
 		`{` + override + `,"render_mode":"llm"}`,
 	} {
 		in := aggrega.ImportInput{Format: "f", Bytes: []byte("x"), Settings: json.RawMessage(settings), Catalog: catalog}
 		whole := Import(in, served, func(string, []byte) (json.RawMessage, error) { return json.RawMessage(`{}`), nil })
-		if len(whole.Decisions) != len(nodes) || len(whole.Entities) != len(nodes)+1 {
+		// One entity per node, then the drafted Aggregate and the drafted Release.
+		if len(whole.Decisions) != len(nodes) || len(whole.Entities) != len(nodes)+2 {
 			t.Fatalf("settings %s: Import made %d decisions and %d entities", settings, len(whole.Decisions), len(whole.Entities))
 		}
 		for i, n := range nodes {
@@ -222,7 +224,7 @@ func TestADecisionAndARenderingMadeNodeByNodeAreImportsOwn(t *testing.T) {
 				t.Errorf("settings %s: Decide of %s = %+v / %+v, want Import's %+v / %+v", settings, n.ID, decision, entity,
 					whole.Decisions[i], whole.Entities[i])
 			}
-			if want := n.ID == "a" || (n.ID == "b" && settings != `{}`); mapped != want {
+			if want := n.ID == "a" || (n.ID == "b" && strings.Contains(settings, "mapping_overrides")); mapped != want {
 				t.Errorf("settings %s: Decide reports node %s mapped %v, want %v", settings, n.ID, mapped, want)
 			}
 		}

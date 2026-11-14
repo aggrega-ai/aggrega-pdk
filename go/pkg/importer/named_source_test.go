@@ -75,8 +75,9 @@ func TestAFileImportedOnItsOwnIsNamedInWhatTheImportReports(t *testing.T) {
 // TestTheRequestsNameMovesOnlyTheDraftsName holds the name to what an import
 // reports and to the drafted Aggregate's name: the same file imported with and
 // without the request's name drafts the same entities, decisions and files, on
-// the node-by-node draft and on a platform format's, but for the Aggregate's
-// name, which a format reading no title of its own takes from the file's stem —
+// the node-by-node draft and on a platform format's, but for the name of the
+// Aggregate and of the Release deploying it, which a format reading no title of
+// its own takes from the file's stem —
 // a source is drafted under its own name and the primary source carries none.
 func TestTheRequestsNameMovesOnlyTheDraftsName(t *testing.T) {
 	t.Parallel()
@@ -97,20 +98,25 @@ func TestTheRequestsNameMovesOnlyTheDraftsName(t *testing.T) {
 		if len(unnamed.Entities) == 0 {
 			t.Fatalf("%s: the import drafted nothing, so the comparison holds nothing", row.scenario)
 		}
-		// The unnamed import, its Aggregate renamed as the file's stem names it.
+		// The unnamed import, its Aggregate and the Release deploying it renamed as
+		// the file's stem names them.
 		const unnamedLine, namedLine = "\n  name: imported/flow\n", "\n  name: imported/support-chat\n"
+		const unnamedRef, namedRef = "\n  aggregate: imported/flow\n", "\n  aggregate: imported/support-chat\n"
+		rename := func(body string) string {
+			return strings.Replace(strings.Replace(body, unnamedLine, namedLine, 1), unnamedRef, namedRef, 1)
+		}
 		want := unnamed
 		want.Entities = append([]aggrega.EmittedEntity(nil), unnamed.Entities...)
 		for i, e := range want.Entities {
-			if e.Kind == "Aggregate" && e.Mode == "draft" {
+			if (e.Kind == "Aggregate" || e.Kind == "Release") && e.Mode == "draft" {
 				want.Entities[i].Name = "imported/support-chat"
-				want.Entities[i].Body = strings.Replace(e.Body, unnamedLine, namedLine, 1)
+				want.Entities[i].Body = rename(e.Body)
 			}
 		}
 		want.Files = append([]aggrega.ScaffoldFile(nil), unnamed.Files...)
 		for i, f := range want.Files {
-			if f.Path == "aggregate.yaml" {
-				want.Files[i].Content = strings.Replace(f.Content, unnamedLine, namedLine, 1)
+			if f.Path == "aggregate.yaml" || f.Path == ReleaseFileName {
+				want.Files[i].Content = rename(f.Content)
 			}
 		}
 		if !reflect.DeepEqual(got.Entities, want.Entities) || !reflect.DeepEqual(got.Decisions, want.Decisions) ||

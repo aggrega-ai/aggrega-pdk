@@ -17,12 +17,13 @@ import (
 // drafted platform instance.
 const attachOn = `{"attach_egress_allowlist":true}`
 
-// egressReleaseLines are the lines the comment above a drafted platform instance
-// keyed key gains when the attachment is drafted: what of it the Release sets.
+// egressReleaseLines are the lines the comment above the drafted Release's entry
+// for a platform instance keyed key gains when the attachment is drafted: what of
+// it the Release sets.
 func egressReleaseLines(key string) string {
-	return "    #   - infra.control_plane_present of the egress-allowlist attachment, the affirmation that the cluster's " +
+	return "    #   - features.egress-allowlist.infra.control_plane_present, the affirmation that the cluster's " +
 		"network plugin enforces network policy, without which the build halts\n" +
-		"    #   - infra.admitted_destinations of the egress-allowlist attachment, an address range for each connection " +
+		"    #   - features.egress-allowlist.infra.admitted_destinations, an address range for each connection " +
 		"whose target the cluster does not run, such as a hosted model, without which the build halts naming that " +
 		"connection\n" +
 		"    #   - aggrega.ai/namespace on the boundary holding " + key + ", where the target emits its workloads into no " +
@@ -50,14 +51,15 @@ func egressAttachedMessage(key string) string {
 }
 
 // TestTheAttachEgressAllowlistSettingAttachesTheFeatureToThePlatform imports
-// platformSource with attach_egress_allowlist true. The drafted Aggregate is the
-// default draft byte for byte but for two additions: the comment above the
-// platform's instance names, for the Release, the affirmation, the address ranges
-// and the namespace the attachment's realization halts without; and the instance
-// opens a features block attaching core/egress-allowlist as egress-allowlist,
-// with its type and nothing else — no infra, which an Aggregate's attachment
-// does not carry, and so no affirmation. Every drafted Component file is the
-// default's. Each wired part's decision says the attachment admits its
+// platformSource with attach_egress_allowlist true, under the hints-only reuse
+// mode both times. The drafted Aggregate is the draft without the setting byte
+// for byte but for one addition: the instance opens a features block attaching
+// core/egress-allowlist as egress-allowlist, with its type and nothing else — no
+// infra, which an Aggregate's attachment does not carry, and so no affirmation.
+// The drafted Release is the default's byte for byte but for the comment above
+// the platform's entry, which names, after the default's items, the affirmation,
+// the address ranges and the namespace the attachment's realization halts
+// without. Every drafted Component file is the default's. Each wired part's decision says the attachment admits its
 // connection, every other decision is the default's, and the import raises one
 // info naming the attachment and what the Release sets.
 //
@@ -71,15 +73,15 @@ func egressAttachedMessage(key string) string {
 //     decisions name the wrong connection and this test fails.
 func TestTheAttachEgressAllowlistSettingAttachesTheFeatureToThePlatform(t *testing.T) {
 	t.Parallel()
-	def := platformImport(t, platformTestFormat(), platformCatalog(), "", oneSource(platformSource))
-	out := platformImport(t, platformTestFormat(), platformCatalog(), attachOn, oneSource(platformSource))
+	def := platformImport(t, platformTestFormat(), platformCatalog(), hintsOnly, oneSource(platformSource))
+	out := platformImport(t, platformTestFormat(), platformCatalog(),
+		`{"attach_egress_allowlist":true,"reuse_mode":"hints-only"}`, oneSource(platformSource))
 
 	instance := "    testplat:\n      type: core/ai-agent/testplat\n"
-	lastLine := "    #   - the credential each connection under uses presents to the part it reaches, attached on that " +
-		"connection\n"
-	want := strings.Replace(renderedPlatformAggregate(), lastLine+instance,
-		lastLine+egressReleaseLines("testplat")+instance+egressFeatures("testplat"), 1)
-	if want == renderedPlatformAggregate() {
+	want := strings.Replace(renderedPlatformAggregate(), instance, instance+egressFeatures("testplat"), 1)
+	entry := "    testplat: {}\n"
+	wantRelease := strings.Replace(renderedPlatformRelease, entry, egressReleaseLines("testplat")+entry, 1)
+	if want == renderedPlatformAggregate() || wantRelease == renderedPlatformRelease {
 		t.Fatal("the expected draft was not built: the default draft no longer reads as this test expects")
 	}
 	if len(out.Files) != len(def.Files) {
@@ -87,14 +89,17 @@ func TestTheAttachEgressAllowlistSettingAttachesTheFeatureToThePlatform(t *testi
 	}
 	for i, f := range out.Files {
 		wantContent := def.Files[i].Content
-		if f.Path == "aggregate.yaml" {
+		switch f.Path {
+		case "aggregate.yaml":
 			wantContent = want
+		case ReleaseFileName:
+			wantContent = wantRelease
 		}
 		if f.Path != def.Files[i].Path || f.Content != wantContent {
 			t.Errorf("%s reads\n%s\nwant\n%s", f.Path, f.Content, wantContent)
 		}
 	}
-	agg := out.Files[len(out.Files)-1].Content
+	agg := aggregateFile(out)
 	for _, absent := range []string{"infra:", "control_plane_present:", "admitted_destinations:"} {
 		if strings.Contains(agg, absent) {
 			t.Errorf("the draft writes %q; an Aggregate's attachment carries no infrastructure", absent)
@@ -129,12 +134,13 @@ func TestTheAttachEgressAllowlistSettingAttachesTheFeatureToThePlatform(t *testi
 // With it true they are shown inside the features block the attachment opens,
 // with no second features key, so that uncommenting them where they stand leaves
 // one features map holding both attachments, each line where the default's
-// uncommented line would sit within it.
+// uncommented line would sit within it. An import for that target, with the
+// setting true, declares the lines inside that one features block.
 //
 // 🔴 PLANTED DEFECT: in (*platformDraft).entity (platform.go), replace
-// `writeTargetAttachment(&b, inst.key, a, attach)` with
-// `writeTargetAttachment(&b, inst.key, a, false)`: the draft writes a second
-// features key inside the instance and this test fails.
+// `writeTargetAttachment(&b, inst.key, a, inFeatures, false)` with
+// `writeTargetAttachment(&b, inst.key, a, false, false)`: the draft writes a
+// second features key inside the instance and this test fails.
 func TestTheTargetLinesSitInsideTheFeaturesTheAttachmentOpens(t *testing.T) {
 	t.Parallel()
 	format := platformTestFormat()
@@ -142,7 +148,7 @@ func TestTheTargetLinesSitInsideTheFeaturesTheAttachmentOpens(t *testing.T) {
 		Key: "ADMIN_PASSWORD", Why: "the compose Recipe reads every secret the Release alone attaches under one key"}}
 	off := platformImport(t, format, platformCatalog(), `{"attach_egress_allowlist":false}`, oneSource(platformSource))
 	on := platformImport(t, format, platformCatalog(), attachOn, oneSource(platformSource))
-	offAgg, onAgg := off.Files[len(off.Files)-1].Content, on.Files[len(on.Files)-1].Content
+	offAgg, onAgg := aggregateFile(off), aggregateFile(on)
 
 	opening := "# For the compose target only, uncomment the lines below, which declare admin on testplat: the compose " +
 		"Recipe reads every secret the Release alone attaches under one key.\n"
@@ -175,6 +181,20 @@ func TestTheTargetLinesSitInsideTheFeaturesTheAttachmentOpens(t *testing.T) {
 	if !reflect.DeepEqual(uncommented, wantLines) {
 		t.Errorf("uncommented, the target's lines read\n%s\nwant\n%s", strings.Join(uncommented, "\n"),
 			strings.Join(wantLines, "\n"))
+	}
+
+	in := aggrega.ImportInput{Format: testFormatName, Bytes: []byte(platformSource), Catalog: platformCatalog(),
+		Settings: json.RawMessage(attachOn), Target: "compose"}
+	targeted := aggregateFile(Import(in, format, (&parseRecorder{}).parse))
+	wantTargeted := "      type: core/ai-agent/testplat\n" + egressFeatures("testplat") +
+		"        # For the compose target, the lines below declare admin on testplat: the compose Recipe reads every " +
+		"secret the Release alone attaches under one key.\n" +
+		strings.Join(wantLines, "\n") + "\n      values:\n"
+	if !strings.Contains(targeted, wantTargeted) {
+		t.Errorf("an import for the target does not declare its lines inside the features block:\n%s", targeted)
+	}
+	if n := strings.Count(targeted, "features:"); n != 1 {
+		t.Errorf("an import for the target writes %d features keys; want the attachment's one", n)
 	}
 }
 
@@ -252,21 +272,23 @@ func TestTheNodeByNodeDraftAttachesNothingAndWarns(t *testing.T) {
 
 // TestEveryPlatformInstanceCarriesTheAttachment imports two sources with
 // attach_egress_allowlist true: each source's platform instance carries the
-// attachment under its own key, the comment above each names that instance, and
-// the import raises one info per instance, referenced by its source's name.
+// attachment under its own key, the comment above each one's entry of the Release
+// names that instance, and the import raises one info per instance, referenced by
+// its source's name.
 func TestEveryPlatformInstanceCarriesTheAttachment(t *testing.T) {
 	t.Parallel()
 	out := platformImport(t, platformTestFormat(), platformCatalog(), attachOn,
 		aggrega.ImportSource{Name: "a.json", Bytes: []byte(platformSource)},
 		aggrega.ImportSource{Name: "b.json", Bytes: []byte(platformSource)},
 	)
-	agg := out.Files[len(out.Files)-1].Content
+	agg := aggregateFile(out)
+	release := out.Files[len(out.Files)-1].Content
 	for _, key := range []string{"testplat", "testplat-2"} {
 		if want := "    " + key + ":\n      type: core/ai-agent/testplat\n" + egressFeatures(key); !strings.Contains(agg, want) {
 			t.Errorf("the Aggregate does not carry\n%s\nit reads\n%s", want, agg)
 		}
-		if !strings.Contains(agg, egressReleaseLines(key)) {
-			t.Errorf("the comment above %s does not name what the Release sets", key)
+		if !strings.Contains(release, egressReleaseLines(key)+"    "+key+": {}\n") {
+			t.Errorf("the comment above %s does not name what the Release sets:\n%s", key, release)
 		}
 	}
 	want := []aggrega.Diagnostic{

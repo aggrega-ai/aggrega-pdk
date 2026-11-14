@@ -26,9 +26,10 @@ const apiVersion = "aggrega.ai/v1beta1"
 
 // decideNode scores a node against the catalog's candidates, picks its
 // disposition from the top candidate and the reuse mode, and returns the decision
-// record plus the entity emitted for it. A high-confidence match under auto-apply
-// mode is referenced; every other outcome drafts a new component, carrying a hint
-// whose strength tracks the match tier.
+// record plus the entity emitted for it. A high-confidence match at or above the
+// reuse threshold under auto-apply mode, the default, is referenced; every other
+// outcome drafts a new component, carrying a hint whose strength tracks the match
+// tier.
 func decideNode(settings importSettings, table mappingTable, catalog []candidate, node Node, ref string) (aggrega.ImportDecision, aggrega.EmittedEntity) {
 	candidates := scoreNode(table, catalog, node)
 	decisionRef := "decision:" + ref
@@ -79,7 +80,13 @@ func decideNode(settings importSettings, table mappingTable, catalog []candidate
 
 	switch tier {
 	case tierHigh:
-		decision.Rationale = fmt.Sprintf("drafted a new component; %s is a strong match at score %.4f but hints-only mode references nothing", top.ComponentName, top.Score)
+		// A reuse mode other than auto-apply references nothing, hints-only
+		// included; under auto-apply a HIGH match is drafted only below a raised
+		// threshold.
+		decision.Rationale = fmt.Sprintf("drafted a new component; %s is a strong match at score %.4f but %s mode references nothing", top.ComponentName, top.Score, reuseModeHintsOnly)
+		if settings.ReuseMode == reuseModeAutoApply {
+			decision.Rationale = fmt.Sprintf("drafted a new component; %s is a strong match at score %.4f, below the reuse threshold %.4f", top.ComponentName, top.Score, settings.ReuseThreshold)
+		}
 		decision.SwapHint = fmt.Sprintf("resembles %s (score %.4f); reference it by setting type: %s", top.ComponentName, top.Score, top.ComponentName)
 	case tierMedium:
 		decision.Rationale = fmt.Sprintf("drafted a new component; %s is a partial match at score %.4f", top.ComponentName, top.Score)
@@ -198,11 +205,12 @@ func render(settings importSettings, entities []aggrega.EmittedEntity, decisions
 	return renderHuman(settings, entities, decisions)
 }
 
-// renderHuman writes one file per drafted component and one aggregate file,
-// threading each node's resemblance hint into the drafted file as an inline
-// comment when inline hints are enabled. A referenced entity — a Component, or
-// an Aggregate the draft composes — emits no body file, since it names an
-// existing entity, so only its reference in the drafted Aggregate records it.
+// renderHuman writes one file per drafted component, one aggregate file and one
+// release file, in the order the entities are given, threading each node's
+// resemblance hint into the drafted file as an inline comment when inline hints
+// are enabled. A referenced entity — a Component, or an Aggregate the draft
+// composes — emits no body file, since it names an existing entity, so only its
+// reference in the drafted Aggregate records it.
 func renderHuman(settings importSettings, entities []aggrega.EmittedEntity, decisions []aggrega.ImportDecision) []aggrega.ScaffoldFile {
 	byDecisionRef := map[string]aggrega.ImportDecision{}
 	for _, d := range decisions {
@@ -214,6 +222,8 @@ func renderHuman(settings importSettings, entities []aggrega.EmittedEntity, deci
 		switch {
 		case e.Kind == "Aggregate" && e.Mode == "draft":
 			files = append(files, aggrega.ScaffoldFile{Path: "aggregate.yaml", Content: e.Body})
+		case e.Kind == "Release" && e.Mode == "draft":
+			files = append(files, aggrega.ScaffoldFile{Path: ReleaseFileName, Content: e.Body})
 		case e.Kind == "Component" && e.Mode == "draft":
 			content := e.Body
 			if settings.emitInlineHints() {
@@ -415,6 +425,18 @@ func (a *aggregateBuilder) entity(in aggrega.ImportInput, titles []string) aggre
 		}
 	}
 	return aggrega.EmittedEntity{Kind: "Aggregate", Name: name, Mode: "draft", Body: b.String()}
+}
+
+// release drafts the Release deploying the aggregate, through [DraftRelease]:
+// an empty entry per component, in the order the aggregate declares them, since
+// a build places only the instances a Release names and no source states
+// anything a Release supplies for them.
+func (a *aggregateBuilder) release(in aggrega.ImportInput, titles []string) aggrega.EmittedEntity {
+	entries := make([]ReleaseEntry, 0, len(a.order))
+	for _, key := range a.order {
+		entries = append(entries, ReleaseEntry{Key: key})
+	}
+	return DraftRelease(in, ReleaseDraft{Entries: entries}, titles...)
 }
 
 func dedup(sorted []string) []string {

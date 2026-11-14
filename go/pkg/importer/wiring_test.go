@@ -83,7 +83,7 @@ func testWire(tree json.RawMessage, part Part) Wiring {
 		w.Edits = append(w.Edits, Edit{Pointer: at("secretValues", "token"), Value: json.RawMessage(`"TOKEN_VARIABLE"`)})
 	}
 	w.Reads = "it reaches the server by name"
-	w.LeftForRelease = []string{"the address of " + part.Key}
+	w.LeftForRelease = []LeftItem{{Path: "infra.endpoint", Text: "the address of " + part.Key}}
 	return w
 }
 
@@ -117,8 +117,11 @@ const wiringSource = `{"id":"flow-w","nodes":[` +
 //     addresses empty, the two servers renamed, the token named — and the token
 //     is not reported as emptied, since what is written there is Wire's;
 //   - each wired node's Reads, and the model's Literal, is reported and carried
-//     by its decision, and what each part leaves for the Release joins the
-//     comment above the platform.
+//     by its decision;
+//   - what each part leaves for the Release is written above that part's entry
+//     of the Release, once however many nodes reach the part, and the credential
+//     the platform presents on each connection above the platform's entry; the
+//     Aggregate names neither.
 //
 // 🔴 PLANTED DEFECTS, each in importPlatform or aliasFor (platform.go):
 //
@@ -134,7 +137,7 @@ const wiringSource = `{"id":"flow-w","nodes":[` +
 func TestANodeNamingAPartIsReachedThroughOneConnectionByName(t *testing.T) {
 	t.Parallel()
 	out := platformImport(t, wiringTestFormat(), platformCatalog(), "", oneSource(wiringSource))
-	agg := out.Files[len(out.Files)-1].Content
+	agg := aggregateFile(out)
 
 	t.Run("uses", func(t *testing.T) {
 		const uses = "      uses:\n" +
@@ -221,13 +224,32 @@ func TestANodeNamingAPartIsReachedThroughOneConnectionByName(t *testing.T) {
 	})
 
 	t.Run("left for the Release", func(t *testing.T) {
-		const left = "    #   - the admin slot, the administrator's password\n" +
-			"    #   - the address of docs\n" +
-			"    #   - the address of my-server\n" +
-			"    #   - the address of my-server-2\n" +
-			"    #   - the credential each connection under uses presents to the part it reaches, attached on that connection\n"
-		if !strings.Contains(agg, left) {
-			t.Errorf("the comment above the platform does not read\n%s\nit reads\n%s", left, agg)
+		release := out.Files[len(out.Files)-1].Content
+		const heading = "    # Left for the Release, since the source cannot supply it:\n"
+		platform := heading +
+			"    #   - infra.image, the image running the platform\n" +
+			"    #   - the admin slot, the administrator's password\n" +
+			"    #   - uses.model.m1.features.credential, the credential testplat presents to m1 on its model connection\n" +
+			"    #   - uses.tools.docs.features.credential, the credential testplat presents to docs on its tools connection\n" +
+			"    #   - uses.tools.my-server.features.credential, the credential testplat presents to my-server on its tools " +
+			"connection\n" +
+			"    #   - uses.tools.my-server-2.features.credential, the credential testplat presents to my-server-2 on its " +
+			"tools connection\n" +
+			"    testplat: {}\n"
+		wants := []string{platform}
+		for _, key := range []string{"docs", "my-server", "my-server-2"} {
+			wants = append(wants, heading+"    #   - infra.endpoint, the address of "+key+"\n    "+key+": {}\n")
+		}
+		for _, want := range wants {
+			if !strings.Contains(release, want) {
+				t.Errorf("the Release does not hold\n%s\nit reads\n%s", want, release)
+			}
+		}
+		if n := strings.Count(release, "the address of docs\n"); n != 1 {
+			t.Errorf("the Release names the address of docs %d times; f1 and f2 reach one part, which leaves it once", n)
+		}
+		if strings.Contains(agg, "Left for the Release") {
+			t.Errorf("the Aggregate names what is left for the Release:\n%s", agg)
 		}
 	})
 }
@@ -286,7 +308,7 @@ func TestANodeAConnectionReachesAsWrittenIsWrittenAsItsWiring(t *testing.T) {
 		t.Run("settings "+settings, func(t *testing.T) {
 			asked = nil
 			out := platformImport(t, format, platformCatalog(), settings, oneSource(source))
-			agg := out.Files[len(out.Files)-1].Content
+			agg := aggregateFile(out)
 			if want := []string{"f5", "f6"}; !reflect.DeepEqual(asked, want) {
 				t.Errorf("Reached was asked about %v, want %v", asked, want)
 			}
@@ -367,7 +389,7 @@ func TestAValueTheSettingCarriesNeverStopsAFlowBeingCarried(t *testing.T) {
 			if !reflect.DeepEqual(out.Diagnostics, tc.want) {
 				t.Errorf("the import raised %+v, want %+v", out.Diagnostics, tc.want)
 			}
-			carried := strings.Contains(out.Files[len(out.Files)-1].Content, "flow_definition: |")
+			carried := strings.Contains(aggregateFile(out), "flow_definition: |")
 			if carried != (tc.want == nil) {
 				t.Errorf("the flow is carried: %v, want %v", carried, tc.want == nil)
 			}
@@ -384,9 +406,13 @@ func TestNothingReachesAPartThroughAFlowThatIsNotCarried(t *testing.T) {
 	t.Parallel()
 	source := strings.Replace(wiringSource, `"type":"OpenAIModel"`, `"type":"OpenAIModel","note":"`+" "+`"`, 1)
 	out := platformImport(t, wiringTestFormat(), platformCatalog(), "", oneSource(source))
-	agg := out.Files[len(out.Files)-1].Content
-	if !strings.Contains(agg, "          docs:\n            target: docs\n") || !strings.Contains(agg, "#   - the address of docs\n") {
-		t.Errorf("the parts are not wired, or what they leave for the Release is not named:\n%s", agg)
+	agg := aggregateFile(out)
+	if !strings.Contains(agg, "          docs:\n            target: docs\n") {
+		t.Errorf("the parts are not wired:\n%s", agg)
+	}
+	if release := out.Files[len(out.Files)-1].Content; !strings.Contains(release,
+		"    #   - infra.endpoint, the address of docs\n    docs: {}\n") {
+		t.Errorf("what the part leaves for the Release is not named above its entry:\n%s", release)
 	}
 	for _, d := range out.Diagnostics {
 		if d.Code == "part-reads-connection" || d.Code == "part-address-in-flow" {
@@ -432,7 +458,7 @@ func TestAFlowWrittenWithCarriageReturnsIsCarriedWithLineFeeds(t *testing.T) {
 			if !reflect.DeepEqual(out.Diagnostics, want) {
 				t.Errorf("the import raised %+v, want %+v", out.Diagnostics, want)
 			}
-			agg := out.Files[len(out.Files)-1].Content
+			agg := aggregateFile(out)
 			if want := "        flow_definition: " + literalBlock(lf, 8); !strings.Contains(agg, want) {
 				t.Errorf("the flow is not carried as the source with line feeds:\nwant %q\nin\n%s", want, agg)
 			}
@@ -481,7 +507,7 @@ func TestACredentialCarryingAValueIsWrittenAsThatValue(t *testing.T) {
 		if !reflect.DeepEqual(out.Diagnostics, want) {
 			t.Errorf("the import raised %+v, want %+v", out.Diagnostics, want)
 		}
-		agg := out.Files[len(out.Files)-1].Content
+		agg := aggregateFile(out)
 		if strings.Contains(agg, "planted") || !strings.Contains(agg, `"config":"{\"url\":\"\",\"note\":\"kept\"}","loose":"","done":"{}"`) {
 			t.Errorf("the credentials are not written as located:\n%s", agg)
 		}
@@ -499,7 +525,7 @@ func TestACredentialCarryingAValueIsWrittenAsThatValue(t *testing.T) {
 		if !reflect.DeepEqual(out.Diagnostics, want) {
 			t.Errorf("the import raised %+v, want %+v", out.Diagnostics, want)
 		}
-		if agg := out.Files[len(out.Files)-1].Content; !strings.Contains(agg, strings.TrimSuffix(source, "\n")) {
+		if agg := aggregateFile(out); !strings.Contains(agg, strings.TrimSuffix(source, "\n")) {
 			t.Errorf("the flow is not carried as written:\n%s", agg)
 		}
 	})
@@ -576,7 +602,7 @@ func TestASocketTheFormatRefusesANodeIsPassedOver(t *testing.T) {
 				return ""
 			}
 			out := platformImport(t, format, platformCatalog(tc.sockets...), "", oneSource(refuseSource))
-			agg := out.Files[len(out.Files)-1].Content
+			agg := aggregateFile(out)
 			if !strings.Contains(agg, tc.uses) {
 				t.Errorf("the platform does not draw\n%s\nit reads\n%s", tc.uses, agg)
 			}
@@ -693,7 +719,7 @@ func TestASocketDrawingASingleConnectionIsHeldByOnePart(t *testing.T) {
 				return false, "it holds an address of its own"
 			}
 			out := platformImport(t, format, platformCatalog(anyModel), singleSettings, oneSource(singleSource))
-			agg := out.Files[len(out.Files)-1].Content
+			agg := aggregateFile(out)
 
 			if tc.single == nil {
 				const uses = "      uses:\n        model:\n          e1:\n            target: e1\n" +

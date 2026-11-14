@@ -50,7 +50,7 @@ const referenceSettings = `{"reuse_mode":"auto-apply-above-threshold"}`
 //     can write is written with no value and a comment leaving values.model for
 //     the author, and the import reports it, with the format's reason, the reason
 //     a type it does not read gets, or the character a literal block cannot carry;
-//   - drafted, under the default reuse mode — though the catalog holds a
+//   - drafted, under the hints-only reuse mode — though the catalog holds a
 //     Component of the drafted name declaring a value named model, as one an
 //     earlier import drafted and an author kept would — or referenced as a
 //     Component whose catalog entry declares no value named model, or with a
@@ -91,7 +91,8 @@ func TestAReferencedPartIsWrittenWithTheModelItsNodeSelects(t *testing.T) {
 		asked    bool
 	}{
 		{name: "referenced", model: true, catalog: platformCatalog(), settings: referenceSettings, asked: true},
-		{name: "drafted", model: true, catalog: keptDraft},
+		{name: "drafted", model: true, catalog: keptDraft, settings: hintsOnly},
+		{name: "referenced under the default reuse mode", model: true, catalog: platformCatalog(), asked: true},
 		{name: "referenced as a Component declaring no model value", model: true, catalog: noModelValue,
 			settings: referenceSettings},
 		{name: "a format reading no model", catalog: platformCatalog(), settings: referenceSettings},
@@ -103,7 +104,7 @@ func TestAReferencedPartIsWrittenWithTheModelItsNodeSelects(t *testing.T) {
 				format.Platform.Model = testModel
 			}
 			out := platformImport(t, format, tc.catalog, tc.settings, oneSource(modelSource))
-			agg := out.Files[len(out.Files)-1].Content
+			agg := aggregateFile(out)
 			var reported []aggrega.Diagnostic
 			for _, d := range out.Diagnostics {
 				if d.Code == "model-not-named" {
@@ -179,7 +180,7 @@ func TestAReasonHoldingDoubleBracesReadsBackInThePlatformsComment(t *testing.T) 
 	source := `{"id":"flow-b","nodes":[{"id":"m3","type":"generic","data":{"type":"OpenAIModel",` +
 		`"modelWhy":"names {{ a variable }} the import does not read"}}],"edges":[]}` + "\n"
 	out := platformImport(t, format, platformCatalog(), referenceSettings, oneSource(source))
-	agg := out.Files[len(out.Files)-1].Content
+	agg := aggregateFile(out)
 	tmpl, err := template.New("aggregate").Parse(agg)
 	if err != nil {
 		t.Fatalf("the drafted Aggregate does not parse as a template: %v\n%s", err, agg)
@@ -194,19 +195,25 @@ func TestAReasonHoldingDoubleBracesReadsBackInThePlatformsComment(t *testing.T) 
 	}
 }
 
-// TestTheLinesATargetNeedsAreShownCommentedInThePlatform drafts a flow whose
-// platform declares an attachment one target's Recipes need: where the
-// platform's instance draws a connection, a comment inside it, after its type,
-// shows the lines declaring that attachment, each commented out where it
-// belongs; where it draws none, no line is shown.
+// TestTheLinesATargetNeedsAreWrittenForTheImportsTarget drafts a flow whose
+// platform declares an attachment one target's Recipes need, for each target the
+// request can carry. Where the platform's instance draws a connection: an import
+// naming no target shows the lines declaring that attachment in a comment inside
+// the instance, after its type, each commented out where it belongs; an import
+// for that target declares them there, under features, beneath a comment saying
+// why; an import for another target writes none of them. Where the instance
+// draws no connection, no line is written for any target.
 //
-// 🔴 PLANTED DEFECT: in writeTargetAttachment (platform.go), replace
-// `b.WriteString(CommentLine(indent, line))` with
-// `b.WriteString(indent + line + "\n")`: the wired row fails, the lines
-// written uncommented.
-func TestTheLinesATargetNeedsAreShownCommentedInThePlatform(t *testing.T) {
+// 🔴 PLANTED DEFECTS, each in platformDraft.entity (platform.go):
+//
+//   - replace `case a.Target == in.Target:` with `case false:`: the row for the
+//     attachment's own target fails, the lines left out;
+//   - replace `case in.Target == "":` with `case true:`: the rows for a target
+//     fail, the lines written commented whatever the target.
+func TestTheLinesATargetNeedsAreWrittenForTheImportsTarget(t *testing.T) {
 	t.Parallel()
-	const lines = "    testplat:\n      type: core/ai-agent/testplat\n" +
+	const head = "    testplat:\n      type: core/ai-agent/testplat\n"
+	const commented = head +
 		"      # For the compose target only, uncomment the lines below, which declare admin on testplat: the test's " +
 		"reason.\n" +
 		"      # features:\n" +
@@ -215,27 +222,39 @@ func TestTheLinesATargetNeedsAreShownCommentedInThePlatform(t *testing.T) {
 		"      #     values:\n" +
 		"      #       key: ADMIN_KEY\n" +
 		"      values:\n"
+	const declared = head +
+		"      features:\n" +
+		"        # For the compose target, the lines below declare admin on testplat: the test's reason.\n" +
+		"        admin:\n" +
+		"          type: core/secret-value\n" +
+		"          values:\n" +
+		"            key: ADMIN_KEY\n" +
+		"      values:\n"
+	const none = head + "      values:\n"
 	format := platformTestFormat()
 	format.Platform.TargetAttachments = []TargetAttachment{{Target: "compose", Slot: "admin", Type: "core/secret-value",
 		Key: "ADMIN_KEY", Why: "the test's reason"}}
+	unwired := platformCatalog(aggrega.CatalogSocket{Name: "unused", Selector: "component.aggrega.ai/category=none"})
 	for _, tc := range []struct {
-		name    string
-		catalog *aggrega.CatalogProjection
-		shown   bool
+		name, target, want string
+		catalog            *aggrega.CatalogProjection
 	}{
-		{name: "an instance drawing connections", catalog: platformCatalog(), shown: true},
-		{name: "an instance drawing none", catalog: platformCatalog(aggrega.CatalogSocket{Name: "unused",
-			Selector: "component.aggrega.ai/category=none"})},
+		{name: "no target, an instance drawing connections", want: commented, catalog: platformCatalog()},
+		{name: "the attachment's target", target: "compose", want: declared, catalog: platformCatalog()},
+		{name: "another target", target: "helm", want: none, catalog: platformCatalog()},
+		{name: "no target, an instance drawing none", want: none, catalog: unwired},
+		{name: "the attachment's target, an instance drawing none", target: "compose", want: none, catalog: unwired},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			agg := platformImport(t, format, tc.catalog, "", oneSource(platformSource)).Files
-			text := agg[len(agg)-1].Content
-			if got := strings.Contains(text, lines); got != tc.shown {
-				t.Errorf("the lines are shown: %t, want %t; the Aggregate reads\n%s", got, tc.shown, text)
+			in := aggrega.ImportInput{Format: testFormatName, Bytes: []byte(platformSource), Catalog: tc.catalog,
+				Target: tc.target}
+			text := aggregateFile(Import(in, format, (&parseRecorder{}).parse))
+			if !strings.Contains(text, tc.want) {
+				t.Errorf("the instance does not read\n%s\nthe Aggregate reads\n%s", tc.want, text)
 			}
-			if !tc.shown && strings.Contains(text, "key: ADMIN_KEY") {
-				t.Errorf("an instance drawing no connection shows the lines:\n%s", text)
+			if tc.want == none && strings.Contains(text, "ADMIN_KEY") {
+				t.Errorf("the instance writes a line of the attachment:\n%s", text)
 			}
 		})
 	}

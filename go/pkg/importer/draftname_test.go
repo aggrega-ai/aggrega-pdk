@@ -89,7 +89,8 @@ func titled(served Format, title string) Format {
 // TestEveryDraftOfTheKitIsNamedAfterTheSource imports through each of the
 // package's three drafts — node by node, the platform carrying the flow, and the
 // module form — and reads the drafted Aggregate's name off its entity and off
-// the metadata.name its file writes: the format's title where it reads one, the
+// the metadata.name its file writes, and the drafted Release's metadata.name and
+// spec.aggregate off its file: the format's title where it reads one, the
 // stem of the file or the whole name of the directory where it reads none, flow
 // where its title reduces to nothing and nothing is named, and the namespace the
 // target_namespace setting names in front.
@@ -144,15 +145,23 @@ func TestEveryDraftOfTheKitIsNamedAfterTheSource(t *testing.T) {
 			if want := []string{row.want}; !slices.Equal(drafted, want) {
 				t.Errorf("%s, %s: the import drafted the Aggregate(s) %q, want %q", d.scenario, row.scenario, drafted, want)
 			}
-			var file string
+			var file, release string
 			for _, f := range out.Files {
-				if f.Path == "aggregate.yaml" {
+				switch f.Path {
+				case "aggregate.yaml":
 					file = f.Content
+				case ReleaseFileName:
+					release = f.Content
 				}
 			}
 			if !strings.Contains(file, "\nmetadata:\n  name: "+row.want+"\n") {
 				t.Errorf("%s, %s: aggregate.yaml does not name the Aggregate %s:\n%s", d.scenario, row.scenario, row.want,
 					file)
+			}
+			if !strings.Contains(release, "\nmetadata:\n  name: "+row.want+"\n") ||
+				!strings.Contains(release, "\nspec:\n  aggregate: "+row.want+"\n") {
+				t.Errorf("%s, %s: %s is not named %s deploying the Aggregate of that name:\n%s", d.scenario, row.scenario,
+					ReleaseFileName, row.want, release)
 			}
 		}
 	}
@@ -186,13 +195,17 @@ func TestSeveralSourcesNamedApartFallToTheFile(t *testing.T) {
 		sources := []aggrega.ImportSource{{Name: "a.json", Bytes: withTitle(row.a)}, {Name: "b.json", Bytes: withTitle(row.b)}}
 		out := Import(aggrega.ImportInput{Format: testFormatName, Sources: sources, Catalog: platformCatalog()}, served,
 			(&parseRecorder{}).parse)
-		if len(out.Entities) == 0 {
+		if len(out.Entities) < 2 {
 			t.Fatalf("%s: the import drafted nothing: %+v", row.scenario, out.Diagnostics)
 		}
-		last := out.Entities[len(out.Entities)-1]
-		if last.Kind != "Aggregate" || last.Name != row.want {
-			t.Errorf("%s: the last entity is the %s %q, want the drafted Aggregate %q", row.scenario, last.Kind, last.Name,
-				row.want)
+		aggregate, release := out.Entities[len(out.Entities)-2], out.Entities[len(out.Entities)-1]
+		if aggregate.Kind != "Aggregate" || aggregate.Name != row.want {
+			t.Errorf("%s: the entity before the last is the %s %q, want the drafted Aggregate %q", row.scenario,
+				aggregate.Kind, aggregate.Name, row.want)
+		}
+		if release.Kind != "Release" || release.Name != row.want {
+			t.Errorf("%s: the last entity is the %s %q, want the drafted Release %q", row.scenario, release.Kind,
+				release.Name, row.want)
 		}
 	}
 }
@@ -203,8 +216,9 @@ func TestSeveralSourcesNamedApartFallToTheFile(t *testing.T) {
 // a composite of them, whose Kind is Aggregate or Release and whose Mode is not
 // reference — to a name draftName returned: the call itself, or a variable every
 // assignment of which, in the function building the entity, is that call, by :=,
-// by = or by a var declaration. The three drafts the package makes are required
-// to be found, so a scan that read nothing fails, and the check is first run
+// by = or by a var declaration. The three Aggregate drafts the package makes and
+// its one Release writer are required to be found, so a scan that read nothing
+// fails, and the check is first run
 // over a planted source holding each form, each required to be found and
 // refused where it composes its own name and passed where a var declaration
 // takes it from draftName.
@@ -272,9 +286,9 @@ func (a *b) declared(in aggrega.ImportInput) aggrega.EmittedEntity {
 			drafting = append(drafting, path)
 		}
 	}
-	if want := []string{"emit.go", "module.go", "platform.go"}; !slices.Equal(drafting, want) {
-		t.Errorf("found drafted Aggregates in %v, want one in each of %v; the scan is not reading what it checks",
-			drafting, want)
+	if want := []string{"emit.go", "module.go", "platform.go", "release.go"}; !slices.Equal(drafting, want) {
+		t.Errorf("found drafted Aggregates and Releases in %v, want one in each of %v; the scan is not reading what it "+
+			"checks", drafting, want)
 	}
 }
 

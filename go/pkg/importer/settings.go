@@ -17,9 +17,10 @@ type importSettings struct {
 	// neutral "imported" segment rather than core or example.
 	TargetNamespace string `json:"target_namespace"`
 	// ReuseMode governs whether a high-confidence match is referenced or only
-	// hinted. The default hints-only references nothing silently — every node is
-	// drafted, with strong matches recorded as swap hints. auto-apply-above-threshold
-	// references a match scoring at or above ReuseThreshold.
+	// hinted. The default, auto-apply-above-threshold, references a HIGH match
+	// scoring at or above ReuseThreshold, so a node the catalog already holds a
+	// Component for is drafted as that Component. hints-only references nothing:
+	// every node is drafted, with strong matches recorded as swap hints.
 	ReuseMode string `json:"reuse_mode"`
 	// ReuseThreshold is the score at or above which auto-apply references a
 	// component. It is consulted only in auto-apply-above-threshold mode.
@@ -53,9 +54,9 @@ type importSettings struct {
 	// draft writes carries core/egress-allowlist, the Feature that lets a
 	// component connect only to what it is wired to, attached under the key
 	// egress-allowlist. The draft never sets the Feature's infrastructure: an
-	// Aggregate's attachment carries none, so its comment names, for the Release,
-	// the affirmation the Feature's realization halts without and the address
-	// ranges a target the cluster does not run is reached at. False, the default,
+	// Aggregate's attachment carries none, so the drafted Release's entry leaves
+	// for the Release the affirmation the Feature's realization halts without and
+	// the address ranges a target the cluster does not run is reached at. False, the default,
 	// attaches nothing, a value that is not a JSON boolean reading as false. A
 	// draft that writes no platform — the node-by-node draft, or a format that
 	// describes none — attaches nothing whatever this says, and where it is true
@@ -121,7 +122,7 @@ func parseSettings(raw json.RawMessage) importSettings {
 		s.TargetNamespace = defaultNamespace
 	}
 	if s.ReuseMode == "" {
-		s.ReuseMode = reuseModeHintsOnly
+		s.ReuseMode = reuseModeAutoApply
 	}
 	if s.ReuseThreshold == 0 {
 		s.ReuseThreshold = defaultThreshold

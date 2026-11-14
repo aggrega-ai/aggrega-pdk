@@ -105,7 +105,7 @@ func importModule(in aggrega.ImportInput, served Format, settings importSettings
 		})
 	}
 
-	out.Entities = append(out.Entities, draft.entity(in))
+	out.Entities = append(out.Entities, draft.entity(in), draft.release(in))
 	out.Files = render(settings, out.Entities, out.Decisions)
 	return out
 }
@@ -127,8 +127,9 @@ func configuredInPlatform(ref string, node Node, what, platform string) aggrega.
 // module's PassedDown lists, declared once under spec.parameters, then one entry
 // of the module per source, under aggregates, passing each of them down and
 // carrying the source in the module's parameter, with the comment above it
-// naming what the Release supplies and that the import does not check the
-// catalog for the module. It is named after the request in and the titles of
+// saying that the import does not check the catalog for the module; what the
+// Release supplies is left on the Release's own entry. It is named after the
+// request in and the titles of
 // the sources it carries, as [DraftName] names it.
 func (d *platformDraft) moduleEntity(in aggrega.ImportInput) aggrega.EmittedEntity {
 	p := d.platform
@@ -156,16 +157,6 @@ func (d *platformDraft) moduleEntity(in aggrega.ImportInput) aggrega.EmittedEnti
 	for _, inst := range d.instances {
 		b.WriteString(CommentLine("    ", "An import sees the Components of the workspace's catalog and none of its Aggregates, so it "+
 			"does not check that the catalog holds "+m.Aggregate+"."))
-		if len(p.LeftForRelease) > 0 || len(m.PassedDown) > 0 {
-			b.WriteString(CommentLine("    ", "Left for the Release, since the source cannot supply it:"))
-			for _, param := range m.PassedDown {
-				b.WriteString(CommentLine("    ", "  - the "+param.Name+" parameter declared above, which this entry passes down "+
-					"to "+m.Aggregate))
-			}
-			for _, item := range p.LeftForRelease {
-				b.WriteString(CommentLine("    ", "  - "+item))
-			}
-		}
 		b.WriteString("    " + inst.key + ":\n")
 		b.WriteString("      type: " + m.Aggregate + "\n")
 		if inst.carried || len(m.PassedDown) > 0 {

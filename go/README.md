@@ -105,7 +105,8 @@ Component of its own is drafted.
 
 What the package gives you: the confidence scorer that weighs a node against the
 catalog view, the decision to reference a component or draft a new one, the
-drafted Component and Aggregate bodies, the platform layout below, the `human` and
+drafted Component and Aggregate bodies, `DraftRelease`, the one writer of the
+drafted Release, the platform layout below, the `human` and
 `llm` renderers, and the importer's settings — `target_namespace`,
 `reuse_mode`, `reuse_threshold`, `emit_hints`, `render_mode`,
 `mapping_overrides`, `layout`, `empty_credentials` and `attach_egress_allowlist` — with their defaults. `NodeList`, `EdgeList` and
@@ -229,12 +230,13 @@ there:
   value named `model` is written with that name as `values.model`; where the node names
   none, a comment leaves it for the author and the import reports `model-not-named`.
 - **The lines a target needs.** `TargetAttachments` are attachments of the platform's
-  own instance that its Recipes on one target need declared in the Aggregate. The draft
-  stays alike for every target and shows each, commented out inside the instance, for
-  an author building for that target to uncomment.
+  own instance that its Recipes on one target need declared in the Aggregate. An import
+  for that target declares them inside the instance, one for another target leaves
+  them out, and one naming no target shows them commented out for an author to uncomment.
 - **What is left for the Release.** `LeftForRelease` names the platform's own inputs no
   source supplies, and each `Wiring.LeftForRelease` what of a part the Release
-  supplies; the draft lists both in a comment above the platform's instance.
+  supplies, each an `importer.LeftItem` — the key path and what the value is; the
+  drafted Release lists them above the entry of the instance or of the part.
 - **A platform that is a whole installation.** `Module`, an `importer.Module`, names
   the catalog Aggregate assembling the platform, `Component` among its parts, and the
   `Parameter` of it that takes the flow. Each source is then drafted in the module
@@ -246,10 +248,11 @@ there:
   default, and passes it down by name to every entry, for the Release to fulfill.
   `Configured` says what a node names that the platform configures for itself — a
   model and its provider, a tool, a knowledge base, a plugin — which the import
-  reports in the node's decision and as `part-configured-in-platform`. The comment
-  above the entry names each parameter passed down and `LeftForRelease`, and that the
-  import, which sees the catalog's Components and none of its Aggregates, does not
-  check that the catalog holds the module.
+  reports in the node's decision and as `part-configured-in-platform`. The drafted
+  Release's entry for the module leaves each parameter passed down and `LeftForRelease`
+  for the Release, and the comment above the Aggregate's entry says that the import,
+  which sees the catalog's Components and none of its Aggregates, does not check that
+  the catalog holds the module.
 
 Every node the draft gives no Component stays inside the flow the platform carries,
 and its decision chooses nothing and says so. Where the catalog view holds no
@@ -257,9 +260,10 @@ Component of the platform's name, the platform is drafted all the same, no part 
 wired, and the import warns with `platform-not-in-catalog`. With the
 `attach_egress_allowlist` setting `true`, every importer built on the package attaches
 `core/egress-allowlist` to each platform instance it drafts, under the key
-`egress-allowlist`, and sets none of the Feature's infrastructure: the comment above
-the instance names `infra.control_plane_present` and `infra.admitted_destinations` for
-the Release, and the import reports the attachment as `feature-attached`. A draft made
+`egress-allowlist`, and sets none of the Feature's infrastructure: the drafted Release's
+entry for the instance leaves `infra.control_plane_present` and
+`infra.admitted_destinations` for the Release, and the import reports the attachment as
+`feature-attached`. A draft made
 node by node attaches nothing, and warns with `feature-not-attached`. The package
 documentation carries the layout in full.
 

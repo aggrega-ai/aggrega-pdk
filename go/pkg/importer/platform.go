@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"path"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 
@@ -41,7 +42,8 @@ import (
 // with a comment leaving it for the author, which the import reports. Where the
 // attach_egress_allowlist setting is true, each instance also carries
 // core/egress-allowlist under features, with nothing of its infrastructure set,
-// and the comment above it names what of that the Release sets.
+// and the drafted Release's entry for the instance names what of that the
+// Release sets.
 //
 // The source is carried as its own bytes, with every value Wire and Reached ask
 // for written anew, every credential value Credentials locates written empty
@@ -155,15 +157,19 @@ type Platform struct {
 	// asked. Nil reads no model, and the draft writes nothing of one.
 	Model func(tree json.RawMessage, node Node) (name, why string)
 	// LeftForRelease names the platform's own inputs a source cannot supply, one
-	// entry each, which the drafted Aggregate leaves for the Release in a comment
-	// above the platform's instance.
-	LeftForRelease []string
+	// item each, which the drafted Release's entry for the platform's instance
+	// leaves for the Release, as [ReleaseEntry.Left] writes them: each item's path
+	// is relative to that entry — the instance's own entry, or, in the module form,
+	// the routing entry of the module.
+	LeftForRelease []LeftItem
 	// TargetAttachments are attachments of the platform's own instance that the
 	// Recipes realizing the platform on one target need declared in the
-	// Aggregate, and those of the other targets do not. The draft is written alike
-	// for every target and declares none of them: where the instance draws a
-	// connection, a comment inside it shows, for each, the lines an author
-	// uncomments for that target.
+	// Aggregate, and those of the other targets do not. Each is written only
+	// where the instance draws a connection, and by the target the import drafts
+	// for: one whose Target is that target is declared, under a comment saying
+	// why; one of another target is left out; and where the import names no
+	// target, a comment inside the instance shows, for each, the lines an author
+	// uncomments for its target.
 	TargetAttachments []TargetAttachment
 	// Module, where set, is the catalog Aggregate the platform runs as a whole
 	// installation in, Component among the parts it composes and wires: each source
@@ -202,9 +208,10 @@ type Platform struct {
 // platform itself, so no node of the flow is wired to a socket and no part is
 // drafted; each node stays in the flow, and what [Platform.Configured] says the
 // platform configures for itself is reported. No identifier is written, the
-// platform's LeftForRelease is named in a comment above the entry, and so is
-// that the catalog the import is handed lists Components only, so the import
-// does not check that the workspace's catalog holds Aggregate. An entry of a
+// platform's LeftForRelease is left on the drafted Release's routing entry for
+// the module, and a comment above the Aggregate's entry says that the catalog the
+// import is handed lists Components only, so the import does not check that the
+// workspace's catalog holds Aggregate. An entry of a
 // composed Aggregate takes parameters and no Feature, so the
 // attach_egress_allowlist setting attaches nothing to it, and the import says so.
 // The parameters of Aggregate a Release supplies are declared by the drafted
@@ -220,8 +227,8 @@ type Module struct {
 	// parameter of its own, and passes it down by the same name to every entry,
 	// as [PassedDownParameter] describes, so the Release fulfills it and a build
 	// whose Release leaves it unset halts naming it. Every entry of one draft is
-	// handed the one parameter. The comment naming what the Release supplies
-	// names each. Empty passes nothing down, and the drafted Aggregate declares
+	// handed the one parameter. The drafted Release's entry for the module leaves
+	// each for the Release. Empty passes nothing down, and the drafted Aggregate declares
 	// no parameter.
 	PassedDown []PassedDownParameter
 }
@@ -334,9 +341,10 @@ type Wiring struct {
 	// the platform's own defaults give: the import reports it as a warning, and
 	// the part's decision carries it.
 	Literal string
-	// LeftForRelease names what of the part a source cannot supply, one entry
-	// each, added to the comment above the platform's instance.
-	LeftForRelease []string
+	// LeftForRelease names what of the part a source cannot supply, one item each,
+	// which the drafted Release's entry for the part leaves for the Release, each
+	// item's path relative to that entry.
+	LeftForRelease []LeftItem
 }
 
 // aliasShape is the shape a connection's alias takes in an Aggregate.
@@ -548,7 +556,7 @@ func importPlatform(in aggrega.ImportInput, served Format, settings importSettin
 		}
 		out.Diagnostics = append(out.Diagnostics, nodeDiags...)
 		for _, w := range wired {
-			inst.leave(w.wiring.LeftForRelease...)
+			inst.leave(w.part.Key, w.wiring.LeftForRelease...)
 			if !inst.carried {
 				// The flow is not carried, so nothing reaches the part through it;
 				// the import has said why.
@@ -611,10 +619,69 @@ func importPlatform(in aggrega.ImportInput, served Format, settings importSettin
 		})
 	}
 
-	out.Entities = append(out.Entities, draft.entity(in))
+	out.Entities = append(out.Entities, draft.entity(in), draft.release(in))
 	out.Files = render(settings, out.Entities, out.Decisions)
 	return out
 }
+
+// release drafts the Release deploying the drafted Aggregate, through
+// [DraftRelease]: an entry per instance, in the order the Aggregate declares them
+// — each platform instance, followed by the parts wired to it — since a build
+// places only the instances a Release names, each leaving for the Release what
+// no source supplies of it. In the module form each entry is a module of the
+// Aggregate, routed under the boundary the platform runs in, named platform.
+func (d *platformDraft) release(in aggrega.ImportInput) aggrega.EmittedEntity {
+	var entries []ReleaseEntry
+	for _, inst := range d.instances {
+		entries = append(entries, ReleaseEntry{Key: inst.key, Module: d.platform.Module != nil,
+			Left: d.instanceLeft(inst)})
+		for _, part := range inst.parts {
+			entries = append(entries, ReleaseEntry{Key: part.key, Left: inst.left[part.key]})
+		}
+	}
+	return DraftRelease(in, ReleaseDraft{Boundary: platformBoundary, Entries: entries}, d.titles...)
+}
+
+// instanceLeft is what the Release's entry for a platform instance leaves for
+// the Release: in the module form, each parameter the module's PassedDown lists,
+// then the platform's own LeftForRelease; otherwise the platform's own
+// LeftForRelease, the credential the instance presents on each connection it
+// draws, in the order its sockets and their connections are written, and, where
+// the attach_egress_allowlist setting is true, what of that attachment the
+// Release sets.
+func (d *platformDraft) instanceLeft(inst *platformInstance) []LeftItem {
+	p := d.platform
+	var left []LeftItem
+	if m := p.Module; m != nil {
+		for _, param := range m.PassedDown {
+			left = append(left, LeftItem{Text: "the " + param.Name + " parameter, under the Release's spec.parameters, " +
+				"which the drafted Aggregate declares and passes down to " + m.Aggregate})
+		}
+		return append(left, p.LeftForRelease...)
+	}
+	left = append(left, p.LeftForRelease...)
+	for _, socket := range inst.sockets {
+		for _, c := range inst.uses[socket] {
+			left = append(left, ConnectionCredential(inst.key, socket, c.alias, c.target))
+		}
+	}
+	if d.settings.AttachEgressAllowlist {
+		left = append(left,
+			LeftItem{Path: "features." + egressAllowlistKey + "." + egressAffirmation, Text: "the affirmation that the " +
+				"cluster's network plugin enforces network policy, without which the build halts"},
+			LeftItem{Path: "features." + egressAllowlistKey + "." + egressRanges, Text: "an address range for each " +
+				"connection whose target the cluster does not run, such as a hosted model, without which the build halts " +
+				"naming that connection"},
+			LeftItem{Text: "aggrega.ai/namespace on the boundary holding " + inst.key + ", where the target emits its " +
+				"workloads into no namespace: the attachment's network policy is placed in its workload's namespace, and " +
+				"the build halts without one"})
+	}
+	return left
+}
+
+// platformBoundary is the boundary a drafted Release places a module-form
+// platform in: a Release places a module only under a boundary.
+const platformBoundary = "platform"
 
 // wiredNode is one node wired to a socket of the platform, awaiting what the
 // format says of how the flow reaches its part: the position of its decision,
@@ -1120,9 +1187,9 @@ type platformInstance struct {
 	// every alias each socket's connections are written under.
 	named     map[namedPart]sharedPart
 	delivered map[string]map[string]bool
-	// left is what of the parts the Release supplies, in the order the parts were
-	// wired.
-	left []string
+	// left is what of each part the Release supplies, by the part's key, each in
+	// the order its wiring named it.
+	left map[string][]LeftItem
 }
 
 // connection is one connection a socket of the platform draws: its alias and the
@@ -1180,15 +1247,15 @@ func (inst *platformInstance) connect(socket, alias, key string) {
 	inst.uses[socket] = append(inst.uses[socket], connection{alias: alias, target: key})
 }
 
-// leave records what of a part the Release supplies, each entry once.
-func (inst *platformInstance) leave(items ...string) {
+// leave records what of the part keyed key the Release supplies, each item once,
+// in the order given.
+func (inst *platformInstance) leave(key string, items ...LeftItem) {
+	if inst.left == nil {
+		inst.left = map[string][]LeftItem{}
+	}
 	for _, item := range items {
-		seen := false
-		for _, have := range inst.left {
-			seen = seen || have == item
-		}
-		if !seen {
-			inst.left = append(inst.left, item)
+		if !slices.Contains(inst.left[key], item) {
+			inst.left[key] = append(inst.left[key], item)
 		}
 	}
 }
@@ -1365,29 +1432,8 @@ func (d *platformDraft) entity(in aggrega.ImportInput) aggrega.EmittedEntity {
 	b.WriteString("  components:\n")
 	attach := d.settings.AttachEgressAllowlist
 	for _, inst := range d.instances {
-		if len(p.LeftForRelease) > 0 || len(inst.left) > 0 || inst.wired() || attach {
-			b.WriteString(CommentLine("    ", "Left for the Release, since the source cannot supply it:"))
-			for _, item := range p.LeftForRelease {
-				b.WriteString(CommentLine("    ", "  - "+item))
-			}
-			for _, item := range inst.left {
-				b.WriteString(CommentLine("    ", "  - "+item))
-			}
-			if inst.wired() {
-				b.WriteString(CommentLine("    ", "  - the credential each connection under uses presents to the part it reaches, "+
-					"attached on that connection"))
-			}
-			if attach {
-				b.WriteString(CommentLine("    ", "  - "+egressAffirmation+" of the "+egressAllowlistKey+" attachment, the "+
-					"affirmation that the cluster's network plugin enforces network policy, without which the build halts"))
-				b.WriteString(CommentLine("    ", "  - "+egressRanges+" of the "+egressAllowlistKey+" attachment, an address "+
-					"range for each connection whose target the cluster does not run, such as a hosted model, without "+
-					"which the build halts naming that connection"))
-				b.WriteString(CommentLine("    ", "  - aggrega.ai/namespace on the boundary holding "+inst.key+", where the target "+
-					"emits its workloads into no namespace: the attachment's network policy is placed in its workload's "+
-					"namespace, and the build halts without one"))
-			}
-		}
+		// What no source supplies of the instance and its parts is left for the
+		// Release on the Release's own entries (instanceLeft), not here.
 		b.WriteString("    " + inst.key + ":\n")
 		b.WriteString("      type: " + p.Component + "\n")
 		if attach {
@@ -1398,8 +1444,20 @@ func (d *platformDraft) entity(in aggrega.ImportInput) aggrega.EmittedEntity {
 			b.WriteString("          type: " + egressAllowlist + "\n")
 		}
 		if inst.wired() {
+			// An attachment of the import's own target is declared; with no target,
+			// each is shown commented out; one of another target is left out.
+			inFeatures := attach
 			for _, a := range p.TargetAttachments {
-				writeTargetAttachment(&b, inst.key, a, attach)
+				switch {
+				case in.Target == "":
+					writeTargetAttachment(&b, inst.key, a, inFeatures, false)
+				case a.Target == in.Target:
+					if !inFeatures {
+						b.WriteString("      features:\n")
+						inFeatures = true
+					}
+					writeTargetAttachment(&b, inst.key, a, true, true)
+				}
 			}
 		}
 		b.WriteString("      values:\n")
@@ -1446,11 +1504,14 @@ func (d *platformDraft) entity(in aggrega.ImportInput) aggrega.EmittedEntity {
 }
 
 // writeTargetAttachment writes, inside the platform's instance keyed key, the
-// comment showing the lines that declare a, each commented out in place, so an
-// author building for its target uncomments them where they stand. Where
-// inFeatures is set the instance already declares features, so the lines are
-// written inside that block, without a second features key.
-func writeTargetAttachment(b *strings.Builder, key string, a TargetAttachment, inFeatures bool) {
+// lines that declare a, beneath a comment saying which target needs them and
+// why. Where live is set the import was given a's target, and the lines are
+// written as declarations; otherwise each is commented out in place, so an author
+// building for that target uncomments them where they stand. Where inFeatures is
+// set the instance already declares features, so the lines are written inside
+// that block, without a second features key; a live attachment is always
+// written so, the caller declaring features first.
+func writeTargetAttachment(b *strings.Builder, key string, a TargetAttachment, inFeatures, live bool) {
 	indent, lines := "      ", []string{
 		"features:",
 		"  " + a.Slot + ":",
@@ -1465,6 +1526,14 @@ func writeTargetAttachment(b *strings.Builder, key string, a TargetAttachment, i
 			"  values:",
 			"    key: " + a.Key,
 		}
+	}
+	if live {
+		b.WriteString(CommentLine(indent, "For the "+a.Target+" target, the lines below declare "+a.Slot+" on "+key+": "+
+			a.Why+"."))
+		for _, line := range lines {
+			b.WriteString(indent + line + "\n")
+		}
+		return
 	}
 	b.WriteString(CommentLine(indent, "For the "+a.Target+" target only, uncomment the lines below, which declare "+
 		a.Slot+" on "+key+": "+a.Why+"."))

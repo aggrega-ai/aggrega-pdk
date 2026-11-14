@@ -332,8 +332,11 @@ func TestAtMostFourCandidatesAreReported(t *testing.T) {
 
 // TestDecisionDispositions drives one node per disposition and reads the choice,
 // its rationale and its hint, and the entity emitted for it: a HIGH match is
-// referenced only under auto-apply at or above the threshold, and every other
-// outcome drafts, with a hint whose strength tracks the tier.
+// referenced under auto-apply — the default — at or above the threshold, and
+// every other outcome drafts, with a hint whose strength tracks the tier.
+//
+// 🔴 PLANTED DEFECT: in parseSettings (settings.go), default ReuseMode to
+// reuseModeHintsOnly: the row importing under the default settings reddens.
 func TestDecisionDispositions(t *testing.T) {
 	const autoApply = `{"reuse_mode":"auto-apply-above-threshold"}`
 	model := oneNode("OpenAIModel", []string{"model_name", "temperature"}, []string{"api_key"})
@@ -343,10 +346,16 @@ func TestDecisionDispositions(t *testing.T) {
 		rationale, swapHint    string
 	}{
 		{
-			name: "a HIGH match under hints-only is drafted with a strong hint", source: model,
+			name: "a HIGH match under hints-only is drafted with a strong hint", settings: hintsOnly, source: model,
 			mode: "draft", tier: tierHigh, target: "imported/ai-model/openaimodel",
 			rationale: "drafted a new component; core/ai-model/openai is a strong match at score 0.9200 but hints-only mode references nothing",
 			swapHint:  "resembles core/ai-model/openai (score 0.9200); reference it by setting type: core/ai-model/openai",
+		},
+		{
+			name: "a HIGH match under the default settings is referenced", source: model,
+			mode: "reference", tier: tierHigh, target: "core/ai-model/openai",
+			rationale: "referenced core/ai-model/openai at score 0.9200 (HIGH) under auto-apply",
+			swapHint:  "swap to core/ai-model/anthropic (score 0.3806) by setting type: core/ai-model/anthropic",
 		},
 		{
 			name: "a HIGH match under auto-apply at or above the threshold is referenced", settings: autoApply, source: model,
@@ -358,7 +367,7 @@ func TestDecisionDispositions(t *testing.T) {
 			name:     "a HIGH match under auto-apply below the threshold is drafted",
 			settings: `{"reuse_mode":"auto-apply-above-threshold","reuse_threshold":0.95}`, source: model,
 			mode: "draft", tier: tierHigh, target: "imported/ai-model/openaimodel",
-			rationale: "drafted a new component; core/ai-model/openai is a strong match at score 0.9200 but hints-only mode references nothing",
+			rationale: "drafted a new component; core/ai-model/openai is a strong match at score 0.9200, below the reuse threshold 0.9500",
 			swapHint:  "resembles core/ai-model/openai (score 0.9200); reference it by setting type: core/ai-model/openai",
 		},
 		{
@@ -391,8 +400,9 @@ func TestDecisionDispositions(t *testing.T) {
 			if d.SwapHint != tc.swapHint {
 				t.Errorf("the hint reads %q, want %q", d.SwapHint, tc.swapHint)
 			}
-			if len(out.Entities) != 2 {
-				t.Fatalf("the import emitted %d entities, want the node's and the Aggregate: %+v", len(out.Entities), out.Entities)
+			if len(out.Entities) != 3 {
+				t.Fatalf("the import emitted %d entities, want the node's, the Aggregate and the Release: %+v",
+					len(out.Entities), out.Entities)
 			}
 			e := out.Entities[0]
 			if e.Kind != "Component" || e.Mode != tc.mode || e.Name != tc.target ||
@@ -417,7 +427,13 @@ const renderSource = `{"nodes":[` +
 	`{"source":"model-1","target":"Custom Logic"},{"source":"model-1","target":"Custom Logic"},` +
 	`{"source":"Custom Logic","target":"out"},{"source":"n1","target":"out"},{"source":"model-1"}]}`
 
-// The files the human renderer writes for renderSource under the default settings.
+// hintsOnly is the settings document asking for the hints-only reuse mode, which
+// drafts every node: the cases reading what a drafted Component renders as ask
+// for it, since the default references a HIGH match.
+const hintsOnly = `{"reuse_mode":"hints-only"}`
+
+// The files the human renderer writes for renderSource under the hints-only reuse
+// mode and otherwise the default settings.
 const (
 	renderedModel = `# resembles core/ai-model/openai (score 0.9200); reference it by setting type: core/ai-model/openai
 apiVersion: aggrega.ai/v1beta1
@@ -491,6 +507,23 @@ spec:
           custom-logic:
             target: custom-logic
 `
+	renderedRelease = `apiVersion: aggrega.ai/v1beta1
+kind: Release
+metadata:
+  name: imported/flow
+  # environment is a drafted default, since no source names the environment this Release deploys to; change it to name the one it deploys to.
+  environment: development
+  version: 0.1.0
+  description: Draft Release imported from a source in the testflow format.
+spec:
+  aggregate: imported/flow
+  # manifest: left empty, since the import was given no target; an import given a target drafts the Manifest and names it here.
+  manifest: ""
+  components:
+    model-1: {}
+    custom-logic: {}
+    out: {}
+`
 )
 
 // TestANodeFedByTwoNodesGivesEachConnectionAnAliasOfItsOwn imports a source whose
@@ -533,16 +566,19 @@ func TestANodeFedByTwoNodesGivesEachConnectionAnAliasOfItsOwn(t *testing.T) {
 // TestDraftAndAggregateRendering pins, byte for byte, the files the human renderer
 // writes: one per drafted Component in node order, its HIGH hint written above
 // it, then the Aggregate keying each node by its identifier, each use once however
-// many edges repeat it, and nothing for a note or for an edge naming one.
-// emit_hints false drops every hint comment and nothing else; the llm renderer
-// writes the decision record the human run recorded as its one file.
+// many edges repeat it, and nothing for a note or for an edge naming one, then
+// the Release holding an empty entry per node, in the Aggregate's order.
+// emit_hints false drops every hint comment and nothing else — the Release,
+// which carries no hint, is written as it is; the llm renderer writes the
+// decision record the human run recorded as its one file.
 func TestDraftAndAggregateRendering(t *testing.T) {
-	human := importTest(t, "", renderSource)
+	human := importTest(t, hintsOnly, renderSource)
 	want := []aggrega.ScaffoldFile{
 		{Path: "components/imported-ai-model-openaimodel.yaml", Content: renderedModel},
 		{Path: "components/imported-component-custompythoncomponent.yaml", Content: renderedCustom},
 		{Path: "components/imported-ai-model-chatoutput.yaml", Content: renderedOutput},
 		{Path: "aggregate.yaml", Content: renderedAggregate},
+		{Path: ReleaseFileName, Content: renderedRelease},
 	}
 	if !reflect.DeepEqual(human.Files, want) {
 		t.Errorf("the human renderer wrote\n%+v\nwant\n%+v", human.Files, want)
@@ -551,18 +587,22 @@ func TestDraftAndAggregateRendering(t *testing.T) {
 		t.Errorf("the import raised %+v; this source reads with none", human.Diagnostics)
 	}
 
-	quiet := importTest(t, `{"emit_hints":false}`, renderSource)
+	quiet := importTest(t, `{"emit_hints":false,"reuse_mode":"hints-only"}`, renderSource)
 	if len(quiet.Files) != len(want) {
 		t.Fatalf("with emit_hints false the renderer wrote %d files, want %d", len(quiet.Files), len(want))
 	}
 	for i, f := range quiet.Files {
-		var kept []string
-		for _, line := range strings.SplitAfter(want[i].Content, "\n") {
-			if !strings.HasPrefix(strings.TrimSpace(line), "# ") {
-				kept = append(kept, line)
+		expected := want[i].Content
+		if want[i].Path != ReleaseFileName {
+			var kept []string
+			for _, line := range strings.SplitAfter(want[i].Content, "\n") {
+				if !strings.HasPrefix(strings.TrimSpace(line), "# ") {
+					kept = append(kept, line)
+				}
 			}
+			expected = strings.Join(kept, "")
 		}
-		if f.Path != want[i].Path || f.Content != strings.Join(kept, "") {
+		if f.Path != want[i].Path || f.Content != expected {
 			t.Errorf("with emit_hints false, %s reads\n%s\nwant the same file without its hint comments", f.Path, f.Content)
 		}
 	}
@@ -570,7 +610,7 @@ func TestDraftAndAggregateRendering(t *testing.T) {
 		t.Error("emit_hints changed the decision record; it only governs the comments written into the drafts")
 	}
 
-	llm := importTest(t, `{"render_mode":"llm"}`, renderSource)
+	llm := importTest(t, `{"render_mode":"llm","reuse_mode":"hints-only"}`, renderSource)
 	record, err := json.Marshal(human.Decisions)
 	if err != nil {
 		t.Fatalf("encode the decision record: %v", err)
@@ -590,7 +630,7 @@ func TestSettingsDefaults(t *testing.T) {
 		threshold                                                  float64
 		hints, nodes                                               bool
 	}
-	defaults := view{namespace: "imported", reuseMode: "hints-only", renderMode: "human", layout: "platform", threshold: 0.85,
+	defaults := view{namespace: "imported", reuseMode: "auto-apply-above-threshold", renderMode: "human", layout: "platform", threshold: 0.85,
 		hints: true, emptyCredentials: "none"}
 	for _, tc := range []struct {
 		name, doc string
@@ -600,29 +640,32 @@ func TestSettingsDefaults(t *testing.T) {
 		{name: "empty object", doc: `{}`, want: defaults},
 		{name: "not JSON", doc: `{"target_namespace":`, want: defaults},
 		{name: "a namespace", doc: `{"target_namespace":"north"}`,
-			want: view{namespace: "north", reuseMode: "hints-only", renderMode: "human", layout: "platform", threshold: 0.85,
+			want: view{namespace: "north", reuseMode: "auto-apply-above-threshold", renderMode: "human", layout: "platform", threshold: 0.85,
 				hints: true, emptyCredentials: "none"}},
 		{name: "auto-apply at a threshold, no hints, llm",
 			doc: `{"reuse_mode":"auto-apply-above-threshold","reuse_threshold":0.9,"emit_hints":false,"render_mode":"llm"}`,
 			want: view{namespace: "imported", reuseMode: "auto-apply-above-threshold", renderMode: "llm", layout: "platform",
 				threshold: 0.9, hints: false, emptyCredentials: "none"}},
+		{name: "hints-only, named", doc: hintsOnly,
+			want: view{namespace: "imported", reuseMode: "hints-only", renderMode: "human", layout: "platform", threshold: 0.85,
+				hints: true, emptyCredentials: "none"}},
 		{name: "the platform layout, named", doc: `{"layout":"platform"}`, want: defaults},
 		{name: "the nodes layout", doc: `{"layout":"nodes"}`,
-			want: view{namespace: "imported", reuseMode: "hints-only", renderMode: "human", layout: "nodes", threshold: 0.85,
+			want: view{namespace: "imported", reuseMode: "auto-apply-above-threshold", renderMode: "human", layout: "nodes", threshold: 0.85,
 				hints: true, nodes: true, emptyCredentials: "none"}},
 		{name: "a layout that is neither, kept for the warning", doc: `{"layout":"graph"}`,
-			want: view{namespace: "imported", reuseMode: "hints-only", renderMode: "human", layout: "graph", threshold: 0.85,
+			want: view{namespace: "imported", reuseMode: "auto-apply-above-threshold", renderMode: "human", layout: "graph", threshold: 0.85,
 				hints: true, emptyCredentials: "none"}},
 		{name: "credentials emptied as marked", doc: `{"empty_credentials":"marked"}`,
-			want: view{namespace: "imported", reuseMode: "hints-only", renderMode: "human", layout: "platform", threshold: 0.85,
+			want: view{namespace: "imported", reuseMode: "auto-apply-above-threshold", renderMode: "human", layout: "platform", threshold: 0.85,
 				hints: true, emptyCredentials: "marked"}},
 		{name: "every credential emptied", doc: `{"empty_credentials":"all","layout":"nodes"}`,
-			want: view{namespace: "imported", reuseMode: "hints-only", renderMode: "human", layout: "nodes", threshold: 0.85,
+			want: view{namespace: "imported", reuseMode: "auto-apply-above-threshold", renderMode: "human", layout: "nodes", threshold: 0.85,
 				hints: true, nodes: true, emptyCredentials: "all"}},
 		{name: "no credential emptied, named", doc: `{"empty_credentials":"none"}`, want: defaults},
 		{name: "the credential setting read past a sibling that does not decode",
 			doc: `{"mapping_overrides":7,"empty_credentials":"all"}`,
-			want: view{namespace: "imported", reuseMode: "hints-only", renderMode: "human", layout: "platform", threshold: 0.85,
+			want: view{namespace: "imported", reuseMode: "auto-apply-above-threshold", renderMode: "human", layout: "platform", threshold: 0.85,
 				hints: true, emptyCredentials: "all"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -672,7 +715,7 @@ func TestMappingOverridesTakePrecedence(t *testing.T) {
 // TestARequestForAnotherFormatYieldsNoNodes hands the importer a request for a
 // format it does not serve: the source is parsed as the served syntax, yields no
 // nodes, and is reported by the no-nodes warning, leaving an Aggregate with no
-// components.
+// components and the Release beside it.
 func TestARequestForAnotherFormatYieldsNoNodes(t *testing.T) {
 	p := &parseRecorder{}
 	out := Import(aggrega.ImportInput{Format: "otherflow", Bytes: []byte(renderSource)}, testFormat(), p.parse)
@@ -684,8 +727,10 @@ func TestARequestForAnotherFormatYieldsNoNodes(t *testing.T) {
 	if !reflect.DeepEqual(out.Diagnostics, wantDiag) {
 		t.Errorf("the import raised %+v, want %+v", out.Diagnostics, wantDiag)
 	}
-	if len(out.Decisions) != 0 || len(out.Entities) != 1 || out.Entities[0].Kind != "Aggregate" {
-		t.Errorf("the import recorded %+v and emitted %+v; want no decision and the Aggregate alone", out.Decisions, out.Entities)
+	if len(out.Decisions) != 0 || len(out.Entities) != 2 || out.Entities[0].Kind != "Aggregate" ||
+		out.Entities[1].Kind != "Release" {
+		t.Errorf("the import recorded %+v and emitted %+v; want no decision, the Aggregate and the Release", out.Decisions,
+			out.Entities)
 	}
 	if strings.Contains(out.Entities[0].Body, "type:") {
 		t.Errorf("the Aggregate composes a component:\n%s", out.Entities[0].Body)
@@ -721,7 +766,7 @@ func TestSeveralSources(t *testing.T) {
 	if want := []string{"a.json#model-1", "a.json#use", "b.json#model-1", "b.json#use"}; !reflect.DeepEqual(refs, want) {
 		t.Errorf("the decisions reference %v, want %v", refs, want)
 	}
-	agg := out.Entities[len(out.Entities)-1].Body
+	agg := aggregateFile(out)
 	for _, want := range []string{
 		"    use:\n      type: imported/component/custompythoncomponent\n      uses:\n        model-1:\n",
 		"    use-2:\n      type: imported/component/custompythoncomponent\n      uses:\n        model-1-2:\n",

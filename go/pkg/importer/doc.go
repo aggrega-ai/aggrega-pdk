@@ -27,14 +27,17 @@
 // The package gives them the rest. [Import] parses each source through the
 // callback, walks it, scores every node against the Components of the
 // workspace's catalog the request carries, decides whether to reference a
-// component or draft a new one, renders each drafted Component and the Aggregate
-// composing them, and renders the whole result into files. The Aggregate is
-// named after the source, through the name the format's Title reads off it or
-// the name of the directory or the file the import was handed, as [DraftName]
-// names it; an
-// importer drafting an Aggregate or a Release of its own names it through
-// DraftName too. [NodeList], [EdgeList]
-// and [ObjectEntries] read the shapes a walker commonly meets in a canonical tree.
+// component or draft a new one, renders each drafted Component, the Aggregate
+// composing them and the Release deploying it, and renders the whole result into
+// files. The Aggregate is named after the source, through the name the format's
+// Title reads off it or the name of the directory or the file the import was
+// handed, as [DraftName] names it; an importer drafting an Aggregate of its own
+// names it through DraftName too. Every drafted Release is written by
+// [DraftRelease], which names it as DraftName names the Aggregate it deploys:
+// the package's own drafts and every importer drafting its own Aggregate draft
+// the Release beside it through it, so a drafted Release reads alike whichever
+// importer drafts it. [NodeList], [EdgeList] and [ObjectEntries] read the shapes
+// a walker commonly meets in a canonical tree.
 //
 // # Scoring and decisions
 //
@@ -58,11 +61,12 @@
 // host's view holds one entry per Component name, so the order it lists them in
 // decides nothing a decision records.
 //
-// Every node is drafted as a new Component unless the reuse mode is
-// auto-apply-above-threshold and its best candidate is a HIGH match scoring at
-// or above the reuse threshold, in which case the candidate is referenced. A
-// drafted node records how strongly its best candidate matched, and a HIGH or
-// MEDIUM match is written into the drafts as an inline hint.
+// A node whose best candidate is a HIGH match scoring at or above the reuse
+// threshold references that candidate, under the default reuse mode,
+// auto-apply-above-threshold; every other node is drafted as a new Component, and
+// so is every node under the reuse mode hints-only. A drafted node records how
+// strongly its best candidate matched, and a HIGH or MEDIUM match is written into
+// the drafts as an inline hint.
 //
 // # The platform layout
 //
@@ -127,8 +131,9 @@
 // whose chomping keeps its trailing line breaks. A source holding any other
 // character such a block cannot carry as written is not carried, and the import
 // says which character and where. The platform's own inputs no source supplies,
-// and what of each wired part the Release supplies, are named in a comment
-// above its instance, left for the Release.
+// the credential it presents on each connection, and what of each wired part the
+// Release supplies are left for the Release on the drafted Release's entries —
+// the instance's and each part's — each under the key path it is written at.
 //
 // Those values are located in a source's bytes read as JSON, unless its format
 // writes them in its own syntax: a format whose sources are not JSON documents writes
@@ -147,9 +152,10 @@
 // configures for itself — a model and its provider, a tool, a knowledge base, a
 // plugin — is reported in the node's decision and in a
 // part-configured-in-platform warning. No identifier is written; the platform's
-// inputs no source supplies are named in a comment above the entry, and so is
-// that an import sees the Components of the workspace's catalog and none of its
-// Aggregates, so it does not check that the catalog holds the module.
+// inputs no source supplies are left on the drafted Release's routing entry for
+// the module, and a comment above the Aggregate's entry says that an import sees
+// the Components of the workspace's catalog and none of its Aggregates, so it
+// does not check that the catalog holds the module.
 //
 // A part the draft references whose Component declares a value named model —
 // as every model Component of the standard library does, taking the name of the
@@ -161,9 +167,11 @@
 // attachment of its own declared in the Aggregate — as a target reading every
 // secret the Release alone attaches under one default key needs its secret
 // declared with a key of its own, so it and a connection's credential do not
-// arrive under one key — is drafted alike for every target, and a comment
-// inside its instance shows that target's lines, commented out where they
-// belong, for an author building for it to uncomment.
+// arrive under one key — is drafted for the target the import is given, which
+// the request carries: an import for that target declares the attachment inside
+// the instance, an import for another target leaves it out, and an import naming
+// no target shows that target's lines in a comment inside the instance,
+// commented out where they belong, for an author building for it to uncomment.
 //
 // Where the attach_egress_allowlist setting is true, each instance carries
 // core/egress-allowlist under features, the decision of each wired part says
@@ -182,8 +190,9 @@
 //     <namespace>/<category>/<name> for a Component and <namespace>/<name> for
 //     the Aggregate, its <name> named after the source as [DraftName] names it;
 //     default imported.
-//   - reuse_mode: hints-only (the default), which references nothing, or
-//     auto-apply-above-threshold.
+//   - reuse_mode: auto-apply-above-threshold (the default), which references a
+//     HIGH match scoring at or above reuse_threshold, or hints-only, which
+//     references nothing and records each match as a hint.
 //   - reuse_threshold: the score at or above which auto-apply references a
 //     HIGH match; default 0.85.
 //   - emit_hints: whether hints are written into the drafts as comments;
@@ -196,7 +205,8 @@
 //     which drafts nothing; a draft made node by node reads no value, and so
 //     does not read this setting.
 //   - render_mode: human (the default), one file per drafted Component plus
-//     the Aggregate, or llm, the whole decision record as one JSON document.
+//     the Aggregate and the Release, or llm, the whole decision record as one
+//     JSON document.
 //   - mapping_overrides: format, then node type, then a mapping with the keys
 //     component, category, traits and vendor, taking precedence over the
 //     importer's own mapping arm.
@@ -207,9 +217,9 @@
 //   - attach_egress_allowlist: whether each platform instance the platform
 //     layout drafts carries core/egress-allowlist, attached as egress-allowlist,
 //     so the platform connects only to the components it is wired to; default
-//     false. The draft sets none of the Feature's infrastructure and names, in
-//     the comment above the instance, the two members the Release sets:
-//     infra.control_plane_present and infra.admitted_destinations. A draft made
+//     false. The draft sets none of the Feature's infrastructure, and the
+//     drafted Release's entry for the instance leaves the two members the
+//     Release sets: infra.control_plane_present and infra.admitted_destinations. A draft made
 //     node by node attaches nothing, and the import warns where this is true.
 //
 // # Building and testing

@@ -35,7 +35,8 @@ func platformTestFormat() Format {
 		Identifier:      testFlowID,
 		Credentials:     testCredentials,
 		Match:           testMatch,
-		LeftForRelease:  []string{"infra.image, the image running the platform", "the admin slot, the administrator's password"},
+		LeftForRelease: []LeftItem{{Path: "infra.image", Text: "the image running the platform"},
+			{Text: "the admin slot, the administrator's password"}},
 	}
 	return f
 }
@@ -185,9 +186,37 @@ metadata:
 spec: {}
 `
 
+// renderedPlatformRelease is the Release drafted for platformSource: an entry for
+// the platform's instance, naming what the platform leaves for the Release and
+// the credential it presents on each connection, and an empty entry for each part
+// wired to it, in the Aggregate's order.
+const renderedPlatformRelease = `apiVersion: aggrega.ai/v1beta1
+kind: Release
+metadata:
+  name: imported/flow
+  # environment is a drafted default, since no source names the environment this Release deploys to; change it to name the one it deploys to.
+  environment: development
+  version: 0.1.0
+  description: Draft Release imported from a source in the testflow format.
+spec:
+  aggregate: imported/flow
+  # manifest: left empty, since the import was given no target; an import given a target drafts the Manifest and names it here.
+  manifest: ""
+  components:
+    # Left for the Release, since the source cannot supply it:
+    #   - infra.image, the image running the platform
+    #   - the admin slot, the administrator's password
+    #   - uses.model.model-1.features.credential, the credential testplat presents to model-1 on its model connection
+    #   - uses.tools.finder.features.credential, the credential testplat presents to finder on its tools connection
+    testplat: {}
+    model-1: {}
+    finder: {}
+`
+
 // renderedPlatformAggregate is the Aggregate drafted for platformSource under the
-// default settings, its definition written with the double braces escaped by the
-// test's own spelling of the escape.
+// hints-only reuse mode and otherwise the default settings, its definition
+// written with the double braces escaped by the test's own spelling of the
+// escape.
 func renderedPlatformAggregate() string {
 	escaped := strings.Replace(platformSourceLine, "{{question}}", `{{"{{"}}question}}`, 1)
 	return `apiVersion: aggrega.ai/v1beta1
@@ -198,10 +227,6 @@ metadata:
   description: Draft Aggregate imported from a source in the testflow format.
 spec:
   components:
-    # Left for the Release, since the source cannot supply it:
-    #   - infra.image, the image running the platform
-    #   - the admin slot, the administrator's password
-    #   - the credential each connection under uses presents to the part it reaches, attached on that connection
     testplat:
       type: core/ai-agent/testplat
       values:
@@ -243,16 +268,19 @@ func decisionOf(t *testing.T, out aggrega.ImportOutput, ref string) aggrega.Impo
 // sockets' order, each drafted as the node-by-node draft drafts it; the custom
 // node and the chat output stay in the flow and become no Component. Every node
 // keeps a decision: a wired part says where it is wired, and a node the flow keeps
-// chooses nothing, offers no swap and says why it is kept. An attachment writing
-// layout: platform drafts exactly the same.
+// chooses nothing, offers no swap and says why it is kept. The Release beside the
+// Aggregate holds an entry for the instance and for each part. An attachment
+// writing layout: platform drafts exactly the same. The import asks for the
+// hints-only reuse mode, so the HIGH model match is drafted and its rendering read.
 func TestThePlatformLayoutDraftsThePlatformCarryingTheFlow(t *testing.T) {
 	t.Parallel()
-	out := platformImport(t, platformTestFormat(), platformCatalog(), "", oneSource(platformSource))
+	out := platformImport(t, platformTestFormat(), platformCatalog(), hintsOnly, oneSource(platformSource))
 
 	want := []aggrega.ScaffoldFile{
 		{Path: "components/imported-ai-model-openaimodel.yaml", Content: renderedModel},
 		{Path: "components/imported-ai-tool-finder.yaml", Content: renderedFinder},
 		{Path: "aggregate.yaml", Content: renderedPlatformAggregate()},
+		{Path: ReleaseFileName, Content: renderedPlatformRelease},
 	}
 	if !reflect.DeepEqual(out.Files, want) {
 		t.Errorf("the platform draft wrote\n%+v\nwant\n%+v", out.Files, want)
@@ -270,6 +298,7 @@ func TestThePlatformLayoutDraftsThePlatformCarryingTheFlow(t *testing.T) {
 		"Component draft imported/ai-model/openaimodel",
 		"Component draft imported/ai-tool/finder",
 		"Aggregate draft imported/flow",
+		"Release draft imported/flow",
 	}
 	if !reflect.DeepEqual(kinds, wantKinds) {
 		t.Errorf("the import emitted %v, want %v", kinds, wantKinds)
@@ -317,7 +346,8 @@ func TestThePlatformLayoutDraftsThePlatformCarryingTheFlow(t *testing.T) {
 		t.Errorf("the import recorded %d decisions, want one per node", len(out.Decisions))
 	}
 
-	named := platformImport(t, platformTestFormat(), platformCatalog(), `{"layout":"platform"}`, oneSource(platformSource))
+	named := platformImport(t, platformTestFormat(), platformCatalog(), `{"layout":"platform","reuse_mode":"hints-only"}`,
+		oneSource(platformSource))
 	a, _ := json.Marshal(out)
 	b, _ := json.Marshal(named)
 	if !bytes.Equal(a, b) {
@@ -386,7 +416,7 @@ func TestAPartNoSocketTakesStaysInTheFlowAndIsReported(t *testing.T) {
 		if !reflect.DeepEqual(out.Diagnostics, want) {
 			t.Errorf("the import raised %+v, want %+v", out.Diagnostics, want)
 		}
-		if agg := out.Files[len(out.Files)-1].Content; strings.Contains(agg, "uses:") || strings.Contains(agg, "    w:\n") {
+		if agg := aggregateFile(out); strings.Contains(agg, "uses:") || strings.Contains(agg, "    w:\n") {
 			t.Errorf("a part placed nowhere was drafted or wired:\n%s", agg)
 		}
 	})
@@ -414,7 +444,7 @@ func TestAPartNoSocketTakesStaysInTheFlowAndIsReported(t *testing.T) {
 		if !reflect.DeepEqual(out.Diagnostics, want) {
 			t.Errorf("the import raised %+v, want %+v", out.Diagnostics, want)
 		}
-		if agg := out.Files[len(out.Files)-1].Content; !strings.Contains(agg, "        model:\n          model-1:\n") ||
+		if agg := aggregateFile(out); !strings.Contains(agg, "        model:\n          model-1:\n") ||
 			!strings.Contains(agg, "        tools:\n          finder:\n") {
 			t.Errorf("the parts were not wired past the unreadable socket:\n%s", agg)
 		}
@@ -430,17 +460,25 @@ func TestACatalogHoldingNoPlatformDraftsItAndWiresNothing(t *testing.T) {
 	t.Parallel()
 	out := platformImport(t, platformTestFormat(), standardCatalog, "", oneSource(platformSource))
 
-	if len(out.Files) != 1 || out.Files[0].Path != "aggregate.yaml" {
-		t.Fatalf("the import drafted %+v; want the Aggregate alone", out.Files)
+	if len(out.Files) != 2 || out.Files[0].Path != "aggregate.yaml" || out.Files[1].Path != ReleaseFileName {
+		t.Fatalf("the import drafted %+v; want the Aggregate and the Release alone", out.Files)
 	}
 	agg := out.Files[0].Content
+	if release := out.Files[1].Content; !strings.HasSuffix(release, "  components:\n"+
+		"    # Left for the Release, since the source cannot supply it:\n"+
+		"    #   - infra.image, the image running the platform\n"+
+		"    #   - the admin slot, the administrator's password\n"+
+		"    testplat: {}\n") {
+		t.Errorf("the Release does not name the platform's instance alone, leaving no connection's credential:\n%s",
+			release)
+	}
 	for _, want := range []string{"    testplat:\n      type: core/ai-agent/testplat\n", "        flow_id: 'flow-7'\n",
 		"        flow_definition: |\n"} {
 		if !strings.Contains(agg, want) {
 			t.Errorf("the Aggregate does not carry %q:\n%s", want, agg)
 		}
 	}
-	if strings.Contains(agg, "uses:") || strings.Contains(agg, "the credential each connection") {
+	if strings.Contains(agg, "uses:") {
 		t.Errorf("the Aggregate wires a part to a platform the catalog does not hold:\n%s", agg)
 	}
 
@@ -513,7 +551,8 @@ const (
 // each class the test's format locates — in a field it marks as a credential, in
 // an argument a server is started with, and in a header it marks as none — and
 // imports the flow under the empty_credentials setting absent and at each value
-// it takes:
+// it takes, each under the hints-only reuse mode, so the Aggregate read is the
+// one renderedPlatformAggregate pins:
 //
 //   - absent and none write nothing empty: the flow is carried byte for byte,
 //     every planted value in it as written and in the order written, and one
@@ -568,9 +607,10 @@ func TestTheEmptyCredentialsSettingDecidesWhatIsCarried(t *testing.T) {
 		name, settings, aggregate string
 		diagnostics               []aggrega.Diagnostic
 	}{
-		{name: "absent", aggregate: asWritten, diagnostics: defaultWarnings},
-		{name: "none", settings: `{"empty_credentials":"none"}`, aggregate: asWritten, diagnostics: defaultWarnings},
-		{name: "marked", settings: `{"empty_credentials":"marked"}`,
+		{name: "absent", settings: hintsOnly, aggregate: asWritten, diagnostics: defaultWarnings},
+		{name: "none", settings: `{"empty_credentials":"none","reuse_mode":"hints-only"}`, aggregate: asWritten,
+			diagnostics: defaultWarnings},
+		{name: "marked", settings: `{"empty_credentials":"marked","reuse_mode":"hints-only"}`,
 			aggregate: carriedAs("", "", "", "Bearer "+plantedUnmarked),
 			diagnostics: []aggrega.Diagnostic{
 				emptiedWarning("model-1", "api_key", ""),
@@ -578,7 +618,7 @@ func TestTheEmptyCredentialsSettingDecidesWhatIsCarried(t *testing.T) {
 				emptiedWarning("finder", "args.1", testArgumentDetail),
 				carriedWarning("finder", "headers.Authorization", unmarkedWhy, "all"),
 			}},
-		{name: "all", settings: `{"empty_credentials":"all"}`, aggregate: carriedAs("", "", "", ""),
+		{name: "all", settings: `{"empty_credentials":"all","reuse_mode":"hints-only"}`, aggregate: carriedAs("", "", "", ""),
 			diagnostics: []aggrega.Diagnostic{
 				emptiedWarning("model-1", "api_key", ""),
 				emptiedWarning("finder", "args.0", testArgumentDetail),
@@ -588,7 +628,7 @@ func TestTheEmptyCredentialsSettingDecidesWhatIsCarried(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			out := platformImport(t, platformTestFormat(), platformCatalog(), tc.settings, oneSource(source))
-			if agg := out.Files[len(out.Files)-1].Content; agg != tc.aggregate {
+			if agg := aggregateFile(out); agg != tc.aggregate {
 				t.Errorf("the Aggregate is not the source carried as the setting asks:\n%s\nwant\n%s", agg, tc.aggregate)
 			}
 			if !reflect.DeepEqual(out.Diagnostics, tc.diagnostics) {
@@ -621,8 +661,8 @@ func TestTheEmptyCredentialsSettingDecidesWhatIsCarried(t *testing.T) {
 }
 
 // noPlantedValueOutsideTheFlow fails the test where a planted value reaches a
-// diagnostic or a decision of out, a drafted file other than the Aggregate, or
-// a line of the Aggregate outside the flow it carries.
+// diagnostic or a decision of out, a drafted file other than the Aggregate — the
+// Release among them — or a line of the Aggregate outside the flow it carries.
 func noPlantedValueOutsideTheFlow(t *testing.T, out aggrega.ImportOutput, planted []string) {
 	t.Helper()
 	reported, err := json.Marshal(struct {
@@ -636,8 +676,8 @@ func noPlantedValueOutsideTheFlow(t *testing.T, out aggrega.ImportOutput, plante
 		if strings.Contains(string(reported), needle) {
 			t.Errorf("%s reaches a diagnostic or a decision:\n%s", needle, reported)
 		}
-		for i, f := range out.Files {
-			if i < len(out.Files)-1 {
+		for _, f := range out.Files {
+			if f.Path != "aggregate.yaml" {
 				if strings.Contains(f.Content, needle) {
 					t.Errorf("%s reaches %s:\n%s", needle, f.Path, f.Content)
 				}
@@ -717,7 +757,7 @@ func TestADraftingImporterDecidesAsThePlatformDraftDoes(t *testing.T) {
 				t.Fatalf("the decision refused the document: %v", err)
 			}
 			out := platformImport(t, platformTestFormat(), platformCatalog(), settings, oneSource(doc+"\n"))
-			agg := out.Files[len(out.Files)-1].Content
+			agg := aggregateFile(out)
 			if !strings.Contains(agg, "          "+strings.Replace(string(written), "{{question}}", `{{"{{"}}question}}`, 1)+
 				"\n") {
 				t.Errorf("the drafted document reads\n%s\nwhich is not the flow the platform draft carries:\n%s", written, agg)
@@ -758,7 +798,7 @@ func TestAFlowABlockCannotCarryIsNotCarried(t *testing.T) {
 	if !reflect.DeepEqual(out.Diagnostics, want) {
 		t.Errorf("the import raised %+v, want %+v", out.Diagnostics, want)
 	}
-	agg := out.Files[len(out.Files)-1].Content
+	agg := aggregateFile(out)
 	if strings.Contains(agg, "flow_definition: |") || !strings.Contains(agg,
 		"        # flow_definition is left unset: the import's diagnostics say why the flow is not carried.\n") {
 		t.Errorf("the Aggregate does not leave the definition unset with a comment:\n%s", agg)
@@ -790,7 +830,7 @@ func TestTheFlowIdentifier(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			out := platformImport(t, platformTestFormat(), platformCatalog(), "", oneSource(tc.source))
-			if agg := out.Files[len(out.Files)-1].Content; !strings.Contains(agg, tc.want) {
+			if agg := aggregateFile(out); !strings.Contains(agg, tc.want) {
 				t.Errorf("the Aggregate does not carry\n%s\nit reads\n%s", tc.want, agg)
 			}
 		})
@@ -812,7 +852,7 @@ func TestSeveralSourcesDraftOnePlatformInstanceEach(t *testing.T) {
 	if len(out.Diagnostics) != 1 || out.Diagnostics[0].Code != "parse-failed" || out.Diagnostics[0].SourceRef != "broken.json" {
 		t.Errorf("the import raised %+v; want the one source that does not parse halted by name", out.Diagnostics)
 	}
-	agg := out.Files[len(out.Files)-1].Content
+	agg := aggregateFile(out)
 	for _, want := range []string{
 		"    testplat:\n      type: core/ai-agent/testplat\n",
 		"    testplat-2:\n      type: core/ai-agent/testplat\n",
