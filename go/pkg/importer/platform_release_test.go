@@ -146,6 +146,30 @@ func TestThePlatformDraftsItsImageAndItsSecretsForTheTarget(t *testing.T) {
 	}
 }
 
+// TestThePlatformSetsItsValuesOnEveryTarget imports platformSource under
+// releasingFormat setting one value of its own, for compose, for helm and for no
+// target: on each the platform's entry sets it beneath its comment, after its
+// image.
+//
+// 🔴 PLANTED DEFECT: in instanceEntry (platform.go), drop the line appending
+// the platform's Values: every row fails, no value written.
+func TestThePlatformSetsItsValuesOnEveryTarget(t *testing.T) {
+	t.Parallel()
+	format := releasingFormat("testplat/server:2.0.0")
+	format.Platform.Values = []ReleaseValue{{Path: "infra.registry_enabled", Value: "true",
+		Comment: "Lets the platform reach its registry."}}
+	want := "        image: \"testplat/server:2.0.0\"\n" +
+		"        # Lets the platform reach its registry.\n" +
+		"        registry_enabled: true\n"
+	for _, target := range []string{"compose", "helm", ""} {
+		in := aggrega.ImportInput{Format: testFormatName, Catalog: platformCatalog(), Bytes: []byte(platformSource),
+			Target: target}
+		if release := releaseFile(Import(in, format, (&parseRecorder{}).parse)); !strings.Contains(release, want) {
+			t.Errorf("target %q: the Release does not hold\n%s\nit reads\n%s", target, want, release)
+		}
+	}
+}
+
 // TestThePlatformPublishesItsPortsForCompose imports platformSource, and the
 // same source twice under two names, under releasingFormat publishing 7000, for
 // compose and for helm: for compose the platform's entry sets

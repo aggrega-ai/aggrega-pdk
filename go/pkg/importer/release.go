@@ -141,6 +141,21 @@ type PublishedPort struct {
 	// states the host side it publishes: it is never moved, so a stated port two
 	// instances take is written as the source states it twice.
 	Stated bool
+	// AddressAt are key paths, relative to the entry, at which the draft also
+	// writes the address the port is reached at from this machine,
+	// http://127.0.0.1:<port>, as a string, with the port as written — moved where
+	// it is moved — for a component that must be told where another is reached,
+	// as a server admitting a browser's requests only from the page it serves at
+	// that address. Each is written where the port is, on compose alone, after the
+	// ports, with no comment of its own: a path whose mapping holds a published
+	// port is written beneath that port's comment. Empty writes none.
+	AddressAt []string
+}
+
+// loopbackAddress is the address a port published on the host's loopback
+// address is reached at from this machine.
+func loopbackAddress(port int) string {
+	return "http://127.0.0.1:" + strconv.Itoa(port)
 }
 
 // path is the key path, relative to the entry, p is written at.
@@ -474,7 +489,7 @@ func writeReleaseEntries(b *strings.Builder, indent, key string, entries []Relea
 // left items it does not write into the body, in their order: those naming no
 // key, those whose value is no string, and those whose key the body already
 // writes. e's Published are the ports publishedPorts resolved for target, each
-// written beneath publishedComment.
+// written beneath publishedComment, then the addresses their AddressAt name.
 func entryBody(e ReleaseEntry, target string) ([]*bodyNode, []LeftItem) {
 	body := parseBody(e.Lines)
 	for _, v := range e.Values {
@@ -498,6 +513,11 @@ func entryBody(e ReleaseEntry, target string) ([]*bodyNode, []LeftItem) {
 	for _, p := range e.Published {
 		place(&body, p.path(), commentNodes(publishedComment),
 			&bodyNode{text: publishedPortKey + ": " + strconv.Itoa(p.Port)})
+	}
+	for _, p := range e.Published {
+		for _, at := range p.AddressAt {
+			place(&body, at, nil, &bodyNode{text: leaf(at) + ": " + QuotedString(loopbackAddress(p.Port))})
+		}
 	}
 	for _, s := range e.Secrets {
 		place(&body, s.Path, nil, secretNode(s, target))

@@ -682,6 +682,46 @@ func publishedPortLines(indent string, port int) string {
 		indent + "published_port: " + strconv.Itoa(port) + "\n"
 }
 
+// TestAPublishedPortsAddressIsWrittenWhereItIsNamed pins how DraftRelease
+// writes the address a port names in AddressAt, for compose, for helm and for
+// no target: for compose as http://127.0.0.1:<port>, double-quoted, at the path
+// named — on a second entry publishing the same port, the port it is moved to —
+// after the ports, so beneath the comment of a port the same mapping publishes;
+// for helm and for no target not at all, as no port is.
+//
+// 🔴 PLANTED DEFECTS:
+//   - in entryBody (release.go), drop the loop writing each AddressAt: the
+//     compose row fails, no console_url written;
+//   - in loopbackAddress, return a fixed port: the compose row fails, b's
+//     address not following its moved port 3002.
+func TestAPublishedPortsAddressIsWrittenWhereItIsNamed(t *testing.T) {
+	t.Parallel()
+	ports := []PublishedPort{
+		{At: "components.api", Port: 5001},
+		{At: "components.console", Port: 3001, AddressAt: []string{"components.api.infra.console_url"}},
+	}
+	entries := []ReleaseEntry{{Key: "a", Published: ports}, {Key: "b", Published: ports}}
+	entry := func(key string, api, console int) string {
+		return "    " + key + ":\n      components:\n" +
+			"        api:\n          infra:\n" + publishedPortLines("            ", api) +
+			"            console_url: \"http://127.0.0.1:" + strconv.Itoa(console) + "\"\n" +
+			"        console:\n          infra:\n" + publishedPortLines("            ", console)
+	}
+	for _, row := range []struct {
+		scenario, target, want string
+	}{
+		{"compose", "compose", "  components:\n" + entry("a", 5001, 3001) + entry("b", 5002, 3002)},
+		{"helm", "helm", "  components:\n    a: {}\n    b: {}\n"},
+		{"no target", "", "  components:\n    a: {}\n    b: {}\n"},
+	} {
+		in := aggrega.ImportInput{Format: testFormatName, Target: row.target}
+		out := DraftRelease(in, draftedAggregate("imported/flow"), ReleaseDraft{Entries: entries})
+		if want := releaseHead("imported/flow") + row.want; out[0].Body != want {
+			t.Errorf("%s: DraftRelease wrote\n%s\nwant\n%s", row.scenario, out[0].Body, want)
+		}
+	}
+}
+
 // TestAPublishedPortIsWrittenForComposeAndNeverTwice pins how DraftRelease writes
 // the ports entries publish, for compose, for helm and for no target: for compose
 // each as infra.published_port beneath the one comment, a port a Stated port

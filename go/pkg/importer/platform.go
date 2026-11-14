@@ -201,6 +201,13 @@ type Platform struct {
 	// describes, where the import's target is compose, a second instance's ports
 	// moved to numbers the first's do not take. Nil publishes none.
 	Published []PublishedPort
+	// Values are values the drafted Release's entry for every instance of the
+	// platform sets on every target, each at its path relative to that entry, as
+	// LeftForRelease's paths are, beneath its comment, after the image: a setting
+	// of the platform's own Components that every source drafted for it needs, such
+	// as a switch the platform's catalog entry leaves off and the platform's
+	// applications rely on. Nil sets none.
+	Values []ReleaseValue
 	// Secrets are the platform's own secret slots the drafted Release's entry for
 	// the platform's instance attaches, each as [Secret] describes, its path
 	// relative to that entry, as LeftForRelease's are. Outside the module form the
@@ -706,7 +713,7 @@ func (d *platformDraft) release(in aggrega.ImportInput, aggregate aggrega.Emitte
 
 // instanceEntry is the Release's entry for a platform instance: the image the
 // platform names, under a comment naming the version the source states where it
-// differs; the ports it publishes; the platform's own LeftForRelease, the
+// differs; the platform's own Values; the ports it publishes; the platform's own LeftForRelease, the
 // platform's own secrets, and,
 // outside the module form, the credential the instance presents on each
 // connection it draws — attached where [Platform.CredentialVariables] names its
@@ -721,6 +728,7 @@ func (d *platformDraft) instanceEntry(inst *platformInstance) ReleaseEntry {
 		entry.Values = append(entry.Values, ReleaseValue{Path: "infra.image", Value: QuotedString(p.Image),
 			Comment: imageComment(p, inst.sourceVersion)})
 	}
+	entry.Values = append(entry.Values, p.Values...)
 	if p.Module != nil {
 		return entry
 	}
