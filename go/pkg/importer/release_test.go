@@ -232,41 +232,44 @@ func TestDraftReleaseWritesTheReleaseOfTheDraft(t *testing.T) {
 // for compose and for no target, and as core/referenced-secret whose origin is
 // written empty — the Secret's name, left for the Release — for helm, a draft
 // then also writing a Manifest mapping core/referenced-secret to
-// helm/k8s-existing-secret; a secret marked Referenced takes the referenced
-// form for every target, and the Manifest only for helm. No row writes a value:
-// the only origin written is a variable reference or an empty string.
+// helm/k8s-existing-secret; a secret marked Referenced is attached as
+// core/referenced-secret for every target, its origin the variable reference
+// for compose and the Secret's name for helm, the Manifest drafted only for
+// helm. No row writes a value: the only origin written is a variable reference
+// or an empty string.
 //
-// 🔴 PLANTED DEFECT: in Secret.referenced (release.go), return s.Referenced
-// alone: the helm rows fail, writing core/secret-value and no Manifest.
+// 🔴 PLANTED DEFECT: in Secret.Form (secret.go), return the referenced form for
+// a Referenced secret ahead of the helm case: the referenced helm row fails,
+// writing a variable reference and no Manifest.
 func TestASecretIsWrittenForTheTargetAsAReference(t *testing.T) {
 	t.Parallel()
 	credential := ConnectionCredential("flow", "model", "gpt", "gpt", "OPENAI_API_KEY")
-	byValue := "      uses:\n" +
-		"        model:\n" +
-		"          gpt:\n" +
-		"            features:\n" +
-		"              credential:\n" +
-		"                type: core/secret-value\n" +
-		"                infra:\n" +
-		"                  # Attached by reference, never as a value: the credential flow presents to gpt on its " +
-		"model connection, read from the variable OPENAI_API_KEY, which a target substituting variable references, " +
-		"as Docker Compose does when the stack starts, reads from the environment, so no file carries the value.\n" +
-		"                  origin: \"${OPENAI_API_KEY}\"\n"
-	referenced := func(holds string) string {
+	byVariable := func(typ string) string {
 		return "      uses:\n" +
 			"        model:\n" +
 			"          gpt:\n" +
 			"            features:\n" +
 			"              credential:\n" +
-			"                type: core/referenced-secret\n" +
+			"                type: " + typ + "\n" +
 			"                infra:\n" +
-			"                  # Left for the Release, since the source cannot supply it: " + holds + ".\n" +
-			"                  origin: \"\"\n"
+			"                  # Attached by reference, never as a value: the credential flow presents to gpt on " +
+			"its model connection, read from the variable OPENAI_API_KEY, which a target substituting variable " +
+			"references, as Docker Compose does when the stack starts, reads from the environment, so no file " +
+			"carries the value.\n" +
+			"                  origin: \"${OPENAI_API_KEY}\"\n"
 	}
-	inHelm := referenced("the name of a Kubernetes Secret already in the namespace holding, under the data key " +
-		"value, the credential flow presents to gpt on its model connection")
-	elsewhere := referenced("the name of the secret resource holding the credential flow presents to gpt on its " +
-		"model connection, as the Manifest's realization of core/referenced-secret reads it")
+	byValue := byVariable("core/secret-value")
+	inHelm := "      uses:\n" +
+		"        model:\n" +
+		"          gpt:\n" +
+		"            features:\n" +
+		"              credential:\n" +
+		"                type: core/referenced-secret\n" +
+		"                infra:\n" +
+		"                  # Left for the Release, since the source cannot supply it: the name of a Kubernetes " +
+		"Secret already in the namespace holding, under the data key value, the credential flow presents to gpt on " +
+		"its model connection.\n" +
+		"                  origin: \"\"\n"
 	manifest := "apiVersion: aggrega.ai/v1beta1\n" +
 		"kind: Manifest\n" +
 		"metadata:\n" +
@@ -288,7 +291,8 @@ func TestASecretIsWrittenForTheTargetAsAReference(t *testing.T) {
 		{"compose", "compose", credential, byValue, ""},
 		{"no target", "", credential, byValue, ""},
 		{"helm", "helm", credential, inHelm, manifest},
-		{"referenced, compose", "compose", marked, elsewhere, ""},
+		{"referenced, compose", "compose", marked, byVariable("core/referenced-secret"), ""},
+		{"referenced, no target", "", marked, byVariable("core/referenced-secret"), ""},
 		{"referenced, helm", "helm", marked, inHelm, manifest},
 	} {
 		in := aggrega.ImportInput{Format: testFormatName, Target: row.target}
@@ -303,6 +307,69 @@ func TestASecretIsWrittenForTheTargetAsAReference(t *testing.T) {
 			t.Errorf("%s: DraftRelease returned %d entities, want the Release alone", row.scenario, len(out))
 		case row.wantManifest != "" && (len(out) != 2 || out[1].Kind != "Manifest" || out[1].Mode != "draft" ||
 			out[1].Name != "imported/flow" || out[1].Body != row.wantManifest):
+			t.Errorf("%s: DraftRelease returned %+v, want the Release and the Manifest\n%s", row.scenario, out,
+				row.wantManifest)
+		}
+	}
+}
+
+// TestASecretParameterIsWrittenForTheTarget pins how DraftRelease writes a
+// parameter holding a secret, after a parameter left empty, for each target an
+// import names, and for none: for compose and for none, holding the variable
+// reference ${SIGNING_KEY} beneath the comment saying it is passed by reference,
+// with no Manifest; for helm, holding an empty string — the Secret's name, owed —
+// beneath the comment a left parameter is written with, the draft also writing a
+// Manifest mapping core/referenced-secret to helm/k8s-existing-secret, though no
+// entry attaches a secret.
+//
+// 🔴 PLANTED DEFECT: in DraftRelease (release.go), drop the loop handing each
+// secret parameter to realize: the helm row fails, no Manifest written.
+func TestASecretParameterIsWrittenForTheTarget(t *testing.T) {
+	t.Parallel()
+	left := "  parameters:\n" +
+		"    # Left for the Release, since the source cannot supply it: region, the region\n" +
+		"    region: \"\"\n"
+	byVariable := left +
+		"    # Passed by reference, never as a value: signing_key, the key the platform signs with; it is read from " +
+		"the variable SIGNING_KEY, which a target substituting variable references, as Docker Compose does when the " +
+		"stack starts, reads from the environment, so no file carries the value.\n" +
+		"    signing_key: \"${SIGNING_KEY}\"\n"
+	byName := left +
+		"    # Left for the Release, since the source cannot supply it: signing_key, the key the platform signs with\n" +
+		"    signing_key: \"\"\n"
+	manifest := "apiVersion: aggrega.ai/v1beta1\n" +
+		"kind: Manifest\n" +
+		"metadata:\n" +
+		"  name: imported/flow\n" +
+		"  version: 0.1.0\n" +
+		"spec:\n" +
+		"  mappings:\n" +
+		"    features:\n" +
+		"      type:\n" +
+		"        core/referenced-secret: helm/k8s-existing-secret\n"
+	for _, row := range []struct {
+		scenario, target string
+		wantParameters   string
+		wantManifest     string
+	}{
+		{"compose", "compose", byVariable, ""},
+		{"no target", "", byVariable, ""},
+		{"helm", "helm", byName, manifest},
+	} {
+		in := aggrega.ImportInput{Format: testFormatName, Target: row.target}
+		out := DraftRelease(in, draftedAggregate("imported/flow"), ReleaseDraft{
+			Parameters: []LeftItem{{Path: "region", Text: "the region"}},
+			SecretParameters: []Secret{{Path: "signing_key", Variable: "SIGNING_KEY",
+				Text: "the key the platform signs with", Referenced: true}},
+			Entries: []ReleaseEntry{{Key: "flow"}}})
+		want := releaseHead("imported/flow") + row.wantParameters + "  components:\n    flow: {}\n"
+		if out[0].Body != want {
+			t.Errorf("%s: DraftRelease wrote\n%s\nwant\n%s", row.scenario, out[0].Body, want)
+		}
+		switch {
+		case row.wantManifest == "" && len(out) != 1:
+			t.Errorf("%s: DraftRelease returned %d entities, want the Release alone", row.scenario, len(out))
+		case row.wantManifest != "" && (len(out) != 2 || out[1].Kind != "Manifest" || out[1].Body != row.wantManifest):
 			t.Errorf("%s: DraftRelease returned %+v, want the Release and the Manifest\n%s", row.scenario, out,
 				row.wantManifest)
 		}

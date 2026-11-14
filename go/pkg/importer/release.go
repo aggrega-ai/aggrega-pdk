@@ -37,6 +37,16 @@ type ReleaseDraft struct {
 	// as its Path holding an empty string, with its Text in a comment directly
 	// above it, in the order given. Path is the parameter's name.
 	Parameters []LeftItem
+	// SecretParameters are the parameters of the drafted Aggregate the Release
+	// fulfills that hold a secret no source supplies, each written under the
+	// Release's spec.parameters, after Parameters, as its Path, in the order given,
+	// for the target in the form [Secret.Form] gives it: where the form names the
+	// secret by its resource, holding an empty string beneath the comment a left
+	// parameter is written with; otherwise holding the variable reference
+	// ${Variable}, beneath a comment saying it is passed by reference and where it
+	// is read from. Path is the parameter's name, and Text completes "<Path>, "
+	// in either comment.
+	SecretParameters []Secret
 	// Entries are the Release's entries, one per instance of the drafted
 	// Aggregate, in its order.
 	Entries []ReleaseEntry
@@ -159,7 +169,8 @@ func leftLine(item LeftItem) string {
 // beginning "# manifest:" saying why — a Release's spec requires the key, and an
 // empty one is a value still owed: where the import is given a target, the host
 // drafts the Manifest and writes its name in place of both lines — then the
-// parameters the draft leaves for the Release, each empty, then the entries:
+// parameters the draft leaves for the Release, each empty, and those holding a
+// secret, each as [ReleaseDraft.SecretParameters] says, then the entries:
 // under components where none is a module, and otherwise under the one boundary
 // [ReleaseDraft.Boundary] names, the instances under its components and the
 // modules under its aggregates, each in the order given. Every entry is written
@@ -175,14 +186,15 @@ func leftLine(item LeftItem) string {
 // is written by hand, so the key order is fixed and one draft writes one byte
 // sequence.
 //
-// Each secret is written for the request's target in the form [Secret.Form]
-// gives it. Where a form names a realization — a secret named by reference on
+// Each secret, an entry's or a parameter's, is written for the request's target in
+// the form [Secret.Form] gives it. Where a form names a realization — a secret named by reference on
 // helm, whose realization reading the name as a Secret already in the namespace
 // is one of several the catalog offers — or, the import naming a target, an
 // entry names its [ReleaseEntry.Realization], the draft also writes a Manifest,
 // named and versioned as the Release, mapping each such entry's instance by its
 // key to <target>/<realization>, in the order of the entries, and each such
-// secret type to its realization, in the order the secrets first name it; the
+// secret type to its realization, in the order the secrets first name it, the
+// parameters' first; the
 // host completes the rest of the Manifest. It returns the Release, then that
 // Manifest where there is one, as drafted entities, which the package's renderer
 // writes as [ReleaseFileName] and [ManifestFileName].
@@ -203,10 +215,15 @@ func DraftRelease(in aggrega.ImportInput, aggregate aggrega.EmittedEntity, draft
 	b.WriteString("  # manifest: left empty, since the import was given no target; an import given a target drafts the " +
 		"Manifest and names it here.\n")
 	b.WriteString("  manifest: \"\"\n")
-	if len(draft.Parameters) > 0 {
+	if len(draft.Parameters) > 0 || len(draft.SecretParameters) > 0 {
 		b.WriteString("  parameters:\n")
 		for _, param := range draft.Parameters {
-			for _, n := range append(commentNodes(leftHeading+" "+leftLine(param)), &bodyNode{text: param.Path + ": \"\""}) {
+			for _, n := range leftParameterNodes(param) {
+				n.write(&b, "    ", "    ")
+			}
+		}
+		for _, s := range draft.SecretParameters {
+			for _, n := range secretParameterNodes(s, in.Target) {
 				n.write(&b, "    ", "    ")
 			}
 		}
@@ -215,6 +232,15 @@ func DraftRelease(in aggrega.ImportInput, aggregate aggrega.EmittedEntity, draft
 	var components, modules []ReleaseEntry
 	var realized, named []string
 	realization := map[string]string{}
+	realize := func(s Secret) {
+		if form := s.Form(in.Target); form.Realization != "" && realization[form.Type] == "" {
+			realized = append(realized, form.Type)
+			realization[form.Type] = form.Realization
+		}
+	}
+	for _, s := range draft.SecretParameters {
+		realize(s)
+	}
 	for _, e := range draft.Entries {
 		if e.Module {
 			modules = append(modules, e)
@@ -225,10 +251,7 @@ func DraftRelease(in aggrega.ImportInput, aggregate aggrega.EmittedEntity, draft
 			named = append(named, e.Key+": "+in.Target+"/"+e.Realization)
 		}
 		for _, s := range e.Secrets {
-			if form := s.Form(in.Target); form.Realization != "" && realization[form.Type] == "" {
-				realized = append(realized, form.Type)
-				realization[form.Type] = form.Realization
-			}
+			realize(s)
 		}
 	}
 	if len(modules) == 0 {
@@ -251,6 +274,14 @@ func DraftRelease(in aggrega.ImportInput, aggregate aggrega.EmittedEntity, draft
 			Body: realizedManifest(name, named, realized, realization)})
 	}
 	return out
+}
+
+// leftParameterNodes are the lines a drafted Release declares param with under
+// its spec.parameters, a parameter left for the Release to fulfill: the
+// parameter, keyed by its Path, holding an empty string, beneath a comment
+// naming it under the heading every left value is written beneath.
+func leftParameterNodes(param LeftItem) []*bodyNode {
+	return append(commentNodes(leftHeading+" "+leftLine(param)), &bodyNode{text: param.Path + ": \"\""})
 }
 
 // realizedManifest is the Manifest a draft writes where it knows a realization

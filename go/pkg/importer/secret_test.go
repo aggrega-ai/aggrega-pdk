@@ -67,16 +67,17 @@ func TestAnInstancesDeclarationsOpenOneFeaturesKey(t *testing.T) {
 //     lines declared, not live;
 //   - another target: core/secret-value by variable reference, not keyed;
 //     nothing declared;
-//   - a Referenced secret: core/referenced-secret whatever the target, mapped only
-//     for helm, never declared;
+//   - a Referenced secret: core/referenced-secret whatever the target, by
+//     variable reference for compose and for none, named by its Secret and
+//     mapped for helm; never declared;
 //   - a set: core/referenced-secret-set for compose, for none and for another
 //     target, and core/referenced-secret named by its Secret, mapped, for helm;
 //     never declared.
 //
-// 🔴 PLANTED DEFECT: in Secret.Form (secret.go), drop `|| target == helmTarget`:
-// the helm rows fail, the secret written by variable reference. Move the
-// Entries check above the helm check: the helm set row fails, the set written
-// as its entries on helm.
+// 🔴 PLANTED DEFECT: in Secret.Form (secret.go), drop the helm case: the helm
+// rows fail, the secret written by variable reference. Move the Entries case or
+// the Referenced case above the helm case: the helm set row, or the referenced
+// helm row, fails, written as its entries or by variable reference on helm.
 func TestASecretsFormAndDeclarationAreDecidedOncePerTarget(t *testing.T) {
 	t.Parallel()
 	keyed := Secret{Path: "features.admin", Variable: "APP_ADMIN", Key: "ADMIN_KEY", Text: "the password"}
@@ -89,7 +90,7 @@ func TestASecretsFormAndDeclarationAreDecidedOncePerTarget(t *testing.T) {
 	credentialLines := []string{"credential:", "  type: core/secret-value", "  values:", "    key: OPENAI_API_KEY"}
 	value := SecretForm{Type: "core/secret-value"}
 	keyedValue := SecretForm{Type: "core/secret-value", Keyed: true}
-	byName := SecretForm{Type: "core/referenced-secret", ByName: true}
+	referencedValue := SecretForm{Type: "core/referenced-secret"}
 	byNameOnHelm := SecretForm{Type: "core/referenced-secret", ByName: true, Realization: "helm/k8s-existing-secret"}
 	for _, row := range []struct {
 		scenario, target string
@@ -104,8 +105,8 @@ func TestASecretsFormAndDeclarationAreDecidedOncePerTarget(t *testing.T) {
 		{"helm", "helm", keyed, byNameOnHelm, SecretDeclaration{}},
 		{"no target", "", keyed, value, SecretDeclaration{Lines: adminLines, Target: "compose", Slot: "admin"}},
 		{"another target", "terraform", keyed, value, SecretDeclaration{}},
-		{"referenced, compose", "compose", referenced, byName, SecretDeclaration{}},
-		{"referenced, no target", "", referenced, byName, SecretDeclaration{}},
+		{"referenced, compose", "compose", referenced, referencedValue, SecretDeclaration{}},
+		{"referenced, no target", "", referenced, referencedValue, SecretDeclaration{}},
 		{"referenced, helm", "helm", referenced, byNameOnHelm, SecretDeclaration{}},
 		{"a set, compose", "compose", set, setForm, SecretDeclaration{}},
 		{"a set, no target", "", set, setForm, SecretDeclaration{}},

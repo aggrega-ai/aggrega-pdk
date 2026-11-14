@@ -252,8 +252,9 @@ type Module struct {
 	// parameter of its own, and passes it down by the same name to every entry,
 	// as [PassedDownParameter] describes, so the Release fulfills it and a build
 	// whose Release leaves it unset halts naming it. Every entry of one draft is
-	// handed the one parameter. The drafted Release leaves each for the Release,
-	// declared empty under its spec.parameters. Empty passes nothing down, and the
+	// handed the one parameter. The drafted Release declares each under its
+	// spec.parameters: empty, left for the Release, or, where it holds a secret,
+	// as [PassedDownParameter.Variable] says. Empty passes nothing down, and the
 	// drafted Aggregate declares no parameter.
 	PassedDown []PassedDownParameter
 }
@@ -275,6 +276,15 @@ type PassedDownParameter struct {
 	// EscapeTemplateText and then as a double-quoted scalar by QuotedString, so it
 	// reads back as written, whatever UTF-8 text it holds.
 	Description string
+	// Variable, where set, says the parameter holds a secret the module attaches
+	// as core/referenced-secret, read from the variable named so where it is
+	// written as a variable reference, as [Secret.Variable] is: the drafted Release
+	// declares it as a secret of that type in the form [Secret.Form] gives it for
+	// the import's target — the variable reference ${Variable} on every target
+	// but helm and for none, and empty on helm, for the Release to name the
+	// Kubernetes Secret holding it. Empty leaves the parameter empty on every
+	// target. It is written as it is, so the caller gives a variable name.
+	Variable string
 }
 
 // modelValue is the value a Component serving a model takes that model's name
@@ -642,14 +652,21 @@ func importPlatform(in aggrega.ImportInput, served Format, settings importSettin
 // draft sets of it and leaving for the Release what no source supplies of it. In
 // the module form each entry is a module of the Aggregate, routed under the
 // boundary the platform runs in, named platform, and the parameters the module's
-// PassedDown lists are left for the Release under its spec.parameters.
+// PassedDown lists are declared under the Release's spec.parameters: each holding
+// a secret as a secret parameter, in its form for the import's target, and each
+// other left empty.
 func (d *platformDraft) release(in aggrega.ImportInput, aggregate aggrega.EmittedEntity) []aggrega.EmittedEntity {
 	draft := ReleaseDraft{Boundary: platformBoundary}
 	if m := d.platform.Module; m != nil {
 		for _, param := range m.PassedDown {
-			draft.Parameters = append(draft.Parameters, LeftItem{Path: param.Name, Text: "which the drafted Aggregate " +
-				"declares and passes down to " + m.Aggregate + "; that parameter's description there says what the " +
-				"value is"})
+			text := "which the drafted Aggregate declares and passes down to " + m.Aggregate + "; that parameter's " +
+				"description there says what the value is"
+			if param.Variable != "" {
+				draft.SecretParameters = append(draft.SecretParameters, Secret{Path: param.Name, Variable: param.Variable,
+					Text: text, Referenced: true})
+				continue
+			}
+			draft.Parameters = append(draft.Parameters, LeftItem{Path: param.Name, Text: text})
 		}
 	}
 	for _, inst := range d.instances {

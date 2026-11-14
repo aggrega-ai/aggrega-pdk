@@ -35,8 +35,10 @@ type Secret struct {
 	// written into a comment as it is, so it carries nothing read from a source a
 	// comment cannot carry.
 	Text string
-	// Referenced says the slot takes a secret named by reference whatever the
-	// target, as one the catalog attaches core/referenced-secret on does.
+	// Referenced says the slot takes core/referenced-secret whatever the target,
+	// as one the catalog attaches that type on does: named by its Secret on helm,
+	// as every secret there is, and elsewhere by the variable reference, which the
+	// compose realization of that type delivers as written.
 	Referenced bool
 	// Entries, where set, make the secret a set of variables rather than one
 	// value: each one the consumer reads under its own name, as a server's
@@ -112,28 +114,32 @@ type SecretForm struct {
 // Form is how a draft attaches s for target, target empty where the import names
 // none:
 //
-//   - for helm, and wherever s is Referenced, with core/referenced-secret, named by
-//     its secret resource; for helm, a drafted Manifest maps that type to
-//     helm/k8s-existing-secret;
-//   - for every other target, and for none, with core/secret-value, whose origin
-//     is the variable reference ${Variable}, which a target substituting variable
+//   - for helm, with core/referenced-secret, named by its secret resource, a
+//     Kubernetes Secret, since Kubernetes substitutes no variable reference; a
+//     drafted Manifest maps that type to helm/k8s-existing-secret;
+//   - for every other target, and for none, by the variable reference
+//     ${Variable} as its origin, which a target substituting variable
 //     references, as Docker Compose does when a stack starts, reads from the
-//     environment of whoever starts it, so no file carries the value; for compose
-//     the drafted Aggregate declares it with its key;
+//     environment of whoever starts it, so no file carries the value: where s is
+//     Referenced, with core/referenced-secret, whose compose realization delivers
+//     the origin as written, and which the drafted Aggregate does not declare,
+//     the slot being the catalog's; otherwise with core/secret-value, which for
+//     compose the drafted Aggregate declares with its key;
 //   - a set ([Secret.Entries]), for every target but helm, with
 //     core/referenced-secret-set, its entries written as their values are, each
 //     under its own name, so neither a key nor a declaration is needed; for helm,
 //     as every secret there is, by its Secret, which holds one data key per
 //     variable.
+//
+// This is the one place the target decides a secret's form, so a secret a draft
+// attaches and a secret it passes down as a module's parameter are written alike.
 func (s Secret) Form(target string) SecretForm {
-	if s.Referenced || target == helmTarget {
-		form := SecretForm{Type: referencedSecretType, ByName: true}
-		if target == helmTarget {
-			form.Realization = helmReferencedRealization
-		}
-		return form
-	}
-	if len(s.Entries) > 0 {
+	switch {
+	case target == helmTarget:
+		return SecretForm{Type: referencedSecretType, ByName: true, Realization: helmReferencedRealization}
+	case s.Referenced:
+		return SecretForm{Type: referencedSecretType}
+	case len(s.Entries) > 0:
 		return SecretForm{Type: secretSetType}
 	}
 	return SecretForm{Type: secretValueType, Keyed: target == composeTarget}
@@ -277,7 +283,7 @@ func secretNode(s Secret, target string) *bodyNode {
 	form := s.Form(target)
 	infra := &bodyNode{text: "infra:"}
 	node := &bodyNode{text: s.slot() + ":", children: []*bodyNode{{text: "type: " + form.Type}, infra}}
-	if len(s.Entries) > 0 && !form.ByName {
+	if form.Type == secretSetType {
 		entries := &bodyNode{text: "entries:"}
 		for _, e := range s.Entries {
 			entries.children = append(entries.children, &bodyNode{text: "- key: " + QuotedString(e.Key),
@@ -289,9 +295,8 @@ func secretNode(s Secret, target string) *bodyNode {
 			"environment, and an empty value is one still owed."), entries)
 		return node
 	}
-	origin, comment := QuotedString("${"+s.Variable+"}"), "Attached by reference, never as a value: "+s.Text+
-		", read from the variable "+s.Variable+", which a target substituting variable references, as Docker "+
-		"Compose does when the stack starts, reads from the environment, so no file carries the value."
+	origin, comment := variableReference(s.Variable), "Attached by reference, never as a value: "+s.Text+", "+
+		readFromVariable(s.Variable)+"."
 	if form.ByName {
 		holds := "the name of the secret resource holding " + s.Text + ", as the Manifest's realization of " +
 			form.Type + " reads it"
@@ -307,6 +312,36 @@ func secretNode(s Secret, target string) *bodyNode {
 	}
 	infra.children = append(commentNodes(comment), &bodyNode{text: "origin: " + origin})
 	return node
+}
+
+// secretParameterNodes are the lines a drafted Release declares s with under its
+// spec.parameters, s a parameter holding a secret ([ReleaseDraft.SecretParameters])
+// keyed by its Path, as its form for target says: where the form names the
+// secret by its resource, the parameter holding an empty string, a value still
+// owed, beneath the comment a left parameter is written with; otherwise the
+// parameter holding the variable reference, beneath a comment saying where it is
+// read from.
+func secretParameterNodes(s Secret, target string) []*bodyNode {
+	item := LeftItem{Path: s.Path, Text: s.Text}
+	if s.Form(target).ByName {
+		return leftParameterNodes(item)
+	}
+	return append(commentNodes("Passed by reference, never as a value: "+leftLine(item)+"; it is "+
+		readFromVariable(s.Variable)+"."), &bodyNode{text: s.Path + ": " + variableReference(s.Variable)})
+}
+
+// variableReference is the origin a secret read from variable is written with
+// where its form names no secret resource: the variable reference ${variable}, as
+// a double-quoted scalar.
+func variableReference(variable string) string {
+	return QuotedString("${" + variable + "}")
+}
+
+// readFromVariable says where a secret written as [variableReference] is read
+// from, completing the comment above it.
+func readFromVariable(variable string) string {
+	return "read from the variable " + variable + ", which a target substituting variable references, as Docker " +
+		"Compose does when the stack starts, reads from the environment, so no file carries the value"
 }
 
 // entryKeys are the names of the variables a set holds, in its order.

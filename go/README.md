@@ -244,9 +244,9 @@ there:
   socket, the variable the credential each connection of that socket presents is read
   from. Each is an `importer.Secret`, whose form for the import's target `Secret.Form`
   decides in one place, and which `DraftRelease` writes as a reference, never a value:
-  `core/secret-value` whose origin is the variable reference `${VARIABLE}`, or, for
-  `helm`, `core/referenced-secret` whose Secret's name is written empty, with a drafted
-  Manifest mapping that type to `helm/k8s-existing-secret`. For `compose` the drafted
+  `core/secret-value`, or `core/referenced-secret` where `Secret.Referenced`, whose origin
+  is the variable reference `${VARIABLE}`, or, for `helm`, `core/referenced-secret` whose
+  Secret's name is written empty, a drafted Manifest mapping that type to `helm/k8s-existing-secret`. For `compose` the drafted
   Aggregate declares each with a key of its own — `Secret.Key`, or its variable — as
   `Secret.Declaration` gives the lines, so no two secrets the Release attaches arrive
   under one; an import naming no target shows those lines commented out for an author
@@ -272,8 +272,8 @@ there:
   `Configured` says what a node names that the platform configures for itself — a
   model and its provider, a tool, a knowledge base, a plugin — which the import
   reports in the node's decision and as `part-configured-in-platform`. The drafted
-  Release declares each parameter passed down empty under its `spec.parameters`, its
-  entry for the module leaves `LeftForRelease` and attaches `Secrets` for the Release,
+  Release declares each parameter passed down under its `spec.parameters`, empty or, given a
+  `Variable`, as a secret in its target's form; its entry for the module leaves `LeftForRelease` and attaches `Secrets`,
   and the comment above the Aggregate's entry says that the import,
   which sees the catalog's Components and none of its Aggregates, does not check that
   the catalog holds the module.
