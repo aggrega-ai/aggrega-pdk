@@ -33,10 +33,13 @@
 // Title reads off it or the name of the directory or the file the import was
 // handed, as [DraftName] names it; an importer drafting an Aggregate of its own
 // names it through DraftName too. Every drafted Release is written by
-// [DraftRelease], which names it as DraftName names the Aggregate it deploys:
-// the package's own drafts and every importer drafting its own Aggregate draft
-// the Release beside it through it, so a drafted Release reads alike whichever
-// importer drafts it. [NodeList], [EdgeList] and [ObjectEntries] read the shapes
+// [DraftRelease], which names it after the drafted Aggregate it deploys: the
+// package's own drafts and every importer drafting its own Aggregate draft the
+// Release beside it through it, so a drafted Release reads alike whichever
+// importer drafts it. It writes every value the Release must supply and no source
+// holds as its key holding an empty string, with a comment naming it directly
+// above, and every secret the draft attaches as a reference for the import's
+// target ([Secret]), never as a value. [NodeList], [EdgeList] and [ObjectEntries] read the shapes
 // a walker commonly meets in a canonical tree.
 //
 // # Scoring and decisions
@@ -131,9 +134,13 @@
 // whose chomping keeps its trailing line breaks. A source holding any other
 // character such a block cannot carry as written is not carried, and the import
 // says which character and where. The platform's own inputs no source supplies,
-// the credential it presents on each connection, and what of each wired part the
-// Release supplies are left for the Release on the drafted Release's entries —
-// the instance's and each part's — each under the key path it is written at.
+// and what of each wired part the Release supplies, are left for the Release on
+// the drafted Release's entries — the instance's and each part's — each under the
+// key path it is written at. The drafted Release runs the platform from the image
+// its format names, written explicitly, and attaches the platform's own secrets
+// and the credential it presents on each connection of a socket its format names
+// a credential variable for, as references; a connection of any other socket
+// leaves its credential for the author, in a comment.
 //
 // Those values are located in a source's bytes read as JSON, unless its format
 // writes them in its own syntax: a format whose sources are not JSON documents writes
@@ -163,15 +170,14 @@
 // selects, as the format reads it off the node, through the writer the
 // definition goes through. Where the node names none the draft can write, a
 // comment leaves values.model for the author and the import reports it: a
-// Release cannot write a value. A platform whose Recipes on one target need an
-// attachment of its own declared in the Aggregate — as a target reading every
-// secret the Release alone attaches under one default key needs its secret
-// declared with a key of its own, so it and a connection's credential do not
-// arrive under one key — is drafted for the target the import is given, which
-// the request carries: an import for that target declares the attachment inside
-// the instance, an import for another target leaves it out, and an import naming
-// no target shows that target's lines in a comment inside the instance,
-// commented out where they belong, for an author building for it to uncomment.
+// Release cannot write a value. A secret the draft attaches is drafted for the
+// target the import is given, which the request carries, in the one form
+// [Secret.Form] gives it: on a target reading every secret the Release alone
+// attaches under one default key, the Aggregate declares it with a key of its own,
+// inside the instance or on its connection, so no two secrets arrive under one
+// key; an import for another target leaves those lines out, and an import naming
+// no target shows them in a comment where they belong, commented out, for an
+// author building for that target to uncomment ([Secret.Declaration]).
 //
 // Where the attach_egress_allowlist setting is true, each instance carries
 // core/egress-allowlist under features, the decision of each wired part says

@@ -227,18 +227,23 @@ func TestANodeNamingAPartIsReachedThroughOneConnectionByName(t *testing.T) {
 		release := out.Files[len(out.Files)-1].Content
 		const heading = "    # Left for the Release, since the source cannot supply it:\n"
 		platform := heading +
-			"    #   - infra.image, the image running the platform\n" +
 			"    #   - the admin slot, the administrator's password\n" +
-			"    #   - uses.model.m1.features.credential, the credential testplat presents to m1 on its model connection\n" +
-			"    #   - uses.tools.docs.features.credential, the credential testplat presents to docs on its tools connection\n" +
+			"    #   - uses.model.m1.features.credential, the credential testplat presents to m1 on its model connection, " +
+			"where m1 checks one\n" +
+			"    #   - uses.tools.docs.features.credential, the credential testplat presents to docs on its tools " +
+			"connection, where docs checks one\n" +
 			"    #   - uses.tools.my-server.features.credential, the credential testplat presents to my-server on its tools " +
-			"connection\n" +
+			"connection, where my-server checks one\n" +
 			"    #   - uses.tools.my-server-2.features.credential, the credential testplat presents to my-server-2 on its " +
-			"tools connection\n" +
-			"    testplat: {}\n"
+			"tools connection, where my-server-2 checks one\n" +
+			"    testplat:\n" +
+			"      infra:\n" +
+			"        # " + heading[6:len(heading)-1] + " infra.image, the image running the platform\n" +
+			"        image: \"\"\n"
 		wants := []string{platform}
 		for _, key := range []string{"docs", "my-server", "my-server-2"} {
-			wants = append(wants, heading+"    #   - infra.endpoint, the address of "+key+"\n    "+key+": {}\n")
+			wants = append(wants, "    "+key+":\n      infra:\n        # "+heading[6:len(heading)-1]+
+				" infra.endpoint, the address of "+key+"\n        endpoint: \"\"\n")
 		}
 		for _, want := range wants {
 			if !strings.Contains(release, want) {
@@ -411,8 +416,9 @@ func TestNothingReachesAPartThroughAFlowThatIsNotCarried(t *testing.T) {
 		t.Errorf("the parts are not wired:\n%s", agg)
 	}
 	if release := out.Files[len(out.Files)-1].Content; !strings.Contains(release,
-		"    #   - infra.endpoint, the address of docs\n    docs: {}\n") {
-		t.Errorf("what the part leaves for the Release is not named above its entry:\n%s", release)
+		"    docs:\n      infra:\n        # Left for the Release, since the source cannot supply it: infra.endpoint, "+
+			"the address of docs\n        endpoint: \"\"\n") {
+		t.Errorf("what the part leaves for the Release is not written empty in its entry:\n%s", release)
 	}
 	for _, d := range out.Diagnostics {
 		if d.Code == "part-reads-connection" || d.Code == "part-address-in-flow" {

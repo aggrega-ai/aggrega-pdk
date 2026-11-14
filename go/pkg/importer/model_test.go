@@ -196,26 +196,28 @@ func TestAReasonHoldingDoubleBracesReadsBackInThePlatformsComment(t *testing.T) 
 }
 
 // TestTheLinesATargetNeedsAreWrittenForTheImportsTarget drafts a flow whose
-// platform declares an attachment one target's Recipes need, for each target the
-// request can carry. Where the platform's instance draws a connection: an import
-// naming no target shows the lines declaring that attachment in a comment inside
-// the instance, after its type, each commented out where it belongs; an import
-// for that target declares them there, under features, beneath a comment saying
-// why; an import for another target writes none of them. Where the instance
-// draws no connection, no line is written for any target.
+// platform attaches a secret of its own, keyed for the compose target, for each
+// target the request can carry. Where the platform's instance draws a
+// connection: an import naming no target shows the lines declaring that secret
+// with its key in a comment inside the instance, after its type, each commented
+// out where it belongs; an import for compose declares them there, under
+// features, beneath a comment saying why; an import for another target writes
+// none of them. Where the instance draws no connection, no line is written for
+// any target.
 //
-// 🔴 PLANTED DEFECTS, each in platformDraft.entity (platform.go):
+// 🔴 PLANTED DEFECTS:
 //
-//   - replace `case a.Target == in.Target:` with `case false:`: the row for the
-//     attachment's own target fails, the lines left out;
-//   - replace `case in.Target == "":` with `case true:`: the rows for a target
-//     fail, the lines written commented whatever the target.
+//   - in Secret.Form (secret.go), replace `Keyed: target == composeTarget` with
+//     `Keyed: false`: the row for compose fails, the lines left out;
+//   - in Secret.Declaration (secret.go), replace `target, live = composeTarget,
+//     false` with `target, live = composeTarget, true`: the row naming no target
+//     fails, the lines written live.
 func TestTheLinesATargetNeedsAreWrittenForTheImportsTarget(t *testing.T) {
 	t.Parallel()
 	const head = "    testplat:\n      type: core/ai-agent/testplat\n"
 	const commented = head +
-		"      # For the compose target only, uncomment the lines below, which declare admin on testplat: the test's " +
-		"reason.\n" +
+		"      # For the compose target only, uncomment the lines below, which declare admin on testplat: " +
+		DeclarationWhy + ".\n" +
 		"      # features:\n" +
 		"      #   admin:\n" +
 		"      #     type: core/secret-value\n" +
@@ -224,7 +226,7 @@ func TestTheLinesATargetNeedsAreWrittenForTheImportsTarget(t *testing.T) {
 		"      values:\n"
 	const declared = head +
 		"      features:\n" +
-		"        # For the compose target, the lines below declare admin on testplat: the test's reason.\n" +
+		"        # For the compose target, the lines below declare admin on testplat: " + DeclarationWhy + ".\n" +
 		"        admin:\n" +
 		"          type: core/secret-value\n" +
 		"          values:\n" +
@@ -232,8 +234,8 @@ func TestTheLinesATargetNeedsAreWrittenForTheImportsTarget(t *testing.T) {
 		"      values:\n"
 	const none = head + "      values:\n"
 	format := platformTestFormat()
-	format.Platform.TargetAttachments = []TargetAttachment{{Target: "compose", Slot: "admin", Type: "core/secret-value",
-		Key: "ADMIN_KEY", Why: "the test's reason"}}
+	format.Platform.Secrets = []Secret{{Path: "features.admin", Variable: "TESTPLAT_ADMIN", Key: "ADMIN_KEY",
+		Text: "the administrator's password"}}
 	unwired := platformCatalog(aggrega.CatalogSocket{Name: "unused", Selector: "component.aggrega.ai/category=none"})
 	for _, tc := range []struct {
 		name, target, want string

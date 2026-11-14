@@ -105,7 +105,8 @@ func importModule(in aggrega.ImportInput, served Format, settings importSettings
 		})
 	}
 
-	out.Entities = append(out.Entities, draft.entity(in), draft.release(in))
+	aggregate := draft.entity(in)
+	out.Entities = append(append(out.Entities, aggregate), draft.release(in, aggregate)...)
 	out.Files = render(settings, out.Entities, out.Decisions)
 	return out
 }

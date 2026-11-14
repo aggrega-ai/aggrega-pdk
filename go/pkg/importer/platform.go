@@ -162,15 +162,40 @@ type Platform struct {
 	// is relative to that entry — the instance's own entry, or, in the module form,
 	// the routing entry of the module.
 	LeftForRelease []LeftItem
-	// TargetAttachments are attachments of the platform's own instance that the
-	// Recipes realizing the platform on one target need declared in the
-	// Aggregate, and those of the other targets do not. Each is written only
-	// where the instance draws a connection, and by the target the import drafts
-	// for: one whose Target is that target is declared, under a comment saying
-	// why; one of another target is left out; and where the import names no
-	// target, a comment inside the instance shows, for each, the lines an author
-	// uncomments for its target.
-	TargetAttachments []TargetAttachment
+	// Image is the image, with its tag, the drafted Release's entry for the
+	// platform's instance runs it from, under infra.image: the version the
+	// importer drafts, which the catalog's Recipes for the platform are known to
+	// run, written explicitly, with a comment saying so, and never raised or
+	// lowered to follow a source. Empty writes no image; an importer leaving the
+	// image for the Release names it in LeftForRelease, through [LeftImage].
+	Image string
+	// SourceVersion reads, off a source's tree, the version of the platform the
+	// source states it was made or last tested with, empty where it states none.
+	// Where it differs from the tag of Image, the comment above the image names it,
+	// written as a double-quoted scalar ([QuotedString]), and the image is drafted
+	// as Image all the same. Nil reads none.
+	SourceVersion func(tree json.RawMessage) string
+	// Secrets are the platform's own secret slots the drafted Release's entry for
+	// the platform's instance attaches, each as [Secret] describes, its path
+	// relative to that entry, as LeftForRelease's are. Outside the module form the
+	// drafted Aggregate declares each inside the instance as [Secret.Declaration]
+	// gives it for the import's target: for a target whose Recipes read every
+	// secret under the key its attachment names, live, under a comment saying why;
+	// where the import names no target, commented out, for an author building for
+	// that target to uncomment; otherwise not at all. An entry of a composed
+	// Aggregate takes no Feature, so the module form declares none.
+	Secrets []Secret
+	// CredentialVariables names, by socket, the variable the credential each
+	// connection of that socket presents to its part is read from: the drafted
+	// Release attaches that credential on the connection, as [ConnectionCredential]
+	// names it, and the drafted Aggregate declares it on the connection as it
+	// declares Secrets, its key the variable, so no two secrets the Release attaches
+	// arrive under one: where an earlier connection's key, or the key of one of
+	// Secrets, takes the name, it is the name followed by an underscore and the
+	// first number from 2 that none takes. A connection of a socket it does not
+	// name leaves its credential for the author, in a comment above the drafted
+	// Release's entry, since a part need not check one. Nil names none.
+	CredentialVariables map[string]string
 	// Module, where set, is the catalog Aggregate the platform runs as a whole
 	// installation in, Component among the parts it composes and wires: each source
 	// is drafted as an entry of it rather than as an instance of Component, as
@@ -227,9 +252,9 @@ type Module struct {
 	// parameter of its own, and passes it down by the same name to every entry,
 	// as [PassedDownParameter] describes, so the Release fulfills it and a build
 	// whose Release leaves it unset halts naming it. Every entry of one draft is
-	// handed the one parameter. The drafted Release's entry for the module leaves
-	// each for the Release. Empty passes nothing down, and the drafted Aggregate declares
-	// no parameter.
+	// handed the one parameter. The drafted Release leaves each for the Release,
+	// declared empty under its spec.parameters. Empty passes nothing down, and the
+	// drafted Aggregate declares no parameter.
 	PassedDown []PassedDownParameter
 }
 
@@ -250,24 +275,6 @@ type PassedDownParameter struct {
 	// EscapeTemplateText and then as a double-quoted scalar by QuotedString, so it
 	// reads back as written, whatever UTF-8 text it holds.
 	Description string
-}
-
-// TargetAttachment is an attachment of a platform's own instance that its
-// Recipes on one target need declared in the Aggregate, as [Platform] lists
-// them: a secret the Release attaches, declared with the key its Recipes read it
-// under, as a target whose Recipes read every secret the Release alone attaches
-// under one default key needs, so that the secret and a connection's credential
-// do not arrive under one key.
-type TargetAttachment struct {
-	// Target is the target, as the Recipes realizing the platform on it are
-	// named, such as compose.
-	Target string
-	// Slot is the platform's attachment slot, Type the type of the attachment
-	// declared there, and Key the key its values.key names.
-	Slot, Type, Key string
-	// Why completes the comment saying why the target needs the lines. It is
-	// written into the draft, so it carries nothing read from the source.
-	Why string
 }
 
 // modelValue is the value a Component serving a model takes that model's name
@@ -424,6 +431,9 @@ func importPlatform(in aggrega.ImportInput, served Format, settings importSettin
 			return id
 		}
 		inst := newPlatformInstance(UniqueKey(usedNames, path.Base(p.Component)), platform)
+		if p.SourceVersion != nil {
+			inst.sourceVersion = p.SourceVersion(tree)
+		}
 		out.Entities = append(out.Entities, aggrega.EmittedEntity{
 			Kind: "Component", Name: p.Component, Mode: "reference", SourceRef: src.Name,
 		})
@@ -619,52 +629,97 @@ func importPlatform(in aggrega.ImportInput, served Format, settings importSettin
 		})
 	}
 
-	out.Entities = append(out.Entities, draft.entity(in), draft.release(in))
+	aggregate := draft.entity(in)
+	out.Entities = append(append(out.Entities, aggregate), draft.release(in, aggregate)...)
 	out.Files = render(settings, out.Entities, out.Decisions)
 	return out
 }
 
-// release drafts the Release deploying the drafted Aggregate, through
-// [DraftRelease]: an entry per instance, in the order the Aggregate declares them
-// — each platform instance, followed by the parts wired to it — since a build
-// places only the instances a Release names, each leaving for the Release what
-// no source supplies of it. In the module form each entry is a module of the
-// Aggregate, routed under the boundary the platform runs in, named platform.
-func (d *platformDraft) release(in aggrega.ImportInput) aggrega.EmittedEntity {
-	var entries []ReleaseEntry
-	for _, inst := range d.instances {
-		entries = append(entries, ReleaseEntry{Key: inst.key, Module: d.platform.Module != nil,
-			Left: d.instanceLeft(inst)})
-		for _, part := range inst.parts {
-			entries = append(entries, ReleaseEntry{Key: part.key, Left: inst.left[part.key]})
+// release drafts the Release deploying the drafted Aggregate, aggregate, through
+// [DraftRelease]: an entry per instance, in the order the Aggregate
+// declares them — each platform instance, followed by the parts wired to it —
+// since a build places only the instances a Release names, each with what the
+// draft sets of it and leaving for the Release what no source supplies of it. In
+// the module form each entry is a module of the Aggregate, routed under the
+// boundary the platform runs in, named platform, and the parameters the module's
+// PassedDown lists are left for the Release under its spec.parameters.
+func (d *platformDraft) release(in aggrega.ImportInput, aggregate aggrega.EmittedEntity) []aggrega.EmittedEntity {
+	draft := ReleaseDraft{Boundary: platformBoundary}
+	if m := d.platform.Module; m != nil {
+		for _, param := range m.PassedDown {
+			draft.Parameters = append(draft.Parameters, LeftItem{Path: param.Name, Text: "which the drafted Aggregate " +
+				"declares and passes down to " + m.Aggregate + "; that parameter's description there says what the " +
+				"value is"})
 		}
 	}
-	return DraftRelease(in, ReleaseDraft{Boundary: platformBoundary, Entries: entries}, d.titles...)
+	for _, inst := range d.instances {
+		draft.Entries = append(draft.Entries, d.instanceEntry(inst))
+		for _, part := range inst.parts {
+			draft.Entries = append(draft.Entries, ReleaseEntry{Key: part.key, Left: inst.left[part.key]})
+		}
+	}
+	return DraftRelease(in, aggregate, draft)
 }
 
-// instanceLeft is what the Release's entry for a platform instance leaves for
-// the Release: in the module form, each parameter the module's PassedDown lists,
-// then the platform's own LeftForRelease; otherwise the platform's own
-// LeftForRelease, the credential the instance presents on each connection it
-// draws, in the order its sockets and their connections are written, and, where
-// the attach_egress_allowlist setting is true, what of that attachment the
-// Release sets.
-func (d *platformDraft) instanceLeft(inst *platformInstance) []LeftItem {
+// instanceEntry is the Release's entry for a platform instance: the image the
+// platform names, under a comment naming the version the source states where it
+// differs; the platform's own LeftForRelease, the platform's own secrets, and,
+// outside the module form, the credential the instance presents on each
+// connection it draws — attached where [Platform.CredentialVariables] names its
+// socket, and otherwise left for the author — in the order its sockets and their
+// connections are written, and, where the attach_egress_allowlist setting is
+// true, what of that attachment the Release sets.
+func (d *platformDraft) instanceEntry(inst *platformInstance) ReleaseEntry {
 	p := d.platform
-	var left []LeftItem
-	if m := p.Module; m != nil {
-		for _, param := range m.PassedDown {
-			left = append(left, LeftItem{Text: "the " + param.Name + " parameter, under the Release's spec.parameters, " +
-				"which the drafted Aggregate declares and passes down to " + m.Aggregate})
-		}
-		return append(left, p.LeftForRelease...)
+	entry := ReleaseEntry{Key: inst.key, Module: p.Module != nil, Left: append([]LeftItem{}, p.LeftForRelease...),
+		Secrets: append([]Secret{}, p.Secrets...)}
+	if p.Image != "" {
+		entry.Values = append(entry.Values, ReleaseValue{Path: "infra.image", Value: QuotedString(p.Image),
+			Comment: imageComment(p, inst.sourceVersion)})
 	}
-	left = append(left, p.LeftForRelease...)
+	if p.Module != nil {
+		return entry
+	}
+	drafted := map[string]bool{}
+	for _, c := range inst.credentials(p) {
+		entry.Secrets = append(entry.Secrets, c.secret)
+		drafted[c.socket+"\x00"+c.alias] = true
+	}
 	for _, socket := range inst.sockets {
 		for _, c := range inst.uses[socket] {
-			left = append(left, ConnectionCredential(inst.key, socket, c.alias, c.target))
+			if !drafted[socket+"\x00"+c.alias] {
+				credential := ConnectionCredential(inst.key, socket, c.alias, c.target, "")
+				entry.Left = append(entry.Left, LeftItem{Text: credential.Path + ", " + credential.Text +
+					", where " + c.target + " checks one"})
+			}
 		}
 	}
+	entry.Left = append(entry.Left, d.egressLeft(inst)...)
+	return entry
+}
+
+// imageComment is the comment above the image a platform's instance runs:
+// that it is the version the importer drafts, and, where the source states a
+// version of the platform other than the image's tag, that version.
+func imageComment(p *Platform, sourceVersion string) string {
+	comment := "The image running " + p.Component + ", at the version this importer drafts, which the catalog's " +
+		"Recipes for it are known to run; the import does not raise or lower it to follow the source."
+	tag := ""
+	if i := strings.LastIndex(p.Image, ":"); i >= 0 && !strings.Contains(p.Image[i:], "/") {
+		tag = p.Image[i+1:]
+	}
+	if sourceVersion != "" && strings.TrimPrefix(sourceVersion, "v") != strings.TrimPrefix(tag, "v") {
+		// Written quoted, so nothing a source holds ends the comment's line.
+		comment += " The source states version " + QuotedString(sourceVersion) + " of the platform."
+	}
+	return comment
+}
+
+// egressLeft is what of the core/egress-allowlist attachment the Release sets
+// on a platform instance, where the attach_egress_allowlist setting is true;
+// nothing otherwise.
+func (d *platformDraft) egressLeft(inst *platformInstance) []LeftItem {
+	var left []LeftItem
 	if d.settings.AttachEgressAllowlist {
 		left = append(left,
 			LeftItem{Path: "features." + egressAllowlistKey + "." + egressAffirmation, Text: "the affirmation that the " +
@@ -1190,6 +1245,48 @@ type platformInstance struct {
 	// left is what of each part the Release supplies, by the part's key, each in
 	// the order its wiring named it.
 	left map[string][]LeftItem
+	// sourceVersion is the version of the platform the source states, as
+	// [Platform.SourceVersion] reads it.
+	sourceVersion string
+}
+
+// connectionSecret is the credential one connection of a platform instance
+// presents, attached by the drafted Release: the connection's socket and alias,
+// and its secret.
+type connectionSecret struct {
+	socket, alias string
+	secret        Secret
+}
+
+// credentials are the credentials the connections of inst present that the
+// draft attaches — those of every socket [Platform.CredentialVariables] names —
+// in the order its sockets and their connections are written, each read from a
+// variable that is also the key its value arrives under where that is declared,
+// one no other secret of the instance takes: the socket's variable, or the
+// variable followed by an underscore and the first number from 2 making it one
+// no secret of the platform's own and no earlier connection's takes.
+func (inst *platformInstance) credentials(p *Platform) []connectionSecret {
+	taken := map[string]bool{}
+	for _, s := range p.Secrets {
+		taken[s.key()] = true
+	}
+	var out []connectionSecret
+	for _, socket := range inst.sockets {
+		variable, ok := p.CredentialVariables[socket]
+		if !ok {
+			continue
+		}
+		for _, c := range inst.uses[socket] {
+			name := variable
+			for i := 2; taken[name]; i++ {
+				name = fmt.Sprintf("%s_%d", variable, i)
+			}
+			taken[name] = true
+			out = append(out, connectionSecret{socket: socket, alias: c.alias,
+				secret: ConnectionCredential(inst.key, socket, c.alias, c.target, name)})
+		}
+	}
+	return out
 }
 
 // connection is one connection a socket of the platform draws: its alias and the
@@ -1444,20 +1541,21 @@ func (d *platformDraft) entity(in aggrega.ImportInput) aggrega.EmittedEntity {
 			b.WriteString("          type: " + egressAllowlist + "\n")
 		}
 		if inst.wired() {
-			// An attachment of the import's own target is declared; with no target,
-			// each is shown commented out; one of another target is left out.
+			// The platform's own secrets are declared as Secret.Declaration gives
+			// them for the import's target, where the instance draws a connection,
+			// whose credential could otherwise arrive under the same key: live for a
+			// target needing them, commented out where the import names none.
 			inFeatures := attach
-			for _, a := range p.TargetAttachments {
-				switch {
-				case in.Target == "":
-					writeTargetAttachment(&b, inst.key, a, inFeatures, false)
-				case a.Target == in.Target:
-					if !inFeatures {
-						b.WriteString("      features:\n")
-						inFeatures = true
-					}
-					writeTargetAttachment(&b, inst.key, a, true, true)
+			for _, s := range p.Secrets {
+				decl := s.Declaration(in.Target)
+				if len(decl.Lines) == 0 {
+					continue
 				}
+				if decl.Live && !inFeatures {
+					b.WriteString("      features:\n")
+					inFeatures = true
+				}
+				writeDeclaration(&b, "      ", inst.key, decl, inFeatures)
 			}
 		}
 		b.WriteString("      values:\n")
@@ -1472,6 +1570,10 @@ func (d *platformDraft) entity(in aggrega.ImportInput) aggrega.EmittedEntity {
 				"is not carried."))
 		}
 		if inst.wired() {
+			credentials := map[string]Secret{}
+			for _, c := range inst.credentials(p) {
+				credentials[c.socket+"\x00"+c.alias] = c.secret
+			}
 			b.WriteString("      uses:\n")
 			for _, socket := range inst.sockets {
 				if len(inst.uses[socket]) == 0 {
@@ -1481,6 +1583,11 @@ func (d *platformDraft) entity(in aggrega.ImportInput) aggrega.EmittedEntity {
 				for _, c := range inst.uses[socket] {
 					b.WriteString("          " + c.alias + ":\n")
 					b.WriteString("            target: " + c.target + "\n")
+					if s, attached := credentials[socket+"\x00"+c.alias]; attached {
+						if decl := s.Declaration(in.Target); len(decl.Lines) > 0 {
+							writeDeclaration(&b, "            ", c.alias, decl, false)
+						}
+					}
 				}
 			}
 		}
@@ -1503,40 +1610,32 @@ func (d *platformDraft) entity(in aggrega.ImportInput) aggrega.EmittedEntity {
 	return aggrega.EmittedEntity{Kind: "Aggregate", Name: name, Mode: "draft", Body: b.String()}
 }
 
-// writeTargetAttachment writes, inside the platform's instance keyed key, the
-// lines that declare a, beneath a comment saying which target needs them and
-// why. Where live is set the import was given a's target, and the lines are
+// writeDeclaration writes, inside what is keyed key — the platform's instance,
+// or one of its connections — the lines of decl, beneath a comment saying which
+// target needs them and why ([DeclarationWhy]). Where decl is live they are
 // written as declarations; otherwise each is commented out in place, so an author
 // building for that target uncomments them where they stand. Where inFeatures is
-// set the instance already declares features, so the lines are written inside
-// that block, without a second features key; a live attachment is always
-// written so, the caller declaring features first.
-func writeTargetAttachment(b *strings.Builder, key string, a TargetAttachment, inFeatures, live bool) {
-	indent, lines := "      ", []string{
-		"features:",
-		"  " + a.Slot + ":",
-		"    type: " + a.Type,
-		"    values:",
-		"      key: " + a.Key,
-	}
-	if inFeatures {
-		indent, lines = "        ", []string{
-			a.Slot + ":",
-			"  type: " + a.Type,
-			"  values:",
-			"    key: " + a.Key,
+// set what the lines are written in already declares features, so they are
+// written inside that block, without a second features key; otherwise a features
+// key opens them. at is the indentation of what they are written in's own keys.
+func writeDeclaration(b *strings.Builder, at, key string, decl SecretDeclaration, inFeatures bool) {
+	indent, lines := at+"  ", decl.Lines
+	if !inFeatures {
+		indent, lines = at, []string{"features:"}
+		for _, line := range decl.Lines {
+			lines = append(lines, "  "+line)
 		}
 	}
-	if live {
-		b.WriteString(CommentLine(indent, "For the "+a.Target+" target, the lines below declare "+a.Slot+" on "+key+": "+
-			a.Why+"."))
+	if decl.Live {
+		b.WriteString(CommentLine(indent, "For the "+decl.Target+" target, the lines below declare "+decl.Slot+" on "+
+			key+": "+DeclarationWhy+"."))
 		for _, line := range lines {
 			b.WriteString(indent + line + "\n")
 		}
 		return
 	}
-	b.WriteString(CommentLine(indent, "For the "+a.Target+" target only, uncomment the lines below, which declare "+
-		a.Slot+" on "+key+": "+a.Why+"."))
+	b.WriteString(CommentLine(indent, "For the "+decl.Target+" target only, uncomment the lines below, which declare "+
+		decl.Slot+" on "+key+": "+DeclarationWhy+"."))
 	for _, line := range lines {
 		b.WriteString(CommentLine(indent, line))
 	}

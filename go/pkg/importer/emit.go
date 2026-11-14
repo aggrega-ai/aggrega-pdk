@@ -205,8 +205,9 @@ func render(settings importSettings, entities []aggrega.EmittedEntity, decisions
 	return renderHuman(settings, entities, decisions)
 }
 
-// renderHuman writes one file per drafted component, one aggregate file and one
-// release file, in the order the entities are given, threading each node's
+// renderHuman writes one file per drafted component, one aggregate file, one
+// release file and, where the draft holds one, one manifest file, in the order
+// the entities are given, threading each node's
 // resemblance hint into the drafted file as an inline comment when inline hints
 // are enabled. A referenced entity — a Component, or an Aggregate the draft
 // composes — emits no body file, since it names an existing entity, so only its
@@ -224,6 +225,8 @@ func renderHuman(settings importSettings, entities []aggrega.EmittedEntity, deci
 			files = append(files, aggrega.ScaffoldFile{Path: "aggregate.yaml", Content: e.Body})
 		case e.Kind == "Release" && e.Mode == "draft":
 			files = append(files, aggrega.ScaffoldFile{Path: ReleaseFileName, Content: e.Body})
+		case e.Kind == "Manifest" && e.Mode == "draft":
+			files = append(files, aggrega.ScaffoldFile{Path: ManifestFileName, Content: e.Body})
 		case e.Kind == "Component" && e.Mode == "draft":
 			content := e.Body
 			if settings.emitInlineHints() {
@@ -427,16 +430,16 @@ func (a *aggregateBuilder) entity(in aggrega.ImportInput, titles []string) aggre
 	return aggrega.EmittedEntity{Kind: "Aggregate", Name: name, Mode: "draft", Body: b.String()}
 }
 
-// release drafts the Release deploying the aggregate, through [DraftRelease]:
-// an empty entry per component, in the order the aggregate declares them, since
-// a build places only the instances a Release names and no source states
-// anything a Release supplies for them.
-func (a *aggregateBuilder) release(in aggrega.ImportInput, titles []string) aggrega.EmittedEntity {
+// release drafts the Release deploying the drafted aggregate through
+// [DraftRelease]: an empty entry per component, in the order the aggregate
+// declares them, since a build places only the instances a Release names and no
+// source states anything a Release supplies for them.
+func (a *aggregateBuilder) release(in aggrega.ImportInput, aggregate aggrega.EmittedEntity) []aggrega.EmittedEntity {
 	entries := make([]ReleaseEntry, 0, len(a.order))
 	for _, key := range a.order {
 		entries = append(entries, ReleaseEntry{Key: key})
 	}
-	return DraftRelease(in, ReleaseDraft{Entries: entries}, titles...)
+	return DraftRelease(in, aggregate, ReleaseDraft{Entries: entries})
 }
 
 func dedup(sorted []string) []string {

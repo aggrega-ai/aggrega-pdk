@@ -216,7 +216,12 @@ func TestSeveralSourcesNamedApartFallToTheFile(t *testing.T) {
 // a composite of them, whose Kind is Aggregate or Release and whose Mode is not
 // reference — to a name draftName returned: the call itself, or a variable every
 // assignment of which, in the function building the entity, is that call, by :=,
-// by = or by a var declaration. The three Aggregate drafts the package makes and
+// by = or by a var declaration — or to the Name of an EmittedEntity the function
+// is handed as a parameter, as DraftRelease names the Release after the drafted
+// Aggregate it is handed: every drafted Aggregate is itself held to draftName
+// where it is built, by this check and by its twin over the compiler's importers,
+// so a Release named after one is named through draftName. The three Aggregate
+// drafts the package makes and
 // its one Release writer are required to be found, so a scan that read nothing
 // fails, and the check is first run
 // over a planted source holding each form, each required to be found and
@@ -253,15 +258,28 @@ func (a *b) declared(in aggrega.ImportInput) aggrega.EmittedEntity {
 	var name = draftName(a.settings, in, nil)
 	return aggrega.EmittedEntity{Kind: "Aggregate", Name: name, Mode: "draft"}
 }
+
+func handed(in aggrega.ImportInput, aggregate aggrega.EmittedEntity) []aggrega.EmittedEntity {
+	return []aggrega.EmittedEntity{{Kind: "Release", Name: aggregate.Name, Mode: "draft"}}
+}
+
+func handedAName(in aggrega.ImportInput, aggregate string) []aggrega.EmittedEntity {
+	return []aggrega.EmittedEntity{{Kind: "Release", Name: aggregate, Mode: "draft"}}
+}
+
+func handedSomethingElse(in aggrega.ImportInput, other struct{ Name string }) []aggrega.EmittedEntity {
+	return []aggrega.EmittedEntity{{Kind: "Release", Name: other.Name, Mode: "draft"}}
+}
 `
 	found := draftsNamedApart(t, "planted.go", []byte(planted))
 	var refused []bool
 	for _, e := range found {
 		refused = append(refused, e.bypass != "")
 	}
-	if want := []bool{true, true, true, false}; !slices.Equal(refused, want) {
-		t.Fatalf("the check found %+v in the planted source; want the selected, bare and elided literals refused "+
-			"and the one whose var declaration calls draftName passed", found)
+	if want := []bool{true, true, true, false, false, true, true}; !slices.Equal(refused, want) {
+		t.Fatalf("the check found %+v in the planted source; want the selected, bare and elided literals refused, "+
+			"the one whose var declaration calls draftName and the one named after a drafted entity it is handed "+
+			"passed, and the ones named after a string or another value's Name refused", found)
 	}
 
 	paths, err := filepath.Glob("*.go")
@@ -314,6 +332,16 @@ func draftsNamedApart(t *testing.T, at string, src []byte) []namedDraft {
 			continue
 		}
 		assigned := map[string][]ast.Expr{}
+		// handed are the function's parameters that are EmittedEntity values,
+		// written with its package or bare.
+		handed := map[string]bool{}
+		for _, field := range fn.Type.Params.List {
+			if field.Type != nil && emittedEntityType(field.Type) {
+				for _, id := range field.Names {
+					handed[id.Name] = true
+				}
+			}
+		}
 		ast.Inspect(fn.Body, func(n ast.Node) bool {
 			switch s := n.(type) {
 			case *ast.AssignStmt:
@@ -355,7 +383,7 @@ func draftsNamedApart(t *testing.T, at string, src []byte) []namedDraft {
 				return true
 			}
 			out = append(out, namedDraft{at: at + ":" + strconv.Itoa(fset.Position(lit.Pos()).Line), kind: kind,
-				bypass: draftNameBypass(fields["Name"], assigned)})
+				bypass: draftNameBypass(fields["Name"], assigned, handed)})
 			return true
 		})
 	}
@@ -390,8 +418,9 @@ func literalText(e ast.Expr) string {
 }
 
 // draftNameBypass says why a drafted entity's Name is not one draftName
-// returned, and is empty where it is.
-func draftNameBypass(name ast.Expr, assigned map[string][]ast.Expr) string {
+// returned, and is empty where it is: the call, a variable assigned only from
+// it, or the Name of an EmittedEntity parameter of the function, one of handed.
+func draftNameBypass(name ast.Expr, assigned map[string][]ast.Expr, handed map[string]bool) string {
 	isDraftName := func(e ast.Expr) bool {
 		call, ok := e.(*ast.CallExpr)
 		if !ok {
@@ -409,6 +438,10 @@ func draftNameBypass(name ast.Expr, assigned map[string][]ast.Expr) string {
 			return "is the variable " + e.Name + ", assigned other than from draftName"
 		}
 		return ""
+	case *ast.SelectorExpr:
+		if id, ok := e.X.(*ast.Ident); ok && e.Sel.Name == "Name" && handed[id.Name] {
+			return ""
+		}
 	default:
 		if isDraftName(e) {
 			return ""

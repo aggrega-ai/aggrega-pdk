@@ -169,7 +169,8 @@ func Import(in aggrega.ImportInput, served Format, parse func(syntax string, sou
 	// The aggregate wiring the drafted and referenced components together is
 	// emitted after the components it composes, and the Release deploying it
 	// last, so the drafts are written in that order.
-	out.Entities = append(out.Entities, agg.entity(in, titles), agg.release(in, titles))
+	aggregate := agg.entity(in, titles)
+	out.Entities = append(append(out.Entities, aggregate), agg.release(in, aggregate)...)
 
 	out.Files = render(settings, out.Entities, out.Decisions)
 	return out
@@ -243,7 +244,8 @@ func Decide(in aggrega.ImportInput, served Format, node Node, ref string) (aggre
 // Render writes the entities and the decisions an import made as the files
 // [Import] writes for them, under the render_mode and emit_hints settings the
 // settings document holds: by default the drafted Aggregate as aggregate.yaml,
-// the drafted Release, as [DraftRelease] writes it, as [ReleaseFileName], and
+// the drafted Release, as [DraftRelease] writes it, as [ReleaseFileName], the
+// Manifest it writes beside it, where it writes one, as [ManifestFileName], and
 // each drafted Component under components/, a HIGH or MEDIUM match's hint
 // written above it, in the order the entities are given; with render_mode llm,
 // the decisions alone as one JSON document. An entity of any other kind writes

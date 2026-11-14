@@ -13,6 +13,10 @@ import (
 // drafted Aggregate's aggregate.yaml.
 const ReleaseFileName = "release.yaml"
 
+// ManifestFileName is the path the Manifest a draft writes, where it writes one
+// ([DraftRelease]), is written under, beside the drafted Release.
+const ManifestFileName = "manifest.yaml"
+
 // draftedEnvironment is the environment every drafted Release names: a default
 // the draft states, since no source names the environment a Release deploys to.
 const draftedEnvironment = "development"
@@ -28,6 +32,11 @@ type ReleaseDraft struct {
 	// components alone. Empty names it default. A Release holding no module entry
 	// declares no boundary, and this is not read.
 	Boundary string
+	// Parameters are the parameters of the drafted Aggregate the Release fulfills
+	// that no source supplies, each written under the Release's spec.parameters
+	// as its Path holding an empty string, with its Text in a comment directly
+	// above it, in the order given. Path is the parameter's name.
+	Parameters []LeftItem
 	// Entries are the Release's entries, one per instance of the drafted
 	// Aggregate, in its order.
 	Entries []ReleaseEntry
@@ -41,10 +50,18 @@ type ReleaseEntry struct {
 	// aggregates — a module the Aggregate composes — which the Release routes
 	// under its boundary's aggregates rather than naming under components.
 	Module bool
+	// Values are the values the draft sets in the entry, each written at its
+	// path, in the order given, after what Lines write.
+	Values []ReleaseValue
 	// Left are the values the entry leaves for the Release to supply, since no
-	// source holds them, in the order given: written first above the entry, under
-	// one heading, one comment line each, as [LeftItem] describes.
+	// source holds them, in the order given, as [LeftItem] describes: each with a
+	// path is written at it holding an empty string, after the values, with a
+	// comment naming it directly above it; each other is written into one comment
+	// above the entry, under one heading, one line each.
 	Left []LeftItem
+	// Secrets are the secrets the entry attaches, each written at its path as
+	// [Secret] describes, after what it leaves for the Release.
+	Secrets []Secret
 	// Comments are written above the entry, after what it leaves for the Release,
 	// one comment line each, at the entry's
 	// own indentation: each is the comment's text, without the hash, and a text
@@ -54,17 +71,42 @@ type ReleaseEntry struct {
 	// Lines are the entry's body, one YAML line each, indented as the entry's
 	// direct members are and written beneath its key: infra:, features: and the
 	// lines nested under them, each written with the indentation it takes relative
-	// to the entry. An entry holding no line is written as an empty mapping.
+	// to the entry. The values, the left items and the secrets are written into
+	// the mappings they name, a mapping Lines write included, so a key is written
+	// once. An entry holding nothing to write is written as an empty mapping.
+	//
+	// The two inputs are deliberate, not a second way of writing one thing: Lines
+	// carry what an importer writes in a shape of its own — a list, a value
+	// across several lines — which no key path addresses, and the keyed fields
+	// carry what the package itself decides how to write — a value it sets, one
+	// it leaves empty, a secret's form for the target. A keyed field whose key
+	// Lines already write is not written again: a left item so passed over is
+	// named in the comment above the entry, and a value or a secret so passed over
+	// is the one Lines write.
 	Lines []string
+}
+
+// ReleaseValue is a value the draft sets in an entry of a drafted Release, as
+// [ReleaseEntry.Values] lists them.
+type ReleaseValue struct {
+	// Path is the key path, relative to the entry, the value is written at, such
+	// as infra.image.
+	Path string
+	// Value is the value, written as it is as a YAML scalar, so the caller writes
+	// it as one: a string read from a source through a writer quoting it.
+	Value string
+	// Comment, where set, is written directly above the value's key, one comment
+	// line per line it holds.
+	Comment string
 }
 
 // LeftItem is one value an entry of a drafted Release leaves for the Release to
 // supply, as [ReleaseEntry.Left] lists them.
 type LeftItem struct {
 	// Path is the key path, relative to the entry, the Release writes the value
-	// at — infra.image, features.admin_password, a connection's
-	// uses.<socket>.<alias>.features.credential — empty where the item names no
-	// one key.
+	// at — infra.image, infra.owner_email — empty where the item names no one key.
+	// The value at a path is a scalar: a secret the Release attaches is a
+	// [Secret], never a left item.
 	Path string
 	// Text says what the value is, completing "<Path>, " where Path is set and
 	// standing alone where it is not; empty writes the path alone. It is written
@@ -73,33 +115,32 @@ type LeftItem struct {
 	Text string
 }
 
-// ConnectionCredential is the value an entry keyed key leaves for the Release
-// where the instance presents a credential on the connection its socket draws
-// under alias, reaching the instance keyed target: the credential the Release
-// attaches on that connection. Every importer leaving such a credential leaves it
-// through this, so it is named one way.
-func ConnectionCredential(key, socket, alias, target string) LeftItem {
-	return LeftItem{Path: "uses." + socket + "." + alias + ".features.credential",
-		Text: "the credential " + key + " presents to " + target + " on its " + socket + " connection"}
+// LeftImage is the value an entry leaves for the Release where no source names
+// the image its instance runs: infra.image, with text saying what the image is
+// or why no source names it. Every importer leaving the image leaves it through
+// this, so it is named one way.
+func LeftImage(text string) LeftItem {
+	return LeftItem{Path: "infra.image", Text: text}
 }
 
-// leftHeading opens the comment listing what an entry leaves for the Release.
+// leftHeading opens the comment listing what an entry leaves for the Release,
+// and the comment above each value it leaves written empty.
 const leftHeading = "Left for the Release, since the source cannot supply it:"
 
-// leftLine is the comment line naming one item an entry leaves for the Release.
+// leftLine is the text naming one item an entry leaves for the Release.
 func leftLine(item LeftItem) string {
 	switch {
 	case item.Path == "":
-		return "  - " + item.Text
+		return item.Text
 	case item.Text == "":
-		return "  - " + item.Path
+		return item.Path
 	}
-	return "  - " + item.Path + ", " + item.Text
+	return item.Path + ", " + item.Text
 }
 
-// DraftRelease writes the Release an import drafts beside its Aggregate, named
-// as [DraftName] names the drafted Aggregate for the request in and the titles
-// its sources give themselves, and deploying that Aggregate. It is the one
+// DraftRelease writes the Release an import drafts beside its Aggregate,
+// aggregate, the drafted Aggregate itself, whose name is the one DraftName gave
+// it: the Release takes that name and deploys it. It is the one
 // writer of a drafted Release: every importer built on the package drafts its
 // Release through it, the package's own drafts included, so one source's Release
 // is written one way whichever importer drafts it.
@@ -110,21 +151,34 @@ func leftLine(item LeftItem) string {
 // the drafted Aggregate, then declares manifest empty, beneath a comment line
 // beginning "# manifest:" saying why — a Release's spec requires the key, and an
 // empty one is a value still owed: where the import is given a target, the host
-// drafts the Manifest and writes its name in place of both lines — then holds the
-// entries: under components
-// where none is a module, and otherwise under the one boundary
+// drafts the Manifest and writes its name in place of both lines — then the
+// parameters the draft leaves for the Release, each empty, then the entries:
+// under components where none is a module, and otherwise under the one boundary
 // [ReleaseDraft.Boundary] names, the instances under its components and the
 // modules under its aggregates, each in the order given. Every entry is written
-// with what it leaves for the Release above it — "Left for the Release, since the
-// source cannot supply it:", then one "  - <path>, <text>" line per item — then
-// its comments, then its key and its lines beneath it, an entry with no line as
-// an empty mapping. The text is written by hand, so the key order is
-// fixed and one draft writes one byte sequence.
+// with what it leaves for the Release that names no key above it — "Left for the
+// Release, since the source cannot supply it:", then one "  - <path>, <text>"
+// line per item — then its comments, then its key and its body beneath it: its
+// lines, its values, each left item naming a key as that key holding an empty
+// string beneath a comment beginning with the same heading, and its secrets, each
+// written into the mapping its path names; an entry with nothing to write as an
+// empty mapping. An item whose key the body already writes, or whose path runs
+// through a value or a list the body writes, is not written into the body; a left
+// item so passed over is named in the comment above the entry instead. The text
+// is written by hand, so the key order is fixed and one draft writes one byte
+// sequence.
 //
-// It returns the Release as a drafted entity, which the package's renderer writes
-// as [ReleaseFileName].
-func DraftRelease(in aggrega.ImportInput, draft ReleaseDraft, titles ...string) aggrega.EmittedEntity {
-	name := draftName(parseSettings(in.Settings), in, titles)
+// Each secret is written for the request's target in the form [Secret.Form]
+// gives it. Where a form names a realization — a secret named by reference on
+// helm, whose realization reading the name as a Secret already in the namespace
+// is one of several the catalog offers — the draft also writes a Manifest, named
+// and versioned as the Release, mapping each such type to its realization, in
+// the order the secrets first name it; the host completes the rest of the
+// Manifest. It returns the Release, then that Manifest where there is one, as
+// drafted entities, which the package's renderer writes as [ReleaseFileName] and
+// [ManifestFileName].
+func DraftRelease(in aggrega.ImportInput, aggregate aggrega.EmittedEntity, draft ReleaseDraft) []aggrega.EmittedEntity {
+	name := aggregate.Name
 	var b strings.Builder
 	b.WriteString("apiVersion: " + apiVersion + "\n")
 	b.WriteString("kind: Release\n")
@@ -140,17 +194,33 @@ func DraftRelease(in aggrega.ImportInput, draft ReleaseDraft, titles ...string) 
 	b.WriteString("  # manifest: left empty, since the import was given no target; an import given a target drafts the " +
 		"Manifest and names it here.\n")
 	b.WriteString("  manifest: \"\"\n")
+	if len(draft.Parameters) > 0 {
+		b.WriteString("  parameters:\n")
+		for _, param := range draft.Parameters {
+			for _, n := range append(commentNodes(leftHeading+" "+leftLine(param)), &bodyNode{text: param.Path + ": \"\""}) {
+				n.write(&b, "    ", "    ")
+			}
+		}
+	}
 
 	var components, modules []ReleaseEntry
+	var realized []string
+	realization := map[string]string{}
 	for _, e := range draft.Entries {
 		if e.Module {
 			modules = append(modules, e)
 		} else {
 			components = append(components, e)
 		}
+		for _, s := range e.Secrets {
+			if form := s.Form(in.Target); form.Realization != "" && realization[form.Type] == "" {
+				realized = append(realized, form.Type)
+				realization[form.Type] = form.Realization
+			}
+		}
 	}
 	if len(modules) == 0 {
-		writeReleaseEntries(&b, "  ", "components", components)
+		writeReleaseEntries(&b, "  ", "components", components, in.Target)
 	} else {
 		boundary := draft.Boundary
 		if boundary == "" {
@@ -159,26 +229,44 @@ func DraftRelease(in aggrega.ImportInput, draft ReleaseDraft, titles ...string) 
 		b.WriteString("  boundaries:\n")
 		b.WriteString("    " + boundary + ":\n")
 		if len(components) > 0 {
-			writeReleaseEntries(&b, "      ", "components", components)
+			writeReleaseEntries(&b, "      ", "components", components, in.Target)
 		}
-		writeReleaseEntries(&b, "      ", "aggregates", modules)
+		writeReleaseEntries(&b, "      ", "aggregates", modules, in.Target)
 	}
-	return aggrega.EmittedEntity{Kind: "Release", Name: name, Mode: "draft", Body: b.String()}
-}
-
-// leftLines is the comment line of each item, in order.
-func leftLines(items []LeftItem) []string {
-	out := make([]string, 0, len(items))
-	for _, item := range items {
-		out = append(out, leftLine(item))
+	out := []aggrega.EmittedEntity{{Kind: "Release", Name: aggregate.Name, Mode: "draft", Body: b.String()}}
+	if len(realized) > 0 {
+		out = append(out, aggrega.EmittedEntity{Kind: "Manifest", Name: name, Mode: "draft",
+			Body: realizedSecretsManifest(name, realized, realization)})
 	}
 	return out
 }
 
+// realizedSecretsManifest is the Manifest a draft writes where the form of a
+// secret it attaches names a realization, named name: each type in types mapped
+// to its realization, the mappings only the import chooses, which the host
+// completes with every other mapping the drafts need.
+func realizedSecretsManifest(name string, types []string, realization map[string]string) string {
+	var b strings.Builder
+	b.WriteString("apiVersion: " + apiVersion + "\n")
+	b.WriteString("kind: Manifest\n")
+	b.WriteString("metadata:\n")
+	b.WriteString("  name: " + name + "\n")
+	b.WriteString("  version: 0.1.0\n")
+	b.WriteString("spec:\n")
+	b.WriteString("  mappings:\n")
+	b.WriteString("    features:\n")
+	b.WriteString("      type:\n")
+	for _, typ := range types {
+		b.WriteString("        " + typ + ": " + realization[typ] + "\n")
+	}
+	return b.String()
+}
+
 // writeReleaseEntries writes the mapping key, at indent, holding entries: each
-// entry's comments and key two spaces further in, and its lines two spaces
-// further still; key: {} where there is no entry.
-func writeReleaseEntries(b *strings.Builder, indent, key string, entries []ReleaseEntry) {
+// entry's comments and key two spaces further in, and its body two spaces
+// further still, its secrets written for target; key: {} where there is no
+// entry.
+func writeReleaseEntries(b *strings.Builder, indent, key string, entries []ReleaseEntry, target string) {
 	if len(entries) == 0 {
 		b.WriteString(indent + key + ": {}\n")
 		return
@@ -186,31 +274,194 @@ func writeReleaseEntries(b *strings.Builder, indent, key string, entries []Relea
 	b.WriteString(indent + key + ":\n")
 	at := indent + "  "
 	for _, e := range entries {
+		body, passed := entryBody(e, target)
 		comments := e.Comments
-		if len(e.Left) > 0 {
-			comments = append([]string{leftHeading}, leftLines(e.Left)...)
+		if len(passed) > 0 {
+			comments = []string{leftHeading}
+			for _, item := range passed {
+				comments = append(comments, "  - "+leftLine(item))
+			}
 			comments = append(comments, e.Comments...)
 		}
 		for _, comment := range comments {
-			for _, line := range strings.Split(comment, "\n") {
-				if line == "" {
-					b.WriteString(at + "#\n")
-					continue
-				}
-				b.WriteString(at + "# " + line + "\n")
+			for _, n := range commentNodes(comment) {
+				n.write(b, at, at)
 			}
 		}
-		if len(e.Lines) == 0 {
+		if len(body) == 0 {
 			b.WriteString(at + e.Key + ": {}\n")
 			continue
 		}
 		b.WriteString(at + e.Key + ":\n")
-		for _, line := range e.Lines {
-			if line == "" {
-				b.WriteString("\n")
-				continue
-			}
-			b.WriteString(at + "  " + line + "\n")
+		for _, n := range body {
+			n.write(b, at+"  ", at+"  ")
 		}
 	}
+}
+
+// entryBody is the body of e, as [DraftRelease] writes it for target, and the
+// left items it does not write into the body, in their order: those naming no
+// key, and those whose key the body already writes.
+func entryBody(e ReleaseEntry, target string) ([]*bodyNode, []LeftItem) {
+	body := parseBody(e.Lines)
+	for _, v := range e.Values {
+		var comments []*bodyNode
+		if v.Comment != "" {
+			comments = commentNodes(v.Comment)
+		}
+		place(&body, v.Path, comments, &bodyNode{text: leaf(v.Path) + ": " + v.Value})
+	}
+	var passed []LeftItem
+	for _, item := range e.Left {
+		if item.Path == "" {
+			passed = append(passed, item)
+			continue
+		}
+		node := &bodyNode{text: leaf(item.Path) + ": \"\""}
+		if !place(&body, item.Path, commentNodes(leftHeading+" "+leftLine(item)), node) {
+			passed = append(passed, item)
+		}
+	}
+	for _, s := range e.Secrets {
+		place(&body, s.Path, nil, secretNode(s, target))
+	}
+	return body, passed
+}
+
+// leaf is the last segment of a key path.
+func leaf(path string) string {
+	return path[strings.LastIndex(path, ".")+1:]
+}
+
+// bodyNode is one line of an entry's body and the lines nested beneath it: a
+// key, a key and its value, a list item, a comment, or a line of a value written
+// across several lines.
+type bodyNode struct {
+	// text is the line, without its indentation.
+	text string
+	// indent, where set, is the line's indentation relative to the entry's body,
+	// as Lines wrote it; a line the draft adds is written two spaces in from the
+	// line it is nested under.
+	indent   *int
+	children []*bodyNode
+}
+
+// write writes n, and the lines nested beneath it: a line of Lines at base
+// followed by the indentation Lines gave it, and a line the draft adds at pad,
+// two spaces in from the line it is nested under.
+func (n *bodyNode) write(b *strings.Builder, base, pad string) {
+	if n.indent != nil {
+		pad = base + strings.Repeat(" ", *n.indent)
+	}
+	if n.text == "" {
+		b.WriteString("\n")
+	} else {
+		b.WriteString(pad + n.text + "\n")
+	}
+	for _, c := range n.children {
+		c.write(b, base, pad+"  ")
+	}
+}
+
+// key returns the key a line writes, and whether it writes one and whether that
+// key holds a value written on the line.
+func (n *bodyNode) key() (key string, valued, ok bool) {
+	t := n.text
+	if t == "" || strings.HasPrefix(t, "#") || strings.HasPrefix(t, "-") {
+		return "", false, false
+	}
+	if strings.HasSuffix(t, ":") {
+		return strings.TrimSuffix(t, ":"), false, true
+	}
+	if i := strings.Index(t, ": "); i > 0 {
+		return t[:i], true, true
+	}
+	return "", false, false
+}
+
+// listItem reports whether a line is an item of a list.
+func (n *bodyNode) listItem() bool {
+	return strings.HasPrefix(n.text, "-")
+}
+
+// parseBody reads lines, an entry's body as [ReleaseEntry.Lines] writes it, as
+// lines and the lines nested beneath each, by indentation; a blank line is
+// nested with the line before it.
+func parseBody(lines []string) []*bodyNode {
+	type open struct {
+		indent int
+		node   *bodyNode
+	}
+	var roots []*bodyNode
+	var stack []open
+	for _, line := range lines {
+		text := strings.TrimLeft(line, " ")
+		indent := len(line) - len(text)
+		if text == "" && len(stack) > 0 {
+			indent = stack[len(stack)-1].indent
+		}
+		n := &bodyNode{text: text, indent: &indent}
+		for len(stack) > 0 && stack[len(stack)-1].indent >= indent {
+			stack = stack[:len(stack)-1]
+		}
+		if len(stack) == 0 {
+			roots = append(roots, n)
+		} else {
+			parent := stack[len(stack)-1].node
+			parent.children = append(parent.children, n)
+		}
+		stack = append(stack, open{indent: indent, node: n})
+	}
+	return roots
+}
+
+// place writes node, beneath the comments above it, at path in the body nodes
+// hold: into the mapping each segment but the last names, adding each the body
+// does not write. It writes nothing, and reports false, where the body already
+// writes the last segment's key, or where a segment names a key holding a value
+// written on its line, or a mapping holding a list.
+func place(nodes *[]*bodyNode, path string, comments []*bodyNode, node *bodyNode) bool {
+	segments := strings.Split(path, ".")
+	level := nodes
+	for i, segment := range segments {
+		var found *bodyNode
+		for _, n := range *level {
+			if n.listItem() {
+				return false
+			}
+			if key, valued, ok := n.key(); ok && key == segment {
+				if valued || i == len(segments)-1 {
+					return false
+				}
+				found = n
+			}
+		}
+		if found == nil {
+			for _, rest := range segments[i : len(segments)-1] {
+				parent := &bodyNode{text: rest + ":"}
+				*level = append(*level, parent)
+				level = &parent.children
+			}
+			*level = append(append(*level, comments...), node)
+			return true
+		}
+		level = &found.children
+	}
+	return false
+}
+
+// commentNodes are the comment lines text is written as, one per line it holds,
+// an empty line written as a bare hash: the one rule every comment line of a
+// drafted Release is written by. A Release is not evaluated as a template, so
+// each line is written as it is.
+func commentNodes(text string) []*bodyNode {
+	var out []*bodyNode
+	for _, line := range strings.Split(text, "\n") {
+		if line == "" {
+			out = append(out, &bodyNode{text: "#"})
+			continue
+		}
+		out = append(out, &bodyNode{text: "# " + line})
+	}
+	return out
 }

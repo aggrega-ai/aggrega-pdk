@@ -111,7 +111,7 @@ spec:
 // renderedModuleRelease is the Release the module form drafts for one source: a
 // Release places a module only under a boundary, so the entry of the module is
 // routed under the aggregates of the boundary the platform runs in, with what the
-// platform leaves for the Release above it.
+// platform leaves for the Release written empty in it.
 const renderedModuleRelease = `apiVersion: aggrega.ai/v1beta1
 kind: Release
 metadata:
@@ -127,9 +127,10 @@ spec:
   boundaries:
     platform:
       aggregates:
-        # Left for the Release, since the source cannot supply it:
-        #   - infra.owner, the platform's owner
-        testmod: {}
+        testmod:
+          infra:
+            # Left for the Release, since the source cannot supply it: infra.owner, the platform's owner
+            owner: ""
 `
 
 // keptByModule is the rationale of a node the module form keeps in the flow,
@@ -315,13 +316,22 @@ const passedDownHead = "apiVersion: aggrega.ai/v1beta1\n" +
 const passedDownComment = "    # An import sees the Components of the workspace's catalog and none of its Aggregates, so it does " +
 	"not check that the catalog holds core/testmod.\n"
 
-// passedDownLeft is the comment the module form writes above each entry of the
-// Release with signing_key passed down: the parameter named first among what the
-// Release supplies.
-const passedDownLeft = "        # Left for the Release, since the source cannot supply it:\n" +
-	"        #   - the signing_key parameter, under the Release's spec.parameters, which the drafted Aggregate " +
-	"declares and passes down to core/testmod\n" +
-	"        #   - infra.owner, the platform's owner\n"
+// passedDownLeft is what the module form writes into the Release with
+// signing_key passed down: the parameter declared once, empty, under the
+// Release's spec.parameters beneath the comment naming it, ahead of the
+// boundaries.
+const passedDownLeft = "  parameters:\n" +
+	"    # Left for the Release, since the source cannot supply it: signing_key, which the drafted Aggregate " +
+	"declares and passes down to core/testmod; that parameter's description there says what the value is\n" +
+	"    signing_key: \"\"\n" +
+	"  boundaries:\n"
+
+// moduleOwnerLeft is the body the module form writes for an entry of the module:
+// the platform's owner written empty beneath the comment naming it.
+const moduleOwnerLeft = ":\n" +
+	"          infra:\n" +
+	"            # Left for the Release, since the source cannot supply it: infra.owner, the platform's owner\n" +
+	"            owner: \"\"\n"
 
 // evaluated evaluates a drafted Aggregate as a template, as the compiler does
 // before it reads the Aggregate as YAML, with the Release fulfilling signing_key
@@ -345,8 +355,9 @@ func evaluated(t *testing.T, aggregate, fulfilled string) string {
 //   - one source carried: the drafted Aggregate declares signing_key once, under
 //     spec.parameters, as a required string of at least one character with no
 //     default and the description given, and passes it down to the entry by name
-//     ahead of the carried flow — byte for byte — and the Release names it first
-//     in the comment of what it supplies for the entry;
+//     ahead of the carried flow — byte for byte — and the Release declares it
+//     once, empty, under its spec.parameters, and writes the owner empty in the
+//     entry;
 //   - one source not carried, its writer refusing: the entry passes signing_key
 //     down all the same, under a parameters key of its own, with the comment
 //     saying why the flow is left unset;
@@ -397,9 +408,12 @@ func TestTheModuleFormPassesDownTheParametersItDeclares(t *testing.T) {
 				t.Fatalf("the module form wrote %+v, want the Aggregate and the Release alone", out.Files)
 			}
 			release := out.Files[1].Content
+			if n := strings.Count(release, passedDownLeft); n != 1 {
+				t.Errorf("the Release declares signing_key empty %d times, want once:\n%s", n, release)
+			}
 			for _, entry := range tc.entries {
-				if !strings.Contains(release, passedDownLeft+"        "+entry+": {}\n") {
-					t.Errorf("the Release does not name signing_key above %s:\n%s", entry, release)
+				if !strings.Contains(release, "        "+entry+moduleOwnerLeft) {
+					t.Errorf("the Release does not write the owner empty in %s:\n%s", entry, release)
 				}
 			}
 			agg := out.Files[0].Content

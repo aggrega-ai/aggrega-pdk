@@ -17,18 +17,38 @@ import (
 // drafted platform instance.
 const attachOn = `{"attach_egress_allowlist":true}`
 
-// egressReleaseLines are the lines the comment above the drafted Release's entry
-// for a platform instance keyed key gains when the attachment is drafted: what of
-// it the Release sets.
+// egressReleaseLines is the line the comment above the drafted Release's entry
+// for a platform instance keyed key gains when the attachment is drafted: the
+// namespace the attachment's realization halts without, which no key of the
+// entry holds.
 func egressReleaseLines(key string) string {
-	return "    #   - features.egress-allowlist.infra.control_plane_present, the affirmation that the cluster's " +
-		"network plugin enforces network policy, without which the build halts\n" +
-		"    #   - features.egress-allowlist.infra.admitted_destinations, an address range for each connection " +
-		"whose target the cluster does not run, such as a hosted model, without which the build halts naming that " +
-		"connection\n" +
-		"    #   - aggrega.ai/namespace on the boundary holding " + key + ", where the target emits its workloads into no " +
+	return "    #   - aggrega.ai/namespace on the boundary holding " + key + ", where the target emits its workloads into no " +
 		"namespace: the attachment's network policy is placed in its workload's namespace, and the build halts " +
 		"without one\n"
+}
+
+// egressReleaseBody is what the drafted Release's entry for a platform instance
+// writes, after its image, when the attachment is drafted: what of it the Release
+// sets, each written empty beneath the comment naming it.
+const egressReleaseBody = "      features:\n" +
+	"        egress-allowlist:\n" +
+	"          infra:\n" +
+	"            # Left for the Release, since the source cannot supply it: " +
+	"features.egress-allowlist.infra.control_plane_present, the affirmation that the cluster's network plugin enforces " +
+	"network policy, without which the build halts\n" +
+	"            control_plane_present: \"\"\n" +
+	"            # Left for the Release, since the source cannot supply it: " +
+	"features.egress-allowlist.infra.admitted_destinations, an address range for each connection whose target the " +
+	"cluster does not run, such as a hosted model, without which the build halts naming that connection\n" +
+	"            admitted_destinations: \"\"\n"
+
+// withEgressRelease is the default Release of a platform instance keyed key,
+// release, as the attachment drafts it: the namespace named last above the entry,
+// and what the Release sets of the attachment written after the image.
+func withEgressRelease(release, key, lastAbove string) string {
+	release = strings.Replace(release, lastAbove, lastAbove+egressReleaseLines(key), 1)
+	image := "        image: \"\"\n"
+	return strings.Replace(release, image, image+egressReleaseBody, 1)
 }
 
 // egressFeatures is the features block a drafted platform instance keyed key
@@ -56,10 +76,10 @@ func egressAttachedMessage(key string) string {
 // for byte but for one addition: the instance opens a features block attaching
 // core/egress-allowlist as egress-allowlist, with its type and nothing else — no
 // infra, which an Aggregate's attachment does not carry, and so no affirmation.
-// The drafted Release is the default's byte for byte but for the comment above
-// the platform's entry, which names, after the default's items, the affirmation,
-// the address ranges and the namespace the attachment's realization halts
-// without. Every drafted Component file is the default's. Each wired part's decision says the attachment admits its
+// The drafted Release is the default's byte for byte but for the platform's
+// entry, whose comment names, after the default's items, the namespace the
+// attachment's realization halts without, and whose body writes the affirmation
+// and the address ranges empty, each beneath its comment. Every drafted Component file is the default's. Each wired part's decision says the attachment admits its
 // connection, every other decision is the default's, and the import raises one
 // info naming the attachment and what the Release sets.
 //
@@ -79,8 +99,7 @@ func TestTheAttachEgressAllowlistSettingAttachesTheFeatureToThePlatform(t *testi
 
 	instance := "    testplat:\n      type: core/ai-agent/testplat\n"
 	want := strings.Replace(renderedPlatformAggregate(), instance, instance+egressFeatures("testplat"), 1)
-	entry := "    testplat: {}\n"
-	wantRelease := strings.Replace(renderedPlatformRelease, entry, egressReleaseLines("testplat")+entry, 1)
+	wantRelease := withEgressRelease(renderedPlatformRelease, "testplat", "where finder checks one\n")
 	if want == renderedPlatformAggregate() || wantRelease == renderedPlatformRelease {
 		t.Fatal("the expected draft was not built: the default draft no longer reads as this test expects")
 	}
@@ -138,20 +157,20 @@ func TestTheAttachEgressAllowlistSettingAttachesTheFeatureToThePlatform(t *testi
 // setting true, declares the lines inside that one features block.
 //
 // 🔴 PLANTED DEFECT: in (*platformDraft).entity (platform.go), replace
-// `writeTargetAttachment(&b, inst.key, a, inFeatures, false)` with
-// `writeTargetAttachment(&b, inst.key, a, false, false)`: the draft writes a
+// `writeDeclaration(&b, "      ", inst.key, decl, inFeatures)` with
+// `writeDeclaration(&b, "      ", inst.key, decl, false)`: the draft writes a
 // second features key inside the instance and this test fails.
 func TestTheTargetLinesSitInsideTheFeaturesTheAttachmentOpens(t *testing.T) {
 	t.Parallel()
 	format := platformTestFormat()
-	format.Platform.TargetAttachments = []TargetAttachment{{Target: "compose", Slot: "admin", Type: "core/secret-value",
-		Key: "ADMIN_PASSWORD", Why: "the compose Recipe reads every secret the Release alone attaches under one key"}}
+	format.Platform.Secrets = []Secret{{Path: "features.admin", Variable: "TESTPLAT_ADMIN", Key: "ADMIN_PASSWORD",
+		Text: "the administrator's password"}}
 	off := platformImport(t, format, platformCatalog(), `{"attach_egress_allowlist":false}`, oneSource(platformSource))
 	on := platformImport(t, format, platformCatalog(), attachOn, oneSource(platformSource))
 	offAgg, onAgg := aggregateFile(off), aggregateFile(on)
 
-	opening := "# For the compose target only, uncomment the lines below, which declare admin on testplat: the compose " +
-		"Recipe reads every secret the Release alone attaches under one key.\n"
+	opening := "# For the compose target only, uncomment the lines below, which declare admin on testplat: " +
+		DeclarationWhy + ".\n"
 	wantOff := "      type: core/ai-agent/testplat\n      " + opening +
 		"      # features:\n      #   admin:\n      #     type: core/secret-value\n      #     values:\n" +
 		"      #       key: ADMIN_PASSWORD\n      values:\n"
@@ -187,8 +206,7 @@ func TestTheTargetLinesSitInsideTheFeaturesTheAttachmentOpens(t *testing.T) {
 		Settings: json.RawMessage(attachOn), Target: "compose"}
 	targeted := aggregateFile(Import(in, format, (&parseRecorder{}).parse))
 	wantTargeted := "      type: core/ai-agent/testplat\n" + egressFeatures("testplat") +
-		"        # For the compose target, the lines below declare admin on testplat: the compose Recipe reads every " +
-		"secret the Release alone attaches under one key.\n" +
+		"        # For the compose target, the lines below declare admin on testplat: " + DeclarationWhy + ".\n" +
 		strings.Join(wantLines, "\n") + "\n      values:\n"
 	if !strings.Contains(targeted, wantTargeted) {
 		t.Errorf("an import for the target does not declare its lines inside the features block:\n%s", targeted)
@@ -287,8 +305,12 @@ func TestEveryPlatformInstanceCarriesTheAttachment(t *testing.T) {
 		if want := "    " + key + ":\n      type: core/ai-agent/testplat\n" + egressFeatures(key); !strings.Contains(agg, want) {
 			t.Errorf("the Aggregate does not carry\n%s\nit reads\n%s", want, agg)
 		}
-		if !strings.Contains(release, egressReleaseLines(key)+"    "+key+": {}\n") {
-			t.Errorf("the comment above %s does not name what the Release sets:\n%s", key, release)
+		if n := strings.Count(release, egressReleaseBody); n != 2 {
+			t.Errorf("the Release writes what it sets of the attachment %d times, want once per instance:\n%s", n,
+				release)
+		}
+		if !strings.Contains(release, egressReleaseLines(key)+"    "+key+":\n") {
+			t.Errorf("the comment above %s does not name the namespace the Release sets:\n%s", key, release)
 		}
 	}
 	want := []aggrega.Diagnostic{

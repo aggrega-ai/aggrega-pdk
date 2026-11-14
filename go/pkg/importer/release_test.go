@@ -40,6 +40,12 @@ func withHintsOnly(settings string) string {
 	return strings.Replace(settings, "{", `{"reuse_mode":"hints-only",`, 1)
 }
 
+// draftedAggregate is a drafted Aggregate entity named name, as an importer
+// hands DraftRelease the Aggregate it drafted.
+func draftedAggregate(name string) aggrega.EmittedEntity {
+	return aggrega.EmittedEntity{Kind: "Aggregate", Name: name, Mode: "draft"}
+}
+
 // releaseHead is the head every drafted Release of the test's format opens with,
 // named name, its manifest declared empty beneath the comment saying why.
 func releaseHead(name string) string {
@@ -60,38 +66,44 @@ func releaseHead(name string) string {
 }
 
 // TestDraftReleaseWritesTheReleaseOfTheDraft pins, byte for byte, the Release
-// DraftRelease writes, one row per shape a draft hands it: named as DraftName
-// names the Aggregate it deploys, under the target_namespace setting; its
-// environment development beneath the comment saying it is a drafted default;
-// manifest declared empty beneath the comment saying why, the two lines the host
-// replaces with the drafted Manifest's name; and the entries — each with what
-// it leaves for the Release above it, under one heading, an item with a path and
-// a text written "<path>, <text>" and one with either alone written as that
-// alone; then its comments, a comment holding a line feed written as two comment
-// lines and an empty one as a bare hash; and its lines beneath its key, an entry
-// with no line written as an empty mapping — under components, or,
-// where one is a module, under the one boundary the draft names, the instances
-// under its components and the modules under its aggregates, each in the order
-// given. Every row is written twice, and must write the same bytes both times.
+// DraftRelease writes, one row per shape a draft hands it: named as the name it
+// is handed; its environment development beneath the comment saying it is a
+// drafted default; manifest declared empty beneath the comment saying why, the
+// two lines the host replaces with the drafted Manifest's name; the parameters
+// the draft leaves, each empty beneath a comment; and the entries — each with
+// what it leaves for the Release that names no key above it, under one heading,
+// written "<path>, <text>" or either alone; then its comments, a comment holding
+// a line feed written as two comment lines and an empty one as a bare hash; and
+// its body beneath its key: its lines, then its values, each left item naming a
+// key as that key holding an empty string beneath its comment, written into a
+// mapping its lines already write, and its secrets — one whose key its lines
+// write, or whose path runs through a list, named above the entry instead; an
+// entry with nothing to write as an empty mapping — under components, or, where
+// one is a module, under the one boundary the draft names, the instances under
+// its components and the modules under its aggregates, each in the order given.
+// Every row is written twice, and must write the same bytes both times.
 //
 // 🔴 PLANTED DEFECTS, each in DraftRelease (release.go):
 //
 //   - drop the line writing the environment: every row fails;
 //   - write every entry under components whatever its Module says: the module
-//     rows fail.
+//     rows fail;
+//   - in place, write the node where the last segment's key is already written
+//     instead of reporting false: the "already written" row fails with two
+//     image keys.
 func TestDraftReleaseWritesTheReleaseOfTheDraft(t *testing.T) {
 	t.Parallel()
 	in := aggrega.ImportInput{Format: testFormatName, Name: "support.json"}
 	for _, row := range []struct {
 		scenario string
 		in       aggrega.ImportInput
-		titles   []string
+		name     string
 		draft    ReleaseDraft
 		want     string
 	}{
-		{"no entry", in, nil, ReleaseDraft{},
+		{"no entry", in, "imported/support", ReleaseDraft{},
 			releaseHead("imported/support") + "  components: {}\n"},
-		{"entries with comments and lines", in, nil, ReleaseDraft{Entries: []ReleaseEntry{
+		{"entries with comments and lines", in, "imported/support", ReleaseDraft{Entries: []ReleaseEntry{
 			{Key: "api", Left: []LeftItem{{Path: "infra.port", Text: "the port it listens on"}, {Path: "infra.region"},
 				{Text: "the value of its token"}}, Comments: []string{"The service api."},
 				Lines: []string{"infra:", "  image: \"nginx:1\"", "features:", "  token:", "    type: core/secret-value"}},
@@ -101,13 +113,15 @@ func TestDraftReleaseWritesTheReleaseOfTheDraft(t *testing.T) {
 			releaseHead("imported/support") +
 				"  components:\n" +
 				"    # Left for the Release, since the source cannot supply it:\n" +
-				"    #   - infra.port, the port it listens on\n" +
-				"    #   - infra.region\n" +
 				"    #   - the value of its token\n" +
 				"    # The service api.\n" +
 				"    api:\n" +
 				"      infra:\n" +
 				"        image: \"nginx:1\"\n" +
+				"        # Left for the Release, since the source cannot supply it: infra.port, the port it listens on\n" +
+				"        port: \"\"\n" +
+				"        # Left for the Release, since the source cannot supply it: infra.region\n" +
+				"        region: \"\"\n" +
 				"      features:\n" +
 				"        token:\n" +
 				"          type: core/secret-value\n" +
@@ -116,21 +130,64 @@ func TestDraftReleaseWritesTheReleaseOfTheDraft(t *testing.T) {
 				"    # lines\n" +
 				"    #\n" +
 				"    db: {}\n"},
-		{"a title and a namespace", aggrega.ImportInput{Format: testFormatName, Name: "support.json",
-			Settings: json.RawMessage(`{"target_namespace":"team-a"}`)}, []string{"Support Chat"},
-			ReleaseDraft{Entries: []ReleaseEntry{{Key: "chat"}}},
-			releaseHead("team-a/support-chat") + "  components:\n    chat: {}\n"},
-		{"a module alone", in, nil, ReleaseDraft{Boundary: "platform", Entries: []ReleaseEntry{
-			{Key: "dify", Module: true, Comments: []string{"The installation."}},
+		{"already written, or under a list", in, "imported/support", ReleaseDraft{Entries: []ReleaseEntry{
+			{Key: "srv", Left: []LeftItem{LeftImage("since it names none"), {Path: "infra.command.0", Text: "written empty"},
+				{Path: "infra.port.number", Text: "under a value"}},
+				Lines: []string{"infra:", "  image: \"x\"", "  port: 80", "  command:", "    - \"\""}},
 		}},
 			releaseHead("imported/support") +
+				"  components:\n" +
+				"    # Left for the Release, since the source cannot supply it:\n" +
+				"    #   - infra.image, since it names none\n" +
+				"    #   - infra.command.0, written empty\n" +
+				"    #   - infra.port.number, under a value\n" +
+				"    srv:\n" +
+				"      infra:\n" +
+				"        image: \"x\"\n" +
+				"        port: 80\n" +
+				"        command:\n" +
+				"          - \"\"\n"},
+		{"values and secrets", in, "imported/support", ReleaseDraft{Entries: []ReleaseEntry{
+			{Key: "flow", Values: []ReleaseValue{{Path: "infra.image", Value: `"flow:1"`, Comment: "The image."}},
+				Left:    []LeftItem{{Path: "infra.owner", Text: "the owner"}},
+				Secrets: []Secret{{Path: "features.password", Variable: "FLOW_PASSWORD", Text: "the password"}}},
+		}},
+			releaseHead("imported/support") +
+				"  components:\n" +
+				"    flow:\n" +
+				"      infra:\n" +
+				"        # The image.\n" +
+				"        image: \"flow:1\"\n" +
+				"        # Left for the Release, since the source cannot supply it: infra.owner, the owner\n" +
+				"        owner: \"\"\n" +
+				"      features:\n" +
+				"        password:\n" +
+				"          type: core/secret-value\n" +
+				"          infra:\n" +
+				"            # Attached by reference, never as a value: the password, read from the variable " +
+				"FLOW_PASSWORD, which a target substituting variable references, as Docker Compose does when the stack " +
+				"starts, reads from the environment, so no file carries the value.\n" +
+				"            origin: \"${FLOW_PASSWORD}\"\n"},
+		{"a title and a namespace", aggrega.ImportInput{Format: testFormatName, Name: "support.json",
+			Settings: json.RawMessage(`{"target_namespace":"team-a"}`)}, "team-a/support-chat",
+			ReleaseDraft{Entries: []ReleaseEntry{{Key: "chat"}}},
+			releaseHead("team-a/support-chat") + "  components:\n    chat: {}\n"},
+		{"a module alone, a parameter left", in, "imported/support", ReleaseDraft{Boundary: "platform",
+			Parameters: []LeftItem{{Path: "key", Text: "the key"}},
+			Entries: []ReleaseEntry{
+				{Key: "dify", Module: true, Comments: []string{"The installation."}},
+			}},
+			releaseHead("imported/support") +
+				"  parameters:\n" +
+				"    # Left for the Release, since the source cannot supply it: key, the key\n" +
+				"    key: \"\"\n" +
 				"  boundaries:\n" +
 				"    platform:\n" +
 				"      aggregates:\n" +
 				"        # The installation.\n" +
 				"        dify: {}\n"},
-		{"instances and a module, no boundary named", in, nil, ReleaseDraft{Entries: []ReleaseEntry{
-			{Key: "web", Left: []LeftItem{{Path: "infra.image", Text: "the image running it"}}},
+		{"instances and a module, no boundary named", in, "imported/support", ReleaseDraft{Entries: []ReleaseEntry{
+			{Key: "web", Left: []LeftItem{LeftImage("the image running it")}},
 			{Key: "mod", Module: true, Lines: []string{"components:", "  api: {}"}},
 			{Key: "db"},
 		}},
@@ -138,81 +195,179 @@ func TestDraftReleaseWritesTheReleaseOfTheDraft(t *testing.T) {
 				"  boundaries:\n" +
 				"    default:\n" +
 				"      components:\n" +
-				"        # Left for the Release, since the source cannot supply it:\n" +
-				"        #   - infra.image, the image running it\n" +
-				"        web: {}\n" +
+				"        web:\n" +
+				"          infra:\n" +
+				"            # Left for the Release, since the source cannot supply it: infra.image, the image running it\n" +
+				"            image: \"\"\n" +
 				"        db: {}\n" +
 				"      aggregates:\n" +
 				"        mod:\n" +
 				"          components:\n" +
 				"            api: {}\n"},
 	} {
-		first := DraftRelease(row.in, row.draft, row.titles...)
-		again := DraftRelease(row.in, row.draft, row.titles...)
-		if first.Body != row.want {
-			t.Errorf("%s: DraftRelease wrote\n%s\nwant\n%s", row.scenario, first.Body, row.want)
+		first := DraftRelease(row.in, draftedAggregate(row.name), row.draft)
+		again := DraftRelease(row.in, draftedAggregate(row.name), row.draft)
+		if len(first) != 1 || len(again) != 1 {
+			t.Fatalf("%s: DraftRelease returned %d and %d entities, want the Release alone", row.scenario, len(first),
+				len(again))
 		}
-		if again.Body != first.Body {
-			t.Errorf("%s: DraftRelease wrote two byte sequences:\n%s\nand\n%s", row.scenario, first.Body, again.Body)
+		if first[0].Body != row.want {
+			t.Errorf("%s: DraftRelease wrote\n%s\nwant\n%s", row.scenario, first[0].Body, row.want)
 		}
-		if name := DraftName(row.in, row.titles...); first.Kind != "Release" || first.Mode != "draft" || first.Name != name {
-			t.Errorf("%s: DraftRelease returned the %s %s %q, want the drafted Release %q", row.scenario, first.Mode,
-				first.Kind, first.Name, name)
+		if again[0].Body != first[0].Body {
+			t.Errorf("%s: DraftRelease wrote two byte sequences:\n%s\nand\n%s", row.scenario, first[0].Body,
+				again[0].Body)
+		}
+		if r := first[0]; r.Kind != "Release" || r.Mode != "draft" || r.Name != row.name {
+			t.Errorf("%s: DraftRelease returned the %s %s %q, want the drafted Release %q", row.scenario, r.Mode,
+				r.Kind, r.Name, row.name)
 		}
 	}
 }
 
-// TestConnectionCredentialNamesTheCredentialOnItsConnection pins the item an
-// entry leaves for the credential its instance presents on one connection: the
-// path the Release attaches it at under that connection, and the sentence naming
-// the instance, the target and the socket.
+// TestASecretIsWrittenForTheTargetAsAReference pins how DraftRelease writes one
+// secret, a connection's credential, for each target an import names, and for
+// none: as core/secret-value whose origin is the variable reference ${VARIABLE}
+// for compose and for no target, and as core/referenced-secret whose origin is
+// written empty — the Secret's name, left for the Release — for helm, a draft
+// then also writing a Manifest mapping core/referenced-secret to
+// helm/k8s-existing-secret; a secret marked Referenced takes the referenced
+// form for every target, and the Manifest only for helm. No row writes a value:
+// the only origin written is a variable reference or an empty string.
+//
+// 🔴 PLANTED DEFECT: in Secret.referenced (release.go), return s.Referenced
+// alone: the helm rows fail, writing core/secret-value and no Manifest.
+func TestASecretIsWrittenForTheTargetAsAReference(t *testing.T) {
+	t.Parallel()
+	credential := ConnectionCredential("flow", "model", "gpt", "gpt", "OPENAI_API_KEY")
+	byValue := "      uses:\n" +
+		"        model:\n" +
+		"          gpt:\n" +
+		"            features:\n" +
+		"              credential:\n" +
+		"                type: core/secret-value\n" +
+		"                infra:\n" +
+		"                  # Attached by reference, never as a value: the credential flow presents to gpt on its " +
+		"model connection, read from the variable OPENAI_API_KEY, which a target substituting variable references, " +
+		"as Docker Compose does when the stack starts, reads from the environment, so no file carries the value.\n" +
+		"                  origin: \"${OPENAI_API_KEY}\"\n"
+	referenced := func(holds string) string {
+		return "      uses:\n" +
+			"        model:\n" +
+			"          gpt:\n" +
+			"            features:\n" +
+			"              credential:\n" +
+			"                type: core/referenced-secret\n" +
+			"                infra:\n" +
+			"                  # Left for the Release, since the source cannot supply it: " + holds + ".\n" +
+			"                  origin: \"\"\n"
+	}
+	inHelm := referenced("the name of a Kubernetes Secret already in the namespace holding, under the data key " +
+		"value, the credential flow presents to gpt on its model connection")
+	elsewhere := referenced("the name of the secret resource holding the credential flow presents to gpt on its " +
+		"model connection, as the Manifest's realization of core/referenced-secret reads it")
+	manifest := "apiVersion: aggrega.ai/v1beta1\n" +
+		"kind: Manifest\n" +
+		"metadata:\n" +
+		"  name: imported/flow\n" +
+		"  version: 0.1.0\n" +
+		"spec:\n" +
+		"  mappings:\n" +
+		"    features:\n" +
+		"      type:\n" +
+		"        core/referenced-secret: helm/k8s-existing-secret\n"
+	marked := credential
+	marked.Referenced = true
+	for _, row := range []struct {
+		scenario, target string
+		secret           Secret
+		wantBody         string
+		wantManifest     string
+	}{
+		{"compose", "compose", credential, byValue, ""},
+		{"no target", "", credential, byValue, ""},
+		{"helm", "helm", credential, inHelm, manifest},
+		{"referenced, compose", "compose", marked, elsewhere, ""},
+		{"referenced, helm", "helm", marked, inHelm, manifest},
+	} {
+		in := aggrega.ImportInput{Format: testFormatName, Target: row.target}
+		out := DraftRelease(in, draftedAggregate("imported/flow"), ReleaseDraft{Entries: []ReleaseEntry{{Key: "flow",
+			Secrets: []Secret{row.secret}}}})
+		want := releaseHead("imported/flow") + "  components:\n    flow:\n" + row.wantBody
+		if out[0].Body != want {
+			t.Errorf("%s: DraftRelease wrote\n%s\nwant\n%s", row.scenario, out[0].Body, want)
+		}
+		switch {
+		case row.wantManifest == "" && len(out) != 1:
+			t.Errorf("%s: DraftRelease returned %d entities, want the Release alone", row.scenario, len(out))
+		case row.wantManifest != "" && (len(out) != 2 || out[1].Kind != "Manifest" || out[1].Mode != "draft" ||
+			out[1].Name != "imported/flow" || out[1].Body != row.wantManifest):
+			t.Errorf("%s: DraftRelease returned %+v, want the Release and the Manifest\n%s", row.scenario, out,
+				row.wantManifest)
+		}
+	}
+}
+
+// TestConnectionCredentialNamesTheCredentialOnItsConnection pins the secret an
+// entry attaches for the credential its instance presents on one connection: the
+// path the Release attaches it at under that connection, the variable it is read
+// from — the one given, or, given none, the target's VariableName followed by
+// _CREDENTIAL — and the sentence naming the instance, the target and the socket.
 func TestConnectionCredentialNamesTheCredentialOnItsConnection(t *testing.T) {
 	t.Parallel()
 	for _, row := range []struct {
-		scenario                   string
-		key, socket, alias, target string
-		want                       LeftItem
+		scenario                             string
+		key, socket, alias, target, variable string
+		want                                 Secret
 	}{
-		{"an alias naming its target", "agent", "model", "gpt-4o", "gpt-4o",
-			LeftItem{Path: "uses.model.gpt-4o.features.credential",
+		{"an alias naming its target", "agent", "model", "gpt-4o", "gpt-4o", "OPENAI_API_KEY",
+			Secret{Path: "uses.model.gpt-4o.features.credential", Variable: "OPENAI_API_KEY",
 				Text: "the credential agent presents to gpt-4o on its model connection"}},
-		{"an alias apart from its target", "flow", "tools", "docs", "docs-search",
-			LeftItem{Path: "uses.tools.docs.features.credential",
+		{"an alias apart from its target, no variable", "flow", "tools", "docs", "docs-search", "",
+			Secret{Path: "uses.tools.docs.features.credential", Variable: "DOCS_SEARCH_CREDENTIAL",
 				Text: "the credential flow presents to docs-search on its tools connection"}},
 	} {
-		if got := ConnectionCredential(row.key, row.socket, row.alias, row.target); got != row.want {
+		if got := ConnectionCredential(row.key, row.socket, row.alias, row.target, row.variable); got != row.want {
 			t.Errorf("%s: ConnectionCredential wrote %+v, want %+v", row.scenario, got, row.want)
 		}
 	}
 }
 
 // TestRenderWritesTheDraftedReleaseBesideTheAggregate hands Render an importer's
-// own entities — a drafted Component, a drafted Aggregate and the Release
-// DraftRelease wrote — and requires the Release written as release.yaml, after
-// the Aggregate, as the entities give them; under render_mode llm no draft file
-// is written, the Release's included.
+// own entities — a drafted Component, a drafted Aggregate, and the Release and
+// the Manifest DraftRelease wrote for the helm target — and requires the Release
+// written as release.yaml and the Manifest as manifest.yaml, after the
+// Aggregate, as the entities give them; under render_mode llm no draft file is
+// written, the Release's included.
 func TestRenderWritesTheDraftedReleaseBesideTheAggregate(t *testing.T) {
 	t.Parallel()
-	in := aggrega.ImportInput{Format: testFormatName}
-	release := DraftRelease(in, ReleaseDraft{Entries: []ReleaseEntry{{Key: "a"}}})
-	entities := []aggrega.EmittedEntity{
+	in := aggrega.ImportInput{Format: testFormatName, Target: "helm"}
+	drafted := DraftRelease(in, draftedAggregate("imported/flow"), ReleaseDraft{Entries: []ReleaseEntry{{Key: "a",
+		Secrets: []Secret{{Path: "features.key", Variable: "KEY", Text: "the key"}}}}})
+	if len(drafted) != 2 {
+		t.Fatalf("DraftRelease returned %d entities for a helm draft attaching a secret, want the Release and the "+
+			"Manifest", len(drafted))
+	}
+	entities := append([]aggrega.EmittedEntity{
 		{Kind: "Component", Name: "imported/component/a", Mode: "draft", Body: "kind: Component\n"},
 		{Kind: "Aggregate", Name: "imported/flow", Mode: "draft", Body: "kind: Aggregate\n"},
-		release,
-	}
+	}, drafted...)
 	var paths []string
 	for _, f := range Render(nil, entities, nil) {
 		paths = append(paths, f.Path)
-		if f.Path == ReleaseFileName && f.Content != release.Body {
-			t.Errorf("%s reads\n%s\nwant the Release's body\n%s", f.Path, f.Content, release.Body)
+		if f.Path == ReleaseFileName && f.Content != drafted[0].Body {
+			t.Errorf("%s reads\n%s\nwant the Release's body\n%s", f.Path, f.Content, drafted[0].Body)
+		}
+		if f.Path == ManifestFileName && f.Content != drafted[1].Body {
+			t.Errorf("%s reads\n%s\nwant the Manifest's body\n%s", f.Path, f.Content, drafted[1].Body)
 		}
 	}
-	if want := []string{"components/imported-component-a.yaml", "aggregate.yaml", ReleaseFileName}; !slices.Equal(paths,
-		want) {
+	if want := []string{"components/imported-component-a.yaml", "aggregate.yaml", ReleaseFileName,
+		ManifestFileName}; !slices.Equal(paths, want) {
 		t.Errorf("Render wrote %v, want %v", paths, want)
 	}
 	for _, f := range Render(json.RawMessage(`{"render_mode":"llm"}`), entities, nil) {
-		if f.Path == ReleaseFileName {
+		if f.Path == ReleaseFileName || f.Path == ManifestFileName {
 			t.Errorf("render_mode llm wrote %s", f.Path)
 		}
 	}
@@ -283,9 +438,9 @@ func releasesComposedApart(t *testing.T, at string, src []byte) []releaseCompose
 // written once on each side.
 //
 // 🔴 PLANTED DEFECT: in (*platformDraft).release (platform.go), return
-// aggrega.EmittedEntity{Kind: "Release", Name: draftName(d.settings, in, d.titles),
-// Mode: "draft", Body: "kind: Release\n"}: this test reddens naming platform.go
-// twice, for the literal and for the kind line.
+// []aggrega.EmittedEntity{{Kind: "Release", Name: aggregate, Mode: "draft", Body:
+// "kind: Release\n"}}: this test reddens naming platform.go twice, for the
+// literal and for the kind line.
 func TestEveryReleaseOfThePackageIsWrittenByDraftRelease(t *testing.T) {
 	t.Parallel()
 	const planted = `package p
@@ -302,8 +457,8 @@ func (a *b) elided(in aggrega.ImportInput) []EmittedEntity {
 	return []EmittedEntity{{Kind: "Release", Name: draftName(a.settings, in, nil), Mode: "draft"}}
 }
 
-func (a *b) written(in aggrega.ImportInput) aggrega.EmittedEntity {
-	return DraftRelease(in, ReleaseDraft{})
+func (a *b) written(in aggrega.ImportInput) []aggrega.EmittedEntity {
+	return DraftRelease(in, a.aggregate, ReleaseDraft{})
 }
 `
 	var hows []string

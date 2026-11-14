@@ -229,14 +229,30 @@ there:
   model a node selects. A part the draft references whose catalog entry declares a
   value named `model` is written with that name as `values.model`; where the node names
   none, a comment leaves it for the author and the import reports `model-not-named`.
-- **The lines a target needs.** `TargetAttachments` are attachments of the platform's
-  own instance that its Recipes on one target need declared in the Aggregate. An import
-  for that target declares them inside the instance, one for another target leaves
-  them out, and one naming no target shows them commented out for an author to uncomment.
 - **What is left for the Release.** `LeftForRelease` names the platform's own inputs no
   source supplies, and each `Wiring.LeftForRelease` what of a part the Release
-  supplies, each an `importer.LeftItem` — the key path and what the value is; the
-  drafted Release lists them above the entry of the instance or of the part.
+  supplies, each an `importer.LeftItem` — the key path and what the value is: the
+  drafted Release writes each item with a key path as that key holding an empty
+  string, the comment naming it directly above, and lists the others above the entry
+  of the instance or of the part. An image no source names is left through
+  `importer.LeftImage`.
+- **The image and the secrets.** `Image` is the image the drafted Release runs the
+  platform from, written explicitly at the version the importer drafts, and
+  `SourceVersion` reads the version a source states, which the comment above the image
+  names where it differs; the image is never raised or lowered to follow a source.
+  `Secrets` are the platform's own secret slots, and `CredentialVariables` names, by
+  socket, the variable the credential each connection of that socket presents is read
+  from. Each is an `importer.Secret`, whose form for the import's target `Secret.Form`
+  decides in one place, and which `DraftRelease` writes as a reference, never a value:
+  `core/secret-value` whose origin is the variable reference `${VARIABLE}`, or, for
+  `helm`, `core/referenced-secret` whose Secret's name is written empty, with a drafted
+  Manifest mapping that type to `helm/k8s-existing-secret`. For `compose` the drafted
+  Aggregate declares each with a key of its own — `Secret.Key`, or its variable — as
+  `Secret.Declaration` gives the lines, so no two secrets the Release attaches arrive
+  under one; an import naming no target shows those lines commented out for an author
+  to uncomment. An importer attaching a connection's credential of its own builds it
+  with `importer.ConnectionCredential`, and an importer writing an Aggregate of its own
+  declares each secret through `Secret.Declaration`.
 - **A platform that is a whole installation.** `Module`, an `importer.Module`, names
   the catalog Aggregate assembling the platform, `Component` among its parts, and the
   `Parameter` of it that takes the flow. Each source is then drafted in the module
@@ -249,8 +265,9 @@ there:
   `Configured` says what a node names that the platform configures for itself — a
   model and its provider, a tool, a knowledge base, a plugin — which the import
   reports in the node's decision and as `part-configured-in-platform`. The drafted
-  Release's entry for the module leaves each parameter passed down and `LeftForRelease`
-  for the Release, and the comment above the Aggregate's entry says that the import,
+  Release declares each parameter passed down empty under its `spec.parameters`, its
+  entry for the module leaves `LeftForRelease` and attaches `Secrets` for the Release,
+  and the comment above the Aggregate's entry says that the import,
   which sees the catalog's Components and none of its Aggregates, does not check that
   the catalog holds the module.
 

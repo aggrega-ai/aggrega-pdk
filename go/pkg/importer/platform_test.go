@@ -187,9 +187,11 @@ spec: {}
 `
 
 // renderedPlatformRelease is the Release drafted for platformSource: an entry for
-// the platform's instance, naming what the platform leaves for the Release and
-// the credential it presents on each connection, and an empty entry for each part
-// wired to it, in the Aggregate's order.
+// the platform's instance, its image written empty beneath the comment naming it,
+// naming above it what else the platform leaves for the Release and, since the
+// format names no socket's credential variable, the credential it presents on
+// each connection, and an empty entry for each part wired to it, in the
+// Aggregate's order.
 const renderedPlatformRelease = `apiVersion: aggrega.ai/v1beta1
 kind: Release
 metadata:
@@ -204,11 +206,13 @@ spec:
   manifest: ""
   components:
     # Left for the Release, since the source cannot supply it:
-    #   - infra.image, the image running the platform
     #   - the admin slot, the administrator's password
-    #   - uses.model.model-1.features.credential, the credential testplat presents to model-1 on its model connection
-    #   - uses.tools.finder.features.credential, the credential testplat presents to finder on its tools connection
-    testplat: {}
+    #   - uses.model.model-1.features.credential, the credential testplat presents to model-1 on its model connection, where model-1 checks one
+    #   - uses.tools.finder.features.credential, the credential testplat presents to finder on its tools connection, where finder checks one
+    testplat:
+      infra:
+        # Left for the Release, since the source cannot supply it: infra.image, the image running the platform
+        image: ""
     model-1: {}
     finder: {}
 `
@@ -466,9 +470,12 @@ func TestACatalogHoldingNoPlatformDraftsItAndWiresNothing(t *testing.T) {
 	agg := out.Files[0].Content
 	if release := out.Files[1].Content; !strings.HasSuffix(release, "  components:\n"+
 		"    # Left for the Release, since the source cannot supply it:\n"+
-		"    #   - infra.image, the image running the platform\n"+
 		"    #   - the admin slot, the administrator's password\n"+
-		"    testplat: {}\n") {
+		"    testplat:\n"+
+		"      infra:\n"+
+		"        # Left for the Release, since the source cannot supply it: infra.image, the image running the "+
+		"platform\n"+
+		"        image: \"\"\n") {
 		t.Errorf("the Release does not name the platform's instance alone, leaving no connection's credential:\n%s",
 			release)
 	}
