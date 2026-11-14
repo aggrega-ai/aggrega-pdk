@@ -45,8 +45,8 @@ import (
 // and the drafted Release's entry for the instance names what of that the
 // Release sets.
 //
-// The source is carried as its own bytes, with every value Wire and Reached ask
-// for written anew, every credential value Credentials locates written empty
+// The source is carried as its own bytes, with every value Wire, Reached and
+// Respell ask for written anew, every credential value Credentials locates written empty
 // where the empty_credentials setting asks for it — and every other one carried
 // as written and named in a warning — every carriage return written as a line
 // feed, and nothing else changed, so a source with nothing of these to change is
@@ -127,6 +127,24 @@ type Platform struct {
 	// Wiring with no Reads says the node reaches none, and its edits are not
 	// written. Nil reaches no node.
 	Reached func(tree json.RawMessage, node Node, wired []Part) Wiring
+	// Respell reads, off a source's tree, the values of the source the platform's
+	// own tools read only in a spelling other than the one the source writes them
+	// in, whatever the draft wires, and returns the edits writing each in that
+	// spelling — the same value, written as those tools write it — in the form
+	// [Rewrite] takes, for a source read as JSON, with a sentence saying what they
+	// write and why, which completes "<the flow> is carried in <where the flow is
+	// carried> with". It is asked in the module form too.
+	//
+	// An edit at a value Wire or Reached writes anew, or one Credentials locates,
+	// or at a value holding or lying inside either, is not written: a value the
+	// wiring writes is written as the wiring writes it, and a value that can carry
+	// a credential stays as the source writes it, written empty or carried as the
+	// empty_credentials setting decides, exactly as with no Respell. Where the
+	// flow is carried, a
+	// definition-respelled warning reports the sentence, and how many values were
+	// left so, if any — or, where every edit was left so, only that. Nil, or no
+	// edit, writes nothing and reports nothing.
+	Respell func(tree json.RawMessage) (edits []Edit, written string)
 	// Single lists the sockets of the platform that draw a single connection, as
 	// a socket does whose connection the platform's Recipes deliver under fixed
 	// variable names, which can carry one connection only. Of the parts placed
@@ -1418,17 +1436,21 @@ func (inst *platformInstance) carry(p *Platform, format, syntax string, src aggr
 	if p.Identifier != nil {
 		own = p.Identifier(tree)
 	}
-	flow := "the flow"
-	if src.Name != "" {
-		flow = fmt.Sprintf("the flow of source %q", src.Name)
-	}
+	flow := flowOf(src)
 	definitionAt := "values." + p.DefinitionValue
 	if p.Module != nil {
 		definitionAt = "parameters." + p.Module.Parameter
 	}
+	// The values the platform's own tools read only as they spell them, written
+	// only where neither the wiring nor the credential setting decides them.
+	var respelled []Edit
+	var respellSentence string
+	if p.Respell != nil {
+		respelled, respellSentence = p.Respell(tree)
+	}
 	writer := sourceWriter{empty: p.EmptyInSource, reparse: reparse}
-	scrubbed, credentialDiags, err := carryCredentials(removal, src.Bytes, tree, edits, creds, carriedWhere, refOf, writer,
-		true)
+	scrubbed, credentialDiags, respell, err := carryCredentials(removal, src.Bytes, tree, edits, respelled, creds,
+		carriedWhere, refOf, writer, true)
 	if err != nil {
 		why := "so what the draft writes for its parts could not be written"
 		var unlocated credentialNotLocated
@@ -1503,6 +1525,10 @@ func (inst *platformInstance) carry(p *Platform, format, syntax string, src aggr
 	} else {
 		inst.definition = text
 		inst.carried = true
+		if d, ok := respelledReport(flow, definitionAt, respellSentence, respell.written, respell.left); ok {
+			d.SourceRef = src.Name
+			diags = append(diags, d)
+		}
 	}
 
 	switch {
@@ -1516,6 +1542,50 @@ func (inst *platformInstance) carry(p *Platform, format, syntax string, src aggr
 		inst.idNote = "derived from the exported flow: its own identifier holds characters a draft does not write as they are"
 	}
 	return diags
+}
+
+// respelledReport is the definition-respelled warning for a flow carried in
+// definitionAt with written edits of its format's Respell written and left of
+// them not written; false where there is nothing to report.
+func respelledReport(flow, definitionAt, sentence string, written, left int) (aggrega.Diagnostic, bool) {
+	if sentence == "" || (written == 0 && left == 0) {
+		return aggrega.Diagnostic{}, false
+	}
+	values := "1 value"
+	if left != 1 {
+		values = fmt.Sprintf("%d values", left)
+	}
+	const why = "since each sits at, holds or lies inside a value the draft writes for a part or one that can " +
+		"carry a credential, which the wiring or the empty_credentials setting decides"
+	var msg string
+	switch {
+	case written == 0:
+		msg = fmt.Sprintf("%s is carried in %s with no value respelled: %s the platform's own tools read in "+
+			"another spelling %s not respelled, %s", flow, definitionAt, values, leftVerb(left), why)
+	case left == 0:
+		msg = fmt.Sprintf("%s is carried in %s with %s", flow, definitionAt, sentence)
+	default:
+		msg = fmt.Sprintf("%s is carried in %s with %s, but for %s the platform's own tools read in another "+
+			"spelling, which %s not respelled, %s", flow, definitionAt, sentence, values, leftVerb(left), why)
+	}
+	return aggrega.Diagnostic{Severity: "warn", Code: "definition-respelled", Message: msg}, true
+}
+
+// leftVerb is "is" for one value and "are" for several.
+func leftVerb(n int) string {
+	if n == 1 {
+		return "is"
+	}
+	return "are"
+}
+
+// flowOf is how the import's reports name the flow a source carries: by the
+// source's name where it has one.
+func flowOf(src aggrega.ImportSource) string {
+	if src.Name != "" {
+		return fmt.Sprintf("the flow of source %q", src.Name)
+	}
+	return "the flow"
 }
 
 // platformDraft assembles the drafted Aggregate of a platform draft: each

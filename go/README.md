@@ -225,6 +225,16 @@ there:
   holds inside a value of its own, and `importer.VariableName` gives the name a
   platform delivering a connection under variables named for its alias gives that
   alias.
+- **What the platform's own tools read only as they spell it.** `Respell` returns, off
+  the source's tree, the `Edits` writing each value the platform's own tools read only
+  in a spelling other than the source's in that spelling — the same value, written as
+  those tools write it, as a Langflow edge's handles are written for Langflow's editor
+  — with a sentence saying what they write and why, which the import reports as
+  `definition-respelled`, naming where the flow is carried, `values.<DefinitionValue>` or the
+  module's parameter. An edit at, holding, or inside a value `Wire` or `Reached` writes, or one
+  the credential locator finds, is not written: the wiring's value is written as the wiring
+  writes it, a credential's is emptied or carried as `empty_credentials` decides, and the
+  warning counts each edit left out.
 - **The model a node selects.** `Model` reads, off the source's tree, the name of the
   model a node selects. A part the draft references whose catalog entry declares a
   value named `model` is written with that name as `values.model`; where the node names

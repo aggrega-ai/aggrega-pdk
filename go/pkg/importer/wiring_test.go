@@ -6,6 +6,7 @@ package importer
 import (
 	"encoding/json"
 	"reflect"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -471,6 +472,220 @@ func TestAFlowWrittenWithCarriageReturnsIsCarriedWithLineFeeds(t *testing.T) {
 			var a, b any
 			if json.Unmarshal([]byte(tc.source), &a) != nil || json.Unmarshal([]byte(lf), &b) != nil || !reflect.DeepEqual(a, b) {
 				t.Error("the source and the carried text do not read as the same JSON value")
+			}
+		})
+	}
+}
+
+// TestAValueThePlatformSpellsOtherwiseIsCarriedInItsSpelling drafts wiringSource
+// under a format whose Respell writes f5's server, which no part reaches, as
+// "none", and one value Wire decides: f1's address, which Wire writes empty, or
+// f1's whole data, which holds what Wire writes:
+//
+//   - the carried flow holds f5's server as "none", and f1 exactly as Wire writes
+//     it — its address empty, its token named — since a value Wire writes, or
+//     one holding it, is never respelled;
+//   - one definition-respelled warning, ahead of the nodes' reports, says the
+//     flow is carried with the sentence Respell returned, but for the one value
+//     not respelled;
+//   - a Respell returning no edit, and one whose flow is not carried — a line
+//     separator, U+2028, keeps it from being carried — write nothing and report
+//     nothing;
+//   - in the module form, the warning names where the module carries the flow,
+//     its parameter.
+//
+// 🔴 PLANTED DEFECTS:
+//
+//   - in carryCredentials (credentials.go), replace
+//     `reserved := append([][]string{}, editTokens...)` with
+//     `reserved := [][]string{}`: the two respelling rows fail, f1 written as
+//     Respell writes it and the warning counting nothing left;
+//   - in carryCredentials, replace `all = append(all, e)` with `_ = e`: the
+//     respelling and module rows fail, f5's server carried as "";
+//   - move the `if d, ok := respelledReport(` block of carry (platform.go) out of
+//     the branch that sets inst.carried: the not-carried row fails, the warning
+//     claiming a carriage that did not happen.
+func TestAValueThePlatformSpellsOtherwiseIsCarriedInItsSpelling(t *testing.T) {
+	t.Parallel()
+	const written = "the server of f5 written as the platform spells it"
+	server := Edit{Pointer: Pointer("nodes", "5", "data", "server"), Value: json.RawMessage(`"none"`)}
+	respell := func(json.RawMessage) ([]Edit, string) {
+		return []Edit{server, {Pointer: Pointer("nodes", "1", "data", "url"), Value: json.RawMessage(`"respelled"`)}},
+			written
+	}
+	ancestor := func(json.RawMessage) ([]Edit, string) {
+		return []Edit{server, {Pointer: Pointer("nodes", "1", "data"), Value: json.RawMessage(`{"respelled":true}`)}},
+			written
+	}
+	unspelled := func(json.RawMessage) ([]Edit, string) { return nil, written }
+	notCarried := strings.Replace(wiringSource, `"type":"OpenAIModel"`, `"type":"OpenAIModel","note":"`+" "+`"`, 1)
+
+	t.Run("the module form", func(t *testing.T) {
+		t.Parallel()
+		format := moduleTestFormat(&emptyRecorder{})
+		format.Platform.EmptyInSource = nil
+		format.Platform.Respell = func(json.RawMessage) ([]Edit, string) {
+			return []Edit{{Pointer: Pointer("nodes", "1", "data", "type"), Value: json.RawMessage(`"Chat-Output"`)}},
+				"the output's type written as the platform spells it"
+		}
+		out := platformImport(t, format, platformCatalog(), "", oneSource(moduleSource))
+		want := aggrega.Diagnostic{Severity: "warn", Code: "definition-respelled",
+			Message: "the flow is carried in parameters.flow with the output's type written as the platform spells it"}
+		if !slices.Contains(out.Diagnostics, want) {
+			t.Errorf("the import reported %+v, want among them %+v", out.Diagnostics, want)
+		}
+		if agg := aggregateFile(out); !strings.Contains(agg, `"type":"Chat-Output"`) {
+			t.Errorf("the module does not carry the respelled value:\n%s", agg)
+		}
+	})
+	for _, tc := range []struct {
+		name, source string
+		respell      func(json.RawMessage) ([]Edit, string)
+		reported     bool
+	}{
+		{name: "respelling", source: wiringSource, respell: respell, reported: true},
+		{name: "respelling a value holding what Wire writes", source: wiringSource, respell: ancestor, reported: true},
+		{name: "no edit", source: wiringSource, respell: unspelled},
+		{name: "a flow not carried", source: notCarried, respell: respell},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			format := wiringTestFormat()
+			format.Platform.Respell = tc.respell
+			out := platformImport(t, format, platformCatalog(), "", oneSource(tc.source))
+			var respelled []aggrega.Diagnostic
+			for i, d := range out.Diagnostics {
+				if d.Code != "definition-respelled" {
+					continue
+				}
+				respelled = append(respelled, d)
+				if i != 0 {
+					t.Errorf("the definition-respelled warning is raised at %d, want it ahead of the nodes' reports", i)
+				}
+			}
+			want := []aggrega.Diagnostic(nil)
+			if tc.reported {
+				want = []aggrega.Diagnostic{{Severity: "warn", Code: "definition-respelled",
+					Message: "the flow is carried in values.flow_definition with " + written + ", but for 1 value the " +
+						"platform's own tools read in another spelling, which is not respelled, since each sits at, " +
+						"holds or lies inside a value the draft writes for a part or one that can carry a credential, " +
+						"which the wiring or the empty_credentials setting decides"}}
+			}
+			if !reflect.DeepEqual(respelled, want) {
+				t.Errorf("the import reported %+v, want %+v", respelled, want)
+			}
+			if tc.source != wiringSource {
+				return
+			}
+			agg := aggregateFile(out)
+			f5 := `"server":""}`
+			if tc.reported {
+				f5 = `"server":"none"}`
+			}
+			if !strings.Contains(agg, `{"id":"f5","type":"generic","data":{"type":"Finder",`+f5) {
+				t.Errorf("f5's server is not carried as %s:\n%s", f5, agg)
+			}
+			if !strings.Contains(agg, `"server":"docs","url":"","secretValues":{"token":"TOKEN_VARIABLE"}`) ||
+				strings.Contains(agg, "respelled") {
+				t.Errorf("f1 is not carried as Wire writes it:\n%s", agg)
+			}
+		})
+	}
+}
+
+// TestARespellingNeverWritesAValueThatCanCarryACredential drafts platformSource
+// with a key planted in the model's credential field, a header planted on the
+// output node under a member of its own, and a label on the finder, under a
+// format whose Respell writes four values: the label, which can carry no
+// credential; the model's secretValues, which holds the credential; the
+// credential itself; and the member inside the output's header, which the
+// locator finds as a value that can carry one. Only the label is written: each
+// other value stays as the source writes it, and is carried or written empty as
+// the empty_credentials setting decides, exactly as with no Respell — the key
+// carried and named in a credential-carried warning by default, written empty
+// and named in a credential-emptied warning under marked, and the header, which
+// marked does not reach, carried and named in both. The definition-respelled
+// warning counts the three values left so. Where every edit touches such a
+// value, nothing is respelled, and the warning says only that.
+//
+// 🔴 PLANTED DEFECT: in carryCredentials (credentials.go), replace
+// `err == nil && touchesAny(tokens, reserved)` with `false`: every row fails, the
+// key and the header written as Respell writes them and no longer reported.
+func TestARespellingNeverWritesAValueThatCanCarryACredential(t *testing.T) {
+	t.Parallel()
+	const (
+		key     = "sk-plantedRESPELLkey0123456789abcd"
+		header  = "sk-plantedRESPELLheader0123456789"
+		written = "the finder's label written as the platform spells it"
+		why     = "since each sits at, holds or lies inside a value the draft writes for a part or one that can " +
+			"carry a credential, which the wiring or the empty_credentials setting decides"
+	)
+	source := strings.NewReplacer(
+		`"secretValues":{"api_key":""}`, `"secretValues":{"api_key":"`+key+`"}`,
+		`{"id":"finder","type":"generic","data":{"type":"Finder"}}`,
+		`{"id":"finder","type":"generic","data":{"type":"Finder","label":"a b"}}`,
+		`{"id":"out","type":"generic","data":{"type":"ChatOutput"}}`,
+		`{"id":"out","type":"generic","data":{"type":"ChatOutput","headers":{"X-Key":{"v":"`+header+`"}}}}`,
+	).Replace(platformSource)
+	label := Edit{Pointer: Pointer("nodes", "1", "data", "label"), Value: json.RawMessage(`"a-b"`)}
+	touching := []Edit{
+		{Pointer: Pointer("nodes", "0", "data", "secretValues"), Value: json.RawMessage(`{"api_key":"respelled"}`)},
+		{Pointer: Pointer("nodes", "0", "data", "secretValues", "api_key"), Value: json.RawMessage(`"respelled"`)},
+		{Pointer: Pointer("nodes", "3", "data", "headers", "X-Key", "v"), Value: json.RawMessage(`"respelled"`)},
+	}
+	for _, tc := range []struct {
+		name, settings string
+		edits          []Edit
+		label, apiKey  string
+		keyCode        string
+		message        string
+	}{
+		{name: "by default", edits: append([]Edit{label}, touching...), label: "a-b", apiKey: key,
+			keyCode: "credential-carried",
+			message: "the flow is carried in values.flow_definition with " + written + ", but for 3 values the " +
+				"platform's own tools read in another spelling, which are not respelled, " + why},
+		{name: "marked", settings: `{"empty_credentials":"marked"}`, edits: append([]Edit{label}, touching...),
+			label: "a-b", apiKey: "", keyCode: "credential-emptied",
+			message: "the flow is carried in values.flow_definition with " + written + ", but for 3 values the " +
+				"platform's own tools read in another spelling, which are not respelled, " + why},
+		{name: "every edit touching such a value", edits: touching[1:2], label: "a b", apiKey: key,
+			keyCode: "credential-carried",
+			message: "the flow is carried in values.flow_definition with no value respelled: 1 value the platform's " +
+				"own tools read in another spelling is not respelled, " + why},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			format := platformTestFormat()
+			format.Platform.Respell = func(json.RawMessage) ([]Edit, string) { return tc.edits, written }
+			out := platformImport(t, format, platformCatalog(), tc.settings, oneSource(source))
+			agg := aggregateFile(out)
+			for _, want := range []string{`"label":"` + tc.label + `"`, `"api_key":"` + tc.apiKey + `"`,
+				`"X-Key":{"v":"` + header + `"}`} {
+				if !strings.Contains(agg, want) {
+					t.Errorf("the carried flow does not hold %s:\n%s", want, agg)
+				}
+			}
+			if strings.Contains(agg, "respelled") {
+				t.Errorf("a value that can carry a credential is written as Respell writes it:\n%s", agg)
+			}
+			var respelled []string
+			for _, d := range out.Diagnostics {
+				if d.Code == "definition-respelled" {
+					respelled = append(respelled, d.Message)
+				}
+			}
+			if !slices.Equal(respelled, []string{tc.message}) {
+				t.Errorf("the definition-respelled warnings read\n%q\nwant\n%q", respelled, []string{tc.message})
+			}
+			keyReport := carriedWarning("model-1", "api_key", markedWhy, "marked or all")
+			if tc.keyCode == "credential-emptied" {
+				keyReport = emptiedWarning("model-1", "api_key", "")
+			}
+			for _, want := range []aggrega.Diagnostic{keyReport,
+				carriedWarning("out", "headers.X-Key", unmarkedWhy, "all")} {
+				if !slices.Contains(out.Diagnostics, want) {
+					t.Errorf("the import does not report %+v; it reported %+v", want, out.Diagnostics)
+				}
 			}
 		})
 	}

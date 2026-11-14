@@ -313,6 +313,20 @@ func Pointer(tokens ...string) string {
 	return b.String()
 }
 
+// String writes s as a JSON string — the value an [Edit] or a
+// [Credential.Value] takes where it writes text — with every character as it
+// is wherever JSON allows it: only a double quote, a backslash, the control
+// characters and the separators U+2028 and U+2029 are escaped, so "<", ">" and
+// "&" are written as themselves.
+func String(s string) json.RawMessage {
+	var b strings.Builder
+	enc := json.NewEncoder(&b)
+	enc.SetEscapeHTML(false)
+	// Encoding a string cannot fail.
+	_ = enc.Encode(s)
+	return json.RawMessage(strings.TrimSuffix(b.String(), "\n"))
+}
+
 // pointerTokens splits a JSON Pointer into its unescaped reference tokens.
 func pointerTokens(pointer string) ([]string, error) {
 	if pointer == "" {

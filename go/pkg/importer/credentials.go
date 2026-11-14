@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"reflect"
+	"slices"
 	"strings"
 
 	"github.com/aggrega-ai/aggrega-pdk/go/pkg/aggrega"
@@ -206,7 +207,8 @@ func CarryCredentials(settings json.RawMessage, doc []byte, where string, locate
 	if halt != nil {
 		return nil, []aggrega.Diagnostic{*halt}, nil
 	}
-	return carryCredentials(removal, doc, doc, nil, located, where, nil, sourceWriter{}, false)
+	out, diags, _, err := carryCredentials(removal, doc, doc, nil, nil, located, where, nil, sourceWriter{}, false)
+	return out, diags, err
 }
 
 // sourceWriter is how the values an import writes empty are written into a
@@ -331,9 +333,17 @@ func (e credentialNotLocated) Unwrap() error { return e.err }
 // [CarryCredentials], whose importer has read its own format's references
 // already: a format whose interpolation reads another grammar — one reading
 // ${NAME-default} as its default — hands such a value here as one holding text.
-func carryCredentials(removal credentialRemoval, source []byte, tree json.RawMessage, edits []Edit,
+//
+// respelled are the edits a platform's Respell asks for, which are no wiring and
+// never decide a located value. One is written, after edits, only where it
+// touches no value an edit of edits writes and no located value — neither at it,
+// nor holding it, nor lying inside it — so what the wiring writes stays the
+// wiring's, and what can carry a credential stays removal's to decide, exactly as
+// with no respelling. The returned respelling counts the edits written and those
+// left out.
+func carryCredentials(removal credentialRemoval, source []byte, tree json.RawMessage, edits, respelled []Edit,
 	located []Credential, where string, refOf func(string) string,
-	writer sourceWriter, references bool) ([]byte, []aggrega.Diagnostic, error) {
+	writer sourceWriter, references bool) ([]byte, []aggrega.Diagnostic, respelling, error) {
 	if refOf == nil {
 		refOf = func(node string) string { return node }
 	}
@@ -341,9 +351,31 @@ func carryCredentials(removal credentialRemoval, source []byte, tree json.RawMes
 	for _, e := range edits {
 		tokens, err := pointerTokens(e.Pointer)
 		if err != nil {
-			return nil, nil, fmt.Errorf("the value at %s: %w", e.Pointer, err)
+			return nil, nil, respelling{}, fmt.Errorf("the value at %s: %w", e.Pointer, err)
 		}
 		editTokens = append(editTokens, tokens)
+	}
+	// What a respelling may not touch: every value the wiring writes and every
+	// located value. An edit whose pointer does not read is kept, for the writer
+	// to refuse.
+	reserved := append([][]string{}, editTokens...)
+	for _, c := range located {
+		if tokens, err := pointerTokens(c.Pointer); err == nil {
+			reserved = append(reserved, tokens)
+		}
+	}
+	var respell respelling
+	all := edits
+	for _, e := range respelled {
+		if tokens, err := pointerTokens(e.Pointer); err == nil && touchesAny(tokens, reserved) {
+			respell.left++
+			continue
+		}
+		if respell.written == 0 {
+			all = append([]Edit{}, edits...)
+		}
+		all = append(all, e)
+		respell.written++
 	}
 	type verdict int
 	const (
@@ -369,9 +401,9 @@ func carryCredentials(removal credentialRemoval, source []byte, tree json.RawMes
 			verdicts[i] = carried
 		}
 	}
-	out, changed, err := writer.write(source, tree, edits, toEmpty)
+	out, changed, err := writer.write(source, tree, all, toEmpty)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, respelling{}, err
 	}
 	written := make([]bool, len(located))
 	for j, i := range emptyAt {
@@ -389,8 +421,12 @@ func carryCredentials(removal credentialRemoval, source []byte, tree json.RawMes
 				Message: carriedMessage(c, ref, where), SourceRef: ref})
 		}
 	}
-	return out, diags, nil
+	return out, diags, respell, nil
 }
+
+// respelling counts the edits of a platform's Respell that carryCredentials
+// wrote and those it left out.
+type respelling struct{ written, left int }
 
 // editWrites reports whether one of the edits, given by their reference tokens,
 // writes the value pointer addresses: an edit at that value, or at a value
@@ -401,21 +437,28 @@ func editWrites(edits [][]string, pointer string) bool {
 		return false
 	}
 	for _, e := range edits {
-		if len(e) > len(tokens) {
-			continue
-		}
-		covers := true
-		for i := range e {
-			if e[i] != tokens[i] {
-				covers = false
-				break
-			}
-		}
-		if covers {
+		if covers(e, tokens) {
 			return true
 		}
 	}
 	return false
+}
+
+// touchesAny reports whether the value tokens address is one of others, holds
+// one of them, or lies inside one of them.
+func touchesAny(tokens []string, others [][]string) bool {
+	for _, o := range others {
+		if covers(o, tokens) || covers(tokens, o) {
+			return true
+		}
+	}
+	return false
+}
+
+// covers reports whether the value the reference tokens outer address is the
+// value inner addresses or holds it: outer is the start of inner.
+func covers(outer, inner []string) bool {
+	return len(outer) <= len(inner) && slices.Equal(outer, inner[:len(outer)])
 }
 
 // wholeReference reports whether the value a located credential addresses in

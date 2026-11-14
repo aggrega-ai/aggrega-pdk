@@ -125,9 +125,12 @@
 // writes for itself, written empty, or what the node would send in place of
 // what the connection supplies, written empty — and what it writes for a node
 // the draft wires to no socket that a connection reaches as the node is
-// written, which is wiring and not removal, whatever the setting says.
-// The import reports how the flow reaches each wired part, and a part the flow
-// reaches other than through its connection. Each carriage return is written
+// written, which is wiring and not removal, whatever the setting says — and
+// each value the platform's own tools read only in a spelling other than the
+// source's, written in that spelling, the same value, which the import reports
+// in a definition-respelled warning — but never a value the wiring writes, nor
+// one that can carry a credential, which the setting alone decides. The import reports how the flow reaches
+// each wired part, and a part the flow reaches other than through its connection. Each carriage return is written
 // as a line feed, which a JSON reader reads alike, and the import says how many.
 // Every "{{" is written {{"{{"}}, which an Aggregate's template reading turns
 // back into the two braces, and the source is written as a YAML literal block
