@@ -250,6 +250,15 @@ there:
   platform from, written explicitly at the version the importer drafts, and
   `SourceVersion` reads the version a source states, which the comment above the image
   names where it differs; the image is never raised or lowered to follow a source.
+  `Published` lists the ports the platform publishes on the host's loopback address
+  on Docker Compose, each an `importer.PublishedPort` — the component publishing it and
+  the port the importer drafts — which `DraftRelease` writes as `infra.published_port`
+  for the `compose` target alone, each beneath one comment saying it is reachable from
+  this machine only, by any process running on it, and that deleting the line keeps the
+  service internal; a port another of the Release takes moves to the next free number.
+  An importer writing its own entries sets `ReleaseEntry.Published` the same way, and a
+  port the source itself states, marked `Stated`, is never moved, and one the key does not
+  take, below 1024, is not written: a comment above the entry names it and why.
   `Secrets` are the platform's own secret slots, and `CredentialVariables` names, by
   socket, the variable the credential each connection of that socket presents is read
   from. Each is an `importer.Secret`, whose form for the import's target `Secret.Form`
@@ -283,7 +292,8 @@ there:
   model and its provider, a tool, a knowledge base, a plugin — which the import
   reports in the node's decision and as `part-configured-in-platform`. The drafted
   Release declares each parameter passed down under its `spec.parameters`, empty or, given a
-  `Variable`, as a secret in its target's form; its entry for the module leaves `LeftForRelease` and attaches `Secrets`,
+  `Variable`, as a secret in its target's form; its entry for the module leaves `LeftForRelease`, writes
+  `Published` and attaches `Secrets`,
   and the comment above the Aggregate's entry says that the import,
   which sees the catalog's Components and none of its Aggregates, does not check that
   the catalog holds the module.

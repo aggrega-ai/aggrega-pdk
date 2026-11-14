@@ -4,6 +4,8 @@
 package importer
 
 import (
+	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/aggrega-ai/aggrega-pdk/go/pkg/aggrega"
@@ -102,6 +104,105 @@ type ReleaseEntry struct {
 	// named in the comment above the entry, and a value or a secret so passed over
 	// is the one Lines write.
 	Lines []string
+	// Published are the ports the instance publishes on the host's loopback
+	// address on Docker Compose, each written after what the entry leaves for the
+	// Release, as [PublishedPort] describes.
+	Published []PublishedPort
+}
+
+// publishedPortKey is the infra key a Component of the standard library takes
+// the port its Docker Compose Recipes publish on the host's loopback address
+// under: unset, nothing is published; set, the Recipe publishes
+// 127.0.0.1:<published_port> to the port the container listens on. A
+// Kubernetes Recipe refuses it, so a draft writes it for the compose target
+// alone.
+const publishedPortKey = "published_port"
+
+// PublishedPort is a port an instance publishes on the host's loopback address,
+// 127.0.0.1, on Docker Compose, as [ReleaseEntry.Published] lists them. Where
+// the import's target is compose, [DraftRelease] writes it as
+// infra.published_port of the component At names, beneath the one comment saying
+// it is reachable from this machine only, by any process running on it, and that
+// deleting the line keeps the service internal; on any other target, or with
+// none, it writes nothing. Where the draft chooses the number, two ports of one
+// Release never take it: a port that is not Stated, whose number an earlier
+// port of the Release or any Stated port takes, is written as the next number
+// none takes, the entries and their ports read in order. A Stated port the key
+// does not take, such as one below 1024, is not written: a comment above the
+// entry names it and why.
+type PublishedPort struct {
+	// At is the key path, relative to the entry, of the component publishing the
+	// port: empty for the entry's own instance, or, on an entry of a module,
+	// components.<key> for the module's component of that key.
+	At string
+	// Port is the port the draft sets.
+	Port int
+	// Stated says the source states the port, as a Compose file's ports entry
+	// states the host side it publishes: it is never moved, so a stated port two
+	// instances take is written as the source states it twice.
+	Stated bool
+}
+
+// path is the key path, relative to the entry, p is written at.
+func (p PublishedPort) path() string {
+	if p.At == "" {
+		return "infra." + publishedPortKey
+	}
+	return p.At + ".infra." + publishedPortKey
+}
+
+// publishedComment is the comment above every port a drafted Release publishes:
+// the one text each importer's published port is written with.
+const publishedComment = "Published on this machine's loopback address, 127.0.0.1: reachable from this machine only, " +
+	"by any process running on it. Delete this line to keep the service internal."
+
+// The ports infra.published_port takes, as every Component of the standard
+// library declaring it bounds it. A port below the first is one only a
+// privileged process may bind on many hosts, and the key refuses it.
+const (
+	minPublishedPort = 1024
+	maxPublishedPort = 65535
+)
+
+// publishedPorts returns the ports entries publish as [DraftRelease] writes them
+// for target, by entry: none unless target is compose, and there each not Stated
+// moved to the next number neither a Stated port nor an earlier port takes. A
+// Stated port is never moved, so every one is taken before any other is placed.
+// A Stated port infra.published_port does not take — below minPublishedPort or
+// above maxPublishedPort — is not written: notes holds, by entry, the comment
+// naming each such port and why it is left out, so nothing the source states is
+// dropped silently.
+func publishedPorts(entries []ReleaseEntry, target string) (out [][]PublishedPort, notes [][]string) {
+	out = make([][]PublishedPort, len(entries))
+	notes = make([][]string, len(entries))
+	if target != composeTarget {
+		return out, notes
+	}
+	taken := map[int]bool{}
+	for _, e := range entries {
+		for _, p := range e.Published {
+			if p.Stated {
+				taken[p.Port] = true
+			}
+		}
+	}
+	for i, e := range entries {
+		for _, p := range e.Published {
+			if p.Stated && (p.Port < minPublishedPort || p.Port > maxPublishedPort) {
+				notes[i] = append(notes[i], fmt.Sprintf("The source publishes host port %d, which %s does not take: it "+
+					"takes %d to %d, so none is drafted. Set %s to a port in that range to publish the service on this "+
+					"machine's loopback address.", p.Port, publishedPortKey, minPublishedPort, maxPublishedPort,
+					p.path()))
+				continue
+			}
+			for !p.Stated && taken[p.Port] {
+				p.Port++
+			}
+			taken[p.Port] = true
+			out[i] = append(out[i], p)
+		}
+	}
+	return out, notes
 }
 
 // ReleaseValue is a value the draft sets in an entry of a drafted Release, as
@@ -188,7 +289,8 @@ func leftLine(item LeftItem) string {
 // lines, its values, each left item naming a key that holds a string as that key
 // holding an empty string beneath a comment beginning with the same heading — a
 // left item whose value is no string is named in the comment above the entry
-// instead, so a typed key is never drafted as an empty string — and its secrets, each
+// instead, so a typed key is never drafted as an empty string — its ports, as
+// [PublishedPort] says, and its secrets, each
 // written into the mapping its path names; an entry with nothing to write as an
 // empty mapping. An item whose key the body already writes, or whose path runs
 // through a value or a list the body writes, is not written into the body; a left
@@ -251,7 +353,12 @@ func DraftRelease(in aggrega.ImportInput, aggregate aggrega.EmittedEntity, draft
 	for _, s := range draft.SecretParameters {
 		realize(s)
 	}
-	for _, e := range draft.Entries {
+	published, notes := publishedPorts(draft.Entries, in.Target)
+	for i, e := range draft.Entries {
+		e.Published = published[i]
+		if len(notes[i]) > 0 {
+			e.Comments = append(append([]string{}, e.Comments...), notes[i]...)
+		}
 		if e.Module {
 			modules = append(modules, e)
 		} else {
@@ -366,7 +473,8 @@ func writeReleaseEntries(b *strings.Builder, indent, key string, entries []Relea
 // entryBody is the body of e, as [DraftRelease] writes it for target, and the
 // left items it does not write into the body, in their order: those naming no
 // key, those whose value is no string, and those whose key the body already
-// writes.
+// writes. e's Published are the ports publishedPorts resolved for target, each
+// written beneath publishedComment.
 func entryBody(e ReleaseEntry, target string) ([]*bodyNode, []LeftItem) {
 	body := parseBody(e.Lines)
 	for _, v := range e.Values {
@@ -386,6 +494,10 @@ func entryBody(e ReleaseEntry, target string) ([]*bodyNode, []LeftItem) {
 		if !place(&body, item.Path, commentNodes(leftHeading+" "+leftLine(item)), node) {
 			passed = append(passed, item)
 		}
+	}
+	for _, p := range e.Published {
+		place(&body, p.path(), commentNodes(publishedComment),
+			&bodyNode{text: publishedPortKey + ": " + strconv.Itoa(p.Port)})
 	}
 	for _, s := range e.Secrets {
 		place(&body, s.Path, nil, secretNode(s, target))

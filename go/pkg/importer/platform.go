@@ -193,6 +193,14 @@ type Platform struct {
 	// written as a double-quoted scalar ([QuotedString]), and the image is drafted
 	// as Image all the same. Nil reads none.
 	SourceVersion func(tree json.RawMessage) string
+	// Published are the ports the platform publishes on the host's loopback
+	// address on Docker Compose, each with the component publishing it relative
+	// to the drafted Release's entry for the platform's instance, as
+	// LeftForRelease's paths are, and the port the importer drafts for it: the
+	// drafted Release's entry for every instance writes them as [PublishedPort]
+	// describes, where the import's target is compose, a second instance's ports
+	// moved to numbers the first's do not take. Nil publishes none.
+	Published []PublishedPort
 	// Secrets are the platform's own secret slots the drafted Release's entry for
 	// the platform's instance attaches, each as [Secret] describes, its path
 	// relative to that entry, as LeftForRelease's are. Outside the module form the
@@ -698,7 +706,8 @@ func (d *platformDraft) release(in aggrega.ImportInput, aggregate aggrega.Emitte
 
 // instanceEntry is the Release's entry for a platform instance: the image the
 // platform names, under a comment naming the version the source states where it
-// differs; the platform's own LeftForRelease, the platform's own secrets, and,
+// differs; the ports it publishes; the platform's own LeftForRelease, the
+// platform's own secrets, and,
 // outside the module form, the credential the instance presents on each
 // connection it draws — attached where [Platform.CredentialVariables] names its
 // socket, and otherwise left for the author — in the order its sockets and their
@@ -707,7 +716,7 @@ func (d *platformDraft) release(in aggrega.ImportInput, aggregate aggrega.Emitte
 func (d *platformDraft) instanceEntry(inst *platformInstance) ReleaseEntry {
 	p := d.platform
 	entry := ReleaseEntry{Key: inst.key, Module: p.Module != nil, Left: append([]LeftItem{}, p.LeftForRelease...),
-		Secrets: append([]Secret{}, p.Secrets...)}
+		Secrets: append([]Secret{}, p.Secrets...), Published: append([]PublishedPort{}, p.Published...)}
 	if p.Image != "" {
 		entry.Values = append(entry.Values, ReleaseValue{Path: "infra.image", Value: QuotedString(p.Image),
 			Comment: imageComment(p, inst.sourceVersion)})

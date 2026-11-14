@@ -145,3 +145,44 @@ func TestThePlatformDraftsItsImageAndItsSecretsForTheTarget(t *testing.T) {
 		}
 	}
 }
+
+// TestThePlatformPublishesItsPortsForCompose imports platformSource, and the
+// same source twice under two names, under releasingFormat publishing 7000, for
+// compose and for helm: for compose the platform's entry sets
+// infra.published_port 7000 beneath the comment the kit writes for it, after its
+// image, and a second instance of the platform sets 7001; for helm no entry sets
+// one.
+//
+// 🔴 PLANTED DEFECT: in instanceEntry (platform.go), drop `Published:` from the
+// entry's literal: the compose rows fail, no port written.
+func TestThePlatformPublishesItsPortsForCompose(t *testing.T) {
+	t.Parallel()
+	format := releasingFormat("testplat/server:2.0.0")
+	format.Platform.Published = []PublishedPort{{Port: 7000}}
+	port := func(n int) string {
+		return "        image: \"testplat/server:2.0.0\"\n" + publishedPortLines("        ", n)
+	}
+	two := []aggrega.ImportSource{{Name: "one.json", Bytes: []byte(platformSource)},
+		{Name: "two.json", Bytes: []byte(platformSource)}}
+	for _, row := range []struct {
+		scenario, target string
+		sources          []aggrega.ImportSource
+		want             []string
+	}{
+		{"compose", "compose", nil, []string{port(7000)}},
+		{"compose, two instances", "compose", two, []string{port(7000), port(7001)}},
+		{"helm", "helm", nil, nil},
+	} {
+		in := aggrega.ImportInput{Format: testFormatName, Catalog: platformCatalog(), Bytes: []byte(platformSource),
+			Sources: row.sources, Target: row.target}
+		release := releaseFile(Import(in, format, (&parseRecorder{}).parse))
+		for _, want := range row.want {
+			if !strings.Contains(release, want) {
+				t.Errorf("%s: the Release does not hold\n%s\nit reads\n%s", row.scenario, want, release)
+			}
+		}
+		if got := strings.Count(release, "published_port: "); got != len(row.want) {
+			t.Errorf("%s: the Release sets %d port(s), want %d:\n%s", row.scenario, got, len(row.want), release)
+		}
+	}
+}

@@ -140,7 +140,11 @@
 // and what of each wired part the Release supplies, are left for the Release on
 // the drafted Release's entries — the instance's and each part's — each under the
 // key path it is written at. The drafted Release runs the platform from the image
-// its format names, written explicitly, and attaches the platform's own secrets
+// its format names, written explicitly; where the import's target is compose, it
+// sets infra.published_port for each port the platform publishes on the host's
+// loopback address, beneath a comment saying so, never at a number another port
+// of the Release takes; and it
+// attaches the platform's own secrets
 // and the credential it presents on each connection of a socket its format names
 // a credential variable for, as references; a connection of any other socket
 // leaves its credential for the author, in a comment.

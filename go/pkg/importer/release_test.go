@@ -671,3 +671,69 @@ func (a *b) written(in aggrega.ImportInput) []aggrega.EmittedEntity {
 			"checks", written, releaseWriter)
 	}
 }
+
+// publishedPortLines are the lines DraftRelease writes for a published port,
+// port, at indent: the comment, then infra.published_port. The comment's text
+// is written out here rather than read from publishedComment, so the test pins
+// the text the kit writes (a deliberate second copy).
+func publishedPortLines(indent string, port int) string {
+	return indent + "# Published on this machine's loopback address, 127.0.0.1: reachable from this machine only, " +
+		"by any process running on it. Delete this line to keep the service internal.\n" +
+		indent + "published_port: " + strconv.Itoa(port) + "\n"
+}
+
+// TestAPublishedPortIsWrittenForComposeAndNeverTwice pins how DraftRelease writes
+// the ports entries publish, for compose, for helm and for no target: for compose
+// each as infra.published_port beneath the one comment, a port a Stated port
+// takes moved to the next free number, as is one an earlier port takes, a
+// Stated port never moved, a port written into a mapping Lines open landing
+// inside it, and one whose At names a module's component written under that
+// component; a Stated port the key does not take, 80, written as no key and
+// named in a comment above its entry; for helm and for no target none at all,
+// Stated or not.
+//
+// 🔴 PLANTED DEFECTS:
+//   - in publishedPorts (release.go), drop the loop taking every Stated port
+//     first: the compose row fails, a written 8080 beside b's;
+//   - in publishedPorts, drop the early return for a target other than compose:
+//     the helm and no-target rows fail, every port written there;
+//   - in publishedPorts, drop the range check on a Stated port: the compose row
+//     fails, e written with published_port: 80 and no comment.
+func TestAPublishedPortIsWrittenForComposeAndNeverTwice(t *testing.T) {
+	t.Parallel()
+	entries := []ReleaseEntry{
+		{Key: "a", Published: []PublishedPort{{Port: 8080}}},
+		{Key: "b", Published: []PublishedPort{{Port: 8080, Stated: true}}},
+		{Key: "c", Lines: []string{"infra:", "  image: \"x\""}, Published: []PublishedPort{{Port: 8081}}},
+		{Key: "d", Published: []PublishedPort{{At: "components.web", Port: 3000}}},
+		{Key: "e", Published: []PublishedPort{{Port: 80, Stated: true}}},
+	}
+	onCompose := "  components:\n" +
+		"    a:\n      infra:\n" + publishedPortLines("        ", 8081) +
+		"    b:\n      infra:\n" + publishedPortLines("        ", 8080) +
+		"    c:\n      infra:\n        image: \"x\"\n" + publishedPortLines("        ", 8082) +
+		"    d:\n      components:\n        web:\n          infra:\n" + publishedPortLines("            ", 3000) +
+		"    # The source publishes host port 80, which published_port does not take: it takes 1024 to 65535, so " +
+		"none is drafted. Set infra.published_port to a port in that range to publish the service on this machine's " +
+		"loopback address.\n" +
+		"    e: {}\n"
+	elsewhere := "  components:\n" +
+		"    a: {}\n" +
+		"    b: {}\n" +
+		"    c:\n      infra:\n        image: \"x\"\n" +
+		"    d: {}\n" +
+		"    e: {}\n"
+	for _, row := range []struct {
+		scenario, target, want string
+	}{
+		{"compose", "compose", onCompose},
+		{"helm", "helm", elsewhere},
+		{"no target", "", elsewhere},
+	} {
+		in := aggrega.ImportInput{Format: testFormatName, Target: row.target}
+		out := DraftRelease(in, draftedAggregate("imported/flow"), ReleaseDraft{Entries: entries})
+		if want := releaseHead("imported/flow") + row.want; out[0].Body != want {
+			t.Errorf("%s: DraftRelease wrote\n%s\nwant\n%s", row.scenario, out[0].Body, want)
+		}
+	}
+}
