@@ -1,0 +1,170 @@
+name: Publish
+
+# A final release tag vX.Y.Z publishes the Rust and TypeScript kits to their
+# registries: the crate aggrega-pdk-rust to crates.io and
+# @aggrega-ai/aggrega-pdk-typescript to npm. A pre-release tag (vX.Y.Z-rc.N) and a
+# Go module tag (go/vX.Y.Z) publish nothing; the Go kit is served from its tag by
+# the Go module proxy.
+#
+# The kits are released together with aggrega-abi at the same version, and each
+# one depends on it from its registry. Before publishing, each job confirms that
+# aggrega-abi carries the same release tag, waits until that aggrega-abi version
+# is visible on the registry the kit is published to, and has
+# scripts/prepare-publish.sh set the kit's aggrega-abi dependency to exactly that
+# version and refuse any dependency a registry user could not install.
+#
+# Both registries authenticate this workflow by trusted publishing: each one
+# trusts this repository's publish.yml running in the "release" environment and
+# exchanges the run's OpenID Connect token for a short-lived credential. No
+# registry token is stored anywhere.
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  crate:
+    name: Publish the Rust kit to crates.io
+    runs-on: ubuntu-latest
+    environment: release
+    # Includes up to 30 minutes waiting for aggrega-abi on crates.io.
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Check out the release tag
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: aggrega-pdk
+          persist-credentials: false
+
+      - name: Check out aggrega-abi at the same release tag
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: aggrega-ai/aggrega-abi
+          ref: ${{ github.ref_name }}
+          path: aggrega-abi
+          persist-credentials: false
+
+      - name: Install Rust
+        # The kit's toolchain floor (rust-version in rust/Cargo.toml).
+        run: |
+          rustup toolchain install 1.85 --profile minimal
+          rustup default 1.85
+
+      - name: Refuse an aggrega-abi release tag whose packages carry another version
+        env:
+          TAG: ${{ github.ref_name }}
+        run: aggrega-abi/scripts/check-release-version.sh "${TAG#v}"
+
+      - name: Wait until aggrega-abi is visible on crates.io
+        env:
+          TAG: ${{ github.ref_name }}
+        run: aggrega-pdk/scripts/wait-for-abi.sh crates.io "${TAG#v}"
+
+      - name: Name aggrega-abi at the release version and refuse local dependencies
+        env:
+          TAG: ${{ github.ref_name }}
+        run: aggrega-pdk/scripts/prepare-publish.sh rust "${TAG#v}"
+
+      - name: Package the crate
+        working-directory: aggrega-pdk/rust
+        run: cargo package --locked --package aggrega-pdk-rust
+
+      - name: Refuse a packed crate without the licence text
+        # rust/LICENSE is a symbolic link to the repository's LICENSE; the packed
+        # crate must carry the text itself.
+        working-directory: aggrega-pdk/rust
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          crate="aggrega-pdk-rust-${TAG#v}"
+          if ! tar -xzOf "target/package/$crate.crate" "$crate/LICENSE" | cmp -s - ../LICENSE; then
+            echo "::error::the packed crate's LICENSE is not the repository's licence text"
+            exit 1
+          fi
+          echo "the packed crate carries the repository's licence text"
+
+      - name: Exchange the run's identity for a crates.io token
+        id: crates-io-auth
+        uses: rust-lang/crates-io-auth-action@3268eb413133e2960fa4ae0e963ca76380c54cd9 # v1.0.6
+
+      - name: Publish to crates.io
+        working-directory: aggrega-pdk/rust
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ steps.crates-io-auth.outputs.token }}
+        run: cargo publish --locked --package aggrega-pdk-rust
+
+  npm:
+    name: Publish the TypeScript kit to npm
+    runs-on: ubuntu-latest
+    environment: release
+    # Includes up to 30 minutes waiting for aggrega-abi on npm.
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Check out the release tag
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: aggrega-pdk
+          persist-credentials: false
+
+      - name: Check out aggrega-abi at the same release tag
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: aggrega-ai/aggrega-abi
+          ref: ${{ github.ref_name }}
+          path: aggrega-abi
+          persist-credentials: false
+
+      - name: Install Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          # Bundles npm 11.19.0; trusted publishing needs npm 11.5.1 or later.
+          node-version: '24.21.0'
+
+      - name: Refuse an aggrega-abi release tag whose packages carry another version
+        env:
+          TAG: ${{ github.ref_name }}
+        run: aggrega-abi/scripts/check-release-version.sh "${TAG#v}"
+
+      - name: Wait until aggrega-abi is visible on npm
+        env:
+          TAG: ${{ github.ref_name }}
+        run: aggrega-pdk/scripts/wait-for-abi.sh npm "${TAG#v}"
+
+      - name: Name aggrega-abi at the release version and refuse local dependencies
+        env:
+          TAG: ${{ github.ref_name }}
+        run: aggrega-pdk/scripts/prepare-publish.sh typescript "${TAG#v}"
+
+      - name: Install dependencies
+        # Brings package-lock.json in line with the dependency the step above set.
+        working-directory: aggrega-pdk/typescript
+        run: npm install --no-audit --no-fund
+
+      - name: Build
+        # Also copies the repository's LICENSE into the package directory.
+        working-directory: aggrega-pdk/typescript
+        run: npm run build
+
+      - name: Refuse a tarball without its entry point or licence text
+        working-directory: aggrega-pdk/typescript
+        run: npm run check-pack-contents
+
+      - name: Publish to npm
+        # Lifecycle scripts stay on: prepack rebuilds the package and copies the
+        # licence text into it. With trusted publishing npm attaches a provenance
+        # statement on its own.
+        working-directory: aggrega-pdk/typescript
+        run: npm publish
