@@ -224,7 +224,10 @@ jobs:
     # check that judges it. It lays the release-tag trees out side by side as the
     # manifests expect, pairing this repository's tag with the ABI tag that tag's
     # rust/Cargo.toml declares on its aggrega-abi dependency; so both checkouts
-    # carry their tags. It pins and installs its own tools, and the Rust toolchain
+    # carry their tags. It reads the aggrega-abi release this checkout names from
+    # the manifests, as the publish workflow does — rust/Cargo.toml's
+    # [workspace.dependencies] through cargo metadata, cross-checked with
+    # typescript/package.json — and refuses manifests that disagree on it. It pins and installs its own tools, and the Rust toolchain
     # whose rustdoc it reads, into the per-run directory it is given.
     if: github.ref_name == 'dev' || github.base_ref == 'dev'
     # Shared self-hosted-runner switch: set the AGGREGA_RUNNER org/repo variable to route here.
