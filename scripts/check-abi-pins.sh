@@ -70,7 +70,7 @@ manifests() {
   local out
   FILES=()
   if ! out="$(find "$1" \( -name target -o -name node_modules \) -prune -o -type f -name "$2" -print 2>&1)"; then
-    REFUSALS+=("could not list every $2 under $1: $out")
+    REFUSALS+=("could not list every $2 under $1: $(grep -m1 '^find:' <<<"$out" || head -n1 <<<"$out")")
     return
   fi
   [ -z "$out" ] || mapfile -t FILES < <(LC_ALL=C sort <<<"$out")
