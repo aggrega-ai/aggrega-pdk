@@ -250,38 +250,38 @@ tools manually per those pointers.
 
 ## Standalone reuse
 
-The PDK's tests reference the JSON Schemas at relative path
-`../../aggrega-schemas/json/` (relative to this package
-root). This assumes the `aggrega-schemas` repository is checked out
-beside this repository. Only the tests read the schemas: the published
-package carries the kit's compiled sources alone, and a plugin that
-depends on it needs nothing checked out beside it.
+A clone of this repository builds and tests on its own: the package
+takes `@aggrega-ai/aggrega-abi` from the npm registry at the released
+version `package.json` names. From `typescript/`:
 
-When running `npm test` from a checkout that does not have the
-schemas alongside, the schema-dependent tests **fail** with a clear
-diagnostic, because a run that could not read them has verified
-nothing. Where they are genuinely absent — a standalone checkout of
-this kit, or a packaging test — opt out with the same switch the Go
-and Rust kits use:
+```sh
+npm install
+npm test
+```
+
+`npm test` builds first, then runs the tests.
+
+Two groups of tests read files that live in sibling repositories rather
+than in this one: the schema round-trip tests read the JSON Schemas at
+`../../aggrega-schemas/json/` (relative to this package root), and the
+wire tests read the shared payload vectors at
+`../../aggrega-abi/testdata/`. Each group runs when that repository is
+checked out beside this one (`aggrega-pdk/`, `aggrega-schemas/` and
+`aggrega-abi/` as siblings) and is reported as skipped, with the missing
+checkout named, when it is not. Only the tests read these files: the
+published package carries the kit's compiled sources alone, and a plugin
+that depends on it needs nothing checked out beside it.
+
+Where the `aggrega-schemas` checkout is present but its schemas cannot be
+read, the schema tests **fail** with a clear diagnostic, because a run
+that could not read them has verified nothing. To skip them in that case
+instead, use the same switch the Go and Rust kits use:
 
 ```sh
 AGGREGA_SKIP_SCHEMA_TESTS=1 npm test
 ```
 
-Each affected test is then reported as skipped, with the reason
-stated. The switch keys on the schemas being unreachable: with them in
-place it changes nothing, so it cannot quietly turn a real run into a
-skipped one.
-
-`npm test` first builds, which resolves this package's dependency on
-the shared ABI package from a sibling directory. Where that sibling is
-also absent, run the test file directly so the build step is not
-involved — the switch behaves the same way:
-
-```sh
-AGGREGA_SKIP_SCHEMA_TESTS=1 node --test --experimental-strip-types \
-  tests/round_trip.test.ts
-```
-
-A checkout with `aggrega-schemas` beside it has the schemas in place,
-so neither the refusal nor the skip fires there.
+Each affected test is then reported as skipped, with the reason stated.
+The switch keys on the schemas being unreachable: with them in place it
+changes nothing, so it cannot quietly turn a real run into a skipped
+one.

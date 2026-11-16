@@ -11,21 +11,22 @@ on:
   push:
     branches: [main, dev]
 
-# The PDK manifests carry local relative path deps to the sibling ABI
-# (go: replace ../../aggrega-abi/go; rust: path ../../aggrega-abi/rust;
-# ts: file:../../aggrega-abi/typescript). Standalone CI has no sibling,
-# so each job recreates the side-by-side layout under $GITHUB_WORKSPACE:
-# this repo at aggrega-pdk/ and the ABI at aggrega-abi/, then builds from
-# aggrega-pdk/<lang>/ so ../../aggrega-abi/<lang> resolves. The sibling
-# checkouts use a short-lived org GitHub App token.
+# Each kit resolves aggrega-abi from its registry by the released version its
+# manifest names, so a checkout of this repository builds on its own. Two tests
+# read files that live in sibling repositories: the shared payload vectors in
+# aggrega-abi's testdata/ and the JSON Schemas in aggrega-schemas' json/. Without
+# those checkouts the tests skip, saying so; here each job checks both out beside
+# this repository (this repo at aggrega-pdk/, the others at aggrega-abi/ and
+# aggrega-schemas/) at the release tags matching the versions the kits build
+# against, so the tests run. The sibling checkouts use a short-lived org GitHub
+# App token.
 
 env:
-  # The branch every sibling checkout reads. The siblings follow the branch
-  # under test: a push to dev or a pull request into dev builds against the
-  # siblings' dev, where the changes the kits need land before a release;
-  # every other run builds against their main, which holds the last release.
-  # The extension's package-and-publish.yml in aggrega-vscode-extension keeps
-  # the same value, so a change here is made there too.
+  # The branch the API check's aggrega-abi checkout reads; that job runs only for
+  # a push to dev or a pull request into it, so it reads dev, where the check
+  # itself is maintained. The extension's package-and-publish.yml in
+  # aggrega-vscode-extension keeps the same value, so a change here is made there
+  # too.
   SIBLING_REF: ${{ (github.ref_name == 'dev' || github.base_ref == 'dev') && 'dev' || 'main' }}
 
 concurrency:
@@ -50,11 +51,12 @@ jobs:
         with:
           path: aggrega-pdk
 
-      - name: Checkout ABI (sibling, satisfies the local path replace)
+      - name: Checkout ABI (sibling, for the shared payload vectors)
         uses: actions/checkout@v5
         with:
           repository: aggrega-ai/aggrega-abi
-          ref: ${{ env.SIBLING_REF }}
+          # The release tag of the aggrega-abi version the kits' manifests name.
+          ref: v0.9.0
           path: aggrega-abi
           token: ${{ steps.app-token.outputs.token }}
 
@@ -62,7 +64,8 @@ jobs:
         uses: actions/checkout@v5
         with:
           repository: aggrega-ai/aggrega-schemas
-          ref: ${{ env.SIBLING_REF }}
+          # The aggrega-schemas release the round-trip tests are checked against.
+          ref: v0.13.1
           path: aggrega-schemas
           token: ${{ steps.app-token.outputs.token }}
 
@@ -112,11 +115,12 @@ jobs:
         with:
           path: aggrega-pdk
 
-      - name: Checkout ABI (sibling, satisfies the local path dep)
+      - name: Checkout ABI (sibling, for the shared payload vectors)
         uses: actions/checkout@v5
         with:
           repository: aggrega-ai/aggrega-abi
-          ref: ${{ env.SIBLING_REF }}
+          # The release tag of the aggrega-abi version the kits' manifests name.
+          ref: v0.9.0
           path: aggrega-abi
           token: ${{ steps.app-token.outputs.token }}
 
@@ -124,7 +128,8 @@ jobs:
         uses: actions/checkout@v5
         with:
           repository: aggrega-ai/aggrega-schemas
-          ref: ${{ env.SIBLING_REF }}
+          # The aggrega-schemas release the round-trip tests are checked against.
+          ref: v0.13.1
           path: aggrega-schemas
           token: ${{ steps.app-token.outputs.token }}
 
@@ -260,11 +265,12 @@ jobs:
         with:
           path: aggrega-pdk
 
-      - name: Checkout ABI (sibling, satisfies the local file dep)
+      - name: Checkout ABI (sibling, for the shared payload vectors)
         uses: actions/checkout@v5
         with:
           repository: aggrega-ai/aggrega-abi
-          ref: ${{ env.SIBLING_REF }}
+          # The release tag of the aggrega-abi version the kits' manifests name.
+          ref: v0.9.0
           path: aggrega-abi
           token: ${{ steps.app-token.outputs.token }}
 
@@ -272,7 +278,8 @@ jobs:
         uses: actions/checkout@v5
         with:
           repository: aggrega-ai/aggrega-schemas
-          ref: ${{ env.SIBLING_REF }}
+          # The aggrega-schemas release the round-trip tests are checked against.
+          ref: v0.13.1
           path: aggrega-schemas
           token: ${{ steps.app-token.outputs.token }}
 

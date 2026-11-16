@@ -16,7 +16,7 @@
     "LICENSE"
   ],
   "scripts": {
-    "build": "node -e \"require('fs').copyFileSync('../LICENSE','LICENSE')\" && npm --prefix ../../aggrega-abi/typescript install && npm --prefix ../../aggrega-abi/typescript run build && tsc && npm run typecheck",
+    "build": "node -e \"require('fs').copyFileSync('../LICENSE','LICENSE')\" && tsc && npm run typecheck",
     "typecheck": "tsc -p tsconfig.test.json && ./scripts/typecheck-examples.sh",
     "prepack": "npm run build",
     "check-pack-contents": "node -e \"const {execFileSync}=require('child_process');const pkg=require('./package.json');const want=[pkg.main,pkg.types].map(p=>p.replace('./','')).concat('LICENSE');const have=JSON.parse(execFileSync('npm',['pack','--dry-run','--json','--ignore-scripts'],{encoding:'utf8'}))[0].files.map(f=>f.path);const missing=want.filter(p=>!have.includes(p));if(missing.length){console.error('packed tarball omits its declared entry point or licence text: '+missing.join(', '));process.exit(1);}console.log('packed tarball carries '+want.join(' and ')+' ('+have.length+' files)');\"",
@@ -24,7 +24,7 @@
     "test": "npm run check-pack-contents && node --test --experimental-strip-types tests/round_trip.test.ts tests/describe.test.ts tests/parse_source_wire.test.ts tests/source_wire.test.ts tests/fetch_wire.test.ts"
   },
   "dependencies": {
-    "@aggrega-ai/aggrega-abi": "file:../../aggrega-abi/typescript"
+    "@aggrega-ai/aggrega-abi": "0.9.0"
   },
   "devDependencies": {
     "@extism/js-pdk": "1.1.1",

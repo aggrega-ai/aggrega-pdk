@@ -464,19 +464,48 @@ mod tests {
     use base64::Engine as _;
     use std::path::PathBuf;
 
-    /// Resolves the directory holding the shared payload vectors. Resolution
-    /// only; whether it can be read is decided in one place, by `read_vector`.
-    fn vector_dir() -> PathBuf {
+    /// The aggrega-abi repository checked out beside this one.
+    fn abi_checkout() -> PathBuf {
         PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("..")
             .join("..")
             .join("aggrega-abi")
-            .join("testdata")
     }
 
-    /// Reads one shared vector file. A run that could not read the vectors has
-    /// verified nothing, so this refuses with a diagnostic naming the path rather
-    /// than skipping quietly.
+    /// Resolves the directory holding the shared payload vectors. Resolution
+    /// only; whether it can be read is decided in one place, by `read_vector`.
+    fn vector_dir() -> PathBuf {
+        abi_checkout().join("testdata")
+    }
+
+    /// Ends the calling test when no aggrega-abi checkout is beside this
+    /// repository: the vectors are not part of this repository, so a lone clone
+    /// skips the tests that read them, saying why. The runner has no result label
+    /// for a test that decided at run time not to check anything, so the reason is
+    /// written straight to the process stderr, uncaptured, in one write naming the
+    /// test.
+    ///
+    /// It expands to an early `return`, so it is written at the top of a test.
+    macro_rules! require_vectors {
+        () => {
+            let checkout = abi_checkout();
+            if !checkout.exists() {
+                use std::io::Write as _;
+                let thread = std::thread::current();
+                let test = thread.name().unwrap_or("test").to_string();
+                let line = format!(
+                    "SKIP {test}: aggrega-abi is not checked out beside aggrega-pdk (looked for {}); its shared test vectors live there — this test verified nothing.\n",
+                    checkout.display()
+                );
+                let _ = std::io::stderr().write_all(line.as_bytes());
+                return;
+            }
+        };
+    }
+
+    /// Reads one shared vector file. Where the aggrega-abi checkout is present, a
+    /// run that could not read a vector has verified nothing, so this refuses with
+    /// a diagnostic naming the path rather than skipping quietly.
     fn read_vector(name: &str) -> String {
         let path = vector_dir().join(name);
         std::fs::read_to_string(&path).unwrap_or_else(|e| {
@@ -512,6 +541,7 @@ mod tests {
     /// bytes.
     #[test]
     fn encode_request_matches_shared_vector() {
+        require_vectors!();
         // The companion document carries the field values in the textual
         // encoding, where the source bytes are base64. Read them from there
         // rather than restating them, so the two vectors cannot drift apart from
@@ -541,6 +571,7 @@ mod tests {
     /// machine-matchable code and the message.
     #[test]
     fn decode_reply_failure_from_shared_vector() {
+        require_vectors!();
         let golden: serde_json::Value =
             serde_json::from_str(&read_vector("ParseSourceResponse.golden.json"))
                 .expect("ParseSourceResponse.golden.json is readable as JSON");
@@ -618,6 +649,7 @@ mod tests {
     /// value are different bytes.
     #[test]
     fn encode_pack_source_request_matches_shared_vector() {
+        require_vectors!();
         let golden: serde_json::Value =
             serde_json::from_str(&read_vector("SourcePackRequest.golden.json"))
                 .expect("SourcePackRequest.golden.json is readable as JSON");
@@ -636,6 +668,7 @@ mod tests {
     /// The content-read sibling of the pack-source request assertion.
     #[test]
     fn encode_read_source_file_request_matches_shared_vector() {
+        require_vectors!();
         let golden: serde_json::Value =
             serde_json::from_str(&read_vector("SourceFileRequest.golden.json"))
                 .expect("SourceFileRequest.golden.json is readable as JSON");
@@ -662,6 +695,7 @@ mod tests {
     /// test built from success replies alone.
     #[test]
     fn decode_pack_source_reply_success_from_shared_vector() {
+        require_vectors!();
         let golden: serde_json::Value =
             serde_json::from_str(&read_vector("SourcePackResponse.golden.json"))
                 .expect("SourcePackResponse.golden.json is readable as JSON");
@@ -696,6 +730,7 @@ mod tests {
     /// machine-matchable code and the message.
     #[test]
     fn decode_pack_source_reply_failure_from_shared_vector() {
+        require_vectors!();
         let golden: serde_json::Value =
             serde_json::from_str(&read_vector("ErrorEnvelopeSourcePackResponse.golden.json"))
                 .expect("ErrorEnvelopeSourcePackResponse.golden.json is readable as JSON");
@@ -718,6 +753,7 @@ mod tests {
     /// vector, whose companion document carries them base64.
     #[test]
     fn decode_read_source_file_reply_success_from_shared_vector() {
+        require_vectors!();
         let golden: serde_json::Value =
             serde_json::from_str(&read_vector("SourceFileResponse.golden.json"))
                 .expect("SourceFileResponse.golden.json is readable as JSON");
@@ -734,6 +770,7 @@ mod tests {
     /// direction of the omission property from the success vector above.
     #[test]
     fn decode_read_source_file_reply_failure_from_shared_vector() {
+        require_vectors!();
         let golden: serde_json::Value =
             serde_json::from_str(&read_vector("ErrorEnvelopeSourceFileResponse.golden.json"))
                 .expect("ErrorEnvelopeSourceFileResponse.golden.json is readable as JSON");
@@ -805,6 +842,7 @@ mod tests {
     /// carries only the two failure keys.
     #[test]
     fn source_vector_heads() {
+        require_vectors!();
         for (vector, want, why) in [
             (
                 "SourcePackRequest.cbor.hex",
@@ -847,6 +885,7 @@ mod tests {
     /// companion document carries them base64.
     #[test]
     fn decode_fetch_external_input_reply_content_from_shared_vector() {
+        require_vectors!();
         let golden: serde_json::Value = serde_json::from_str(&read_vector(
             "FetchExternalInputResponseContent.golden.json",
         ))
@@ -868,6 +907,7 @@ mod tests {
     /// here.
     #[test]
     fn decode_fetch_external_input_reply_empty_content_from_shared_vector() {
+        require_vectors!();
         let got = decode_fetch_external_input_reply(&read_hex_vector(
             "FetchExternalInputResponseEmptyContent.cbor.hex",
         ))
@@ -879,6 +919,7 @@ mod tests {
     /// machine-matchable code and the message.
     #[test]
     fn decode_fetch_external_input_reply_failure_from_shared_vector() {
+        require_vectors!();
         let golden: serde_json::Value =
             serde_json::from_str(&read_vector("FetchExternalInputResponse.golden.json"))
                 .expect("FetchExternalInputResponse.golden.json is readable as JSON");
@@ -933,6 +974,7 @@ mod tests {
     /// (major type 2), which a text-string or base64 carry would not produce.
     #[test]
     fn fetch_vector_heads() {
+        require_vectors!();
         for (vector, want, why) in [
             (
                 "FetchExternalInputResponseContent.cbor.hex",

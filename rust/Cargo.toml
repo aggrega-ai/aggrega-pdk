@@ -26,14 +26,13 @@ serde_json = "1"
 # line extism-pdk already pins transitively, so no new code enters the
 # dependency tree.
 base64 = "0.22"
-# Portable ABI codec — the aggrega-abi repository, checked out beside this one.
-# The crate name is its publication identity (crates.io: aggrega-abi); the local
-# path serves the build. The version is kept equal to the version aggrega-abi's
+# Portable ABI codec — the aggrega-abi crate, resolved from crates.io by its
+# released version. The version is kept equal to the version aggrega-abi's
 # manifests carry: publishing needs it, and the API compatibility check reads it
 # at a release tag to choose the aggrega-abi tag it compares with, which is the
 # release that tag was built on only under the precondition the check's --help
 # states under PAIRING.
-aggrega-abi = { path = "../../aggrega-abi/rust", version = "0.9.0" }
+aggrega-abi = "0.9.0"
 
 [dev-dependencies]
 # JSON Schema 2020-12 validator. Selected over the `jsonschema` crate

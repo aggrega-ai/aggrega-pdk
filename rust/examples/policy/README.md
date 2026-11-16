@@ -30,6 +30,7 @@ Destination resolution:
 ## Source-level dependency
 
 This fixture is a workspace member of `aggrega-pdk-rust` and consumes
-the PDK via a path dependency. The PDK in turn takes the ABI crate by
-path from the `aggrega-abi` repository checked out beside this
-repository. Standalone reuse by end users is gated on PDK publication.
+the PDK via a path dependency. The PDK in turn takes the ABI crate from
+crates.io at the released version its manifest names. A plugin copied out
+of this repository depends on the published `aggrega-pdk-rust` crate
+instead of the path.

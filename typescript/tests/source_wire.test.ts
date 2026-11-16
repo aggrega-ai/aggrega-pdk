@@ -18,9 +18,6 @@
 
 import { test } from "node:test";
 import { strict as assert } from "node:assert";
-import { readFileSync } from "node:fs";
-import { join, dirname } from "node:path";
-import { fileURLToPath } from "node:url";
 
 import {
   encodePackSourceRequest,
@@ -29,48 +26,7 @@ import {
   decodeReadSourceFileReply,
 } from "../src/host_funcs.ts";
 import { HostError } from "../src/host_error.ts";
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
-
-// Resolves the directory holding the shared payload vectors. Resolution only;
-// whether it can be read is decided in one place, by readVector.
-function vectorDir(): string {
-  return join(__dirname, "..", "..", "..", "aggrega-abi", "testdata");
-}
-
-// Reads one shared vector file. A run that could not read the vectors has
-// verified nothing, so this refuses with a diagnostic naming the path rather than
-// skipping quietly.
-function readVector(name: string): string {
-  const path = join(vectorDir(), name);
-  try {
-    return readFileSync(path, "utf8");
-  } catch (err) {
-    throw new Error(
-      `shared payload vector ${name} is not readable at ${path}: ${String(err)}; the vectors are read from the testdata directory of the aggrega-abi repository, which must be checked out beside this one`,
-    );
-  }
-}
-
-// Reads one shared canonical-CBOR vector and decodes its hex.
-function readHexVector(name: string): Uint8Array {
-  const raw = readVector(name).trim();
-  assert.equal(
-    raw.length % 2,
-    0,
-    `shared vector ${name} does not hold an even number of hex digits`,
-  );
-  const out = new Uint8Array(raw.length / 2);
-  for (let i = 0; i < out.length; i++) {
-    const byte = Number.parseInt(raw.slice(i * 2, i * 2 + 2), 16);
-    assert.ok(
-      Number.isInteger(byte),
-      `shared vector ${name} does not hold decodable hex`,
-    );
-    out[i] = byte;
-  }
-  return out;
-}
+import { readHexVector, readVector, vectorsSkip } from "./abi_vectors.ts";
 
 function hex(b: Uint8Array): string {
   return Array.from(b, (x) => x.toString(16).padStart(2, "0")).join("");
@@ -89,7 +45,7 @@ function toBuffer(b: Uint8Array): ArrayBuffer {
 // document declares. A kit still building a text request fails here, because a
 // text document and the canonical binary encoding of the same value are different
 // bytes.
-test("the pack-source request matches the shared SourcePackRequest vector", () => {
+test("the pack-source request matches the shared SourcePackRequest vector", { skip: vectorsSkip }, () => {
   const golden = JSON.parse(readVector("SourcePackRequest.golden.json")) as {
     op: string;
     path: string;
@@ -107,7 +63,7 @@ test("the pack-source request matches the shared SourcePackRequest vector", () =
 });
 
 // The content-read sibling of the pack-source request assertion.
-test("the read-source-file request matches the shared SourceFileRequest vector", () => {
+test("the read-source-file request matches the shared SourceFileRequest vector", { skip: vectorsSkip }, () => {
   const golden = JSON.parse(readVector("SourceFileRequest.golden.json")) as {
     path: string;
   };
@@ -133,7 +89,7 @@ test("the read-source-file request matches the shared SourceFileRequest vector",
 // only reads the failure fields passes any test built from failure replies alone,
 // and one that only reads the projection passes any test built from success
 // replies alone.
-test("the pack-source success shape decodes to its packed files", () => {
+test("the pack-source success shape decodes to its packed files", { skip: vectorsSkip }, () => {
   // The companion document carries each file's content base64, which is the
   // shape the payload type's own field holds in this package.
   const golden = JSON.parse(readVector("SourcePackResponse.golden.json")) as {
@@ -149,7 +105,7 @@ test("the pack-source success shape decodes to its packed files", () => {
 // The kit reads a reported pack-source failure out of the shared error-envelope
 // vector and surfaces it as a HostError carrying both the machine-matchable code
 // and the message.
-test("a reported pack-source failure surfaces as a HostError from the shared vector", () => {
+test("a reported pack-source failure surfaces as a HostError from the shared vector", { skip: vectorsSkip }, () => {
   const golden = JSON.parse(
     readVector("ErrorEnvelopeSourcePackResponse.golden.json"),
   ) as { error: string; hostfunc_error_code: string };
@@ -173,7 +129,7 @@ test("a reported pack-source failure surfaces as a HostError from the shared vec
 
 // The kit reads the file's content out of the shared SourceFileResponse vector,
 // in the payload field's own shape.
-test("the read-source-file success shape decodes to its content", () => {
+test("the read-source-file success shape decodes to its content", { skip: vectorsSkip }, () => {
   const golden = JSON.parse(readVector("SourceFileResponse.golden.json")) as {
     content: string;
   };
@@ -186,7 +142,7 @@ test("the read-source-file success shape decodes to its content", () => {
 
 // The content-read failure shape surfaces as a HostError — the other direction of
 // the omission property from the success vector above.
-test("a reported read-source-file failure surfaces as a HostError from the shared vector", () => {
+test("a reported read-source-file failure surfaces as a HostError from the shared vector", { skip: vectorsSkip }, () => {
   const golden = JSON.parse(
     readVector("ErrorEnvelopeSourceFileResponse.golden.json"),
   ) as { error: string; hostfunc_error_code: string };
@@ -259,7 +215,7 @@ test("an empty read-source-file envelope is the empty file", () => {
 // The heads assert the omission property in both directions at once: a success
 // envelope carries only its payload key, and a failure envelope carries only the
 // two failure keys.
-test("each shared source vector declares the pair count its body carries", () => {
+test("each shared source vector declares the pair count its body carries", { skip: vectorsSkip }, () => {
   const cases: [string, number, string][] = [
     ["SourcePackRequest.cbor.hex", 0xa2, "two required fields: op and path"],
     ["SourceFileRequest.cbor.hex", 0xa1, "one required field: path"],

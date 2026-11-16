@@ -17,57 +17,13 @@
 
 import { test } from "node:test";
 import { strict as assert } from "node:assert";
-import { readFileSync } from "node:fs";
-import { join, dirname } from "node:path";
-import { fileURLToPath } from "node:url";
 
 import {
   encodeParseSourceRequest,
   decodeParseSourceReply,
 } from "../src/host_funcs.ts";
 import { HostError } from "../src/host_error.ts";
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
-
-// Resolves the directory holding the shared payload vectors. Resolution only;
-// whether it can be read is decided in one place, by readVector.
-function vectorDir(): string {
-  return join(__dirname, "..", "..", "..", "aggrega-abi", "testdata");
-}
-
-// Reads one shared vector file. A run that could not read the vectors has
-// verified nothing, so this refuses with a diagnostic naming the path rather than
-// skipping quietly.
-function readVector(name: string): string {
-  const path = join(vectorDir(), name);
-  try {
-    return readFileSync(path, "utf8");
-  } catch (err) {
-    throw new Error(
-      `shared payload vector ${name} is not readable at ${path}: ${String(err)}; the vectors are read from the testdata directory of the aggrega-abi repository, which must be checked out beside this one`,
-    );
-  }
-}
-
-// Reads one shared canonical-CBOR vector and decodes its hex.
-function readHexVector(name: string): Uint8Array {
-  const raw = readVector(name).trim();
-  assert.equal(
-    raw.length % 2,
-    0,
-    `shared vector ${name} does not hold an even number of hex digits`,
-  );
-  const out = new Uint8Array(raw.length / 2);
-  for (let i = 0; i < out.length; i++) {
-    const byte = Number.parseInt(raw.slice(i * 2, i * 2 + 2), 16);
-    assert.ok(
-      Number.isInteger(byte),
-      `shared vector ${name} does not hold decodable hex`,
-    );
-    out[i] = byte;
-  }
-  return out;
-}
+import { readHexVector, readVector, vectorsSkip } from "./abi_vectors.ts";
 
 function hex(b: Uint8Array): string {
   return Array.from(b, (x) => x.toString(16).padStart(2, "0")).join("");
@@ -85,7 +41,7 @@ function toBuffer(b: Uint8Array): ArrayBuffer {
 // for the very field values that vector's companion document declares. A kit
 // still building a text request fails here, because a text document and the
 // canonical binary encoding of the same value are different bytes.
-test("the parse-source request matches the shared ParseInput vector", () => {
+test("the parse-source request matches the shared ParseInput vector", { skip: vectorsSkip }, () => {
   // The companion document carries the field values in the textual encoding,
   // where the source bytes are base64 — which is the shape the payload type's
   // own field holds. Read them from there rather than restating them, so the two
@@ -114,7 +70,7 @@ test("the parse-source request matches the shared ParseInput vector", () => {
 // The kit reads a reported failure out of the shared ParseSourceResponse vector
 // and surfaces it as a HostError carrying both the machine-matchable code and the
 // message.
-test("a reported parse-source failure surfaces as a HostError from the shared vector", () => {
+test("a reported parse-source failure surfaces as a HostError from the shared vector", { skip: vectorsSkip }, () => {
   const golden = JSON.parse(readVector("ParseSourceResponse.golden.json")) as {
     error: string;
     hostfunc_error_code: string;

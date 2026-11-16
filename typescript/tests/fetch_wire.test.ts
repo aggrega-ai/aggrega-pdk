@@ -14,9 +14,6 @@
 
 import { test } from "node:test";
 import { strict as assert } from "node:assert";
-import { readFileSync } from "node:fs";
-import { join, dirname } from "node:path";
-import { fileURLToPath } from "node:url";
 
 import {
   CodeFetchFailed,
@@ -25,48 +22,7 @@ import {
 
 import { decodeFetchExternalInputReply } from "../src/host_funcs.ts";
 import { HostError } from "../src/host_error.ts";
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
-
-// Resolves the directory holding the shared payload vectors. Resolution only;
-// whether it can be read is decided in one place, by readVector.
-function vectorDir(): string {
-  return join(__dirname, "..", "..", "..", "aggrega-abi", "testdata");
-}
-
-// Reads one shared vector file. A run that could not read the vectors has
-// verified nothing, so this refuses with a diagnostic naming the path rather than
-// skipping quietly.
-function readVector(name: string): string {
-  const path = join(vectorDir(), name);
-  try {
-    return readFileSync(path, "utf8");
-  } catch (err) {
-    throw new Error(
-      `shared payload vector ${name} is not readable at ${path}: ${String(err)}; the vectors are read from the testdata directory of the aggrega-abi repository, which must be checked out beside this one`,
-    );
-  }
-}
-
-// Reads one shared canonical-CBOR vector and decodes its hex.
-function readHexVector(name: string): Uint8Array {
-  const raw = readVector(name).trim();
-  assert.equal(
-    raw.length % 2,
-    0,
-    `shared vector ${name} does not hold an even number of hex digits`,
-  );
-  const out = new Uint8Array(raw.length / 2);
-  for (let i = 0; i < out.length; i++) {
-    const byte = Number.parseInt(raw.slice(i * 2, i * 2 + 2), 16);
-    assert.ok(
-      Number.isInteger(byte),
-      `shared vector ${name} does not hold decodable hex`,
-    );
-    out[i] = byte;
-  }
-  return out;
-}
+import { readHexVector, readVector, vectorsSkip } from "./abi_vectors.ts";
 
 function hex(b: Uint8Array): string {
   return Array.from(b, (x) => x.toString(16).padStart(2, "0")).join("");
@@ -82,7 +38,7 @@ function toBuffer(b: Uint8Array): ArrayBuffer {
 
 // The kit reads the fetched content out of the shared success vector, in the
 // payload field's own shape: base64, which the companion document carries too.
-test("the fetch success shape decodes to its content", () => {
+test("the fetch success shape decodes to its content", { skip: vectorsSkip }, () => {
   const golden = JSON.parse(
     readVector("FetchExternalInputResponseContent.golden.json"),
   ) as { content: string };
@@ -96,7 +52,7 @@ test("the fetch success shape decodes to its content", () => {
 // A zero-length payload is a success yielding the empty content. Its reply
 // carries no field at all, because the content field is omitted when empty, so
 // a reader that took an absent content key for a failure fails here.
-test("a zero-length fetched payload is the empty content, not a failure", () => {
+test("a zero-length fetched payload is the empty content, not a failure", { skip: vectorsSkip }, () => {
   assert.equal(
     decodeFetchExternalInputReply(
       toBuffer(readHexVector("FetchExternalInputResponseEmptyContent.cbor.hex")),
@@ -107,7 +63,7 @@ test("a zero-length fetched payload is the empty content, not a failure", () => 
 
 // The kit reads a reported failure out of the shared failure vector and surfaces
 // it as a HostError carrying both the machine-matchable code and the message.
-test("a reported fetch failure surfaces as a HostError from the shared vector", () => {
+test("a reported fetch failure surfaces as a HostError from the shared vector", { skip: vectorsSkip }, () => {
   const golden = JSON.parse(
     readVector("FetchExternalInputResponse.golden.json"),
   ) as { error: string; hostfunc_error_code: string };
@@ -164,7 +120,7 @@ test("a textual fetch reply is refused", () => {
 // The map head byte of each shared fetch vector, read from the canonical
 // encoding's own rules, and the content vector's value head: a byte string
 // (major type 2), which a text-string or base64 carry would not produce.
-test("each shared fetch vector declares the pair count its body carries", () => {
+test("each shared fetch vector declares the pair count its body carries", { skip: vectorsSkip }, () => {
   const cases: [string, number, string][] = [
     [
       "FetchExternalInputResponseContent.cbor.hex",

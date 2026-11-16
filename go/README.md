@@ -501,26 +501,34 @@ the gates that hold it.
 
 ## Standalone reuse
 
-The Go PDK's tests reference the JSON Schemas at relative path
-`../../../aggrega-schemas/json/` (relative to `pkg/aggrega/`).
-This assumes the `aggrega-schemas` repository is checked out beside
-this repository. Standalone consumption (after publication to
-`pkg.go.dev`) bundles the schemas in the release artifact; the
-file-relative reference becomes publication-bundled. Until
-publication, only a checkout with `aggrega-schemas` beside it runs the
-round-trip tests end-to-end.
+A clone of this repository builds and tests on its own: the module
+resolves `github.com/aggrega-ai/aggrega-abi/go` from the module proxy at
+the released version `go.mod` names. From `go/`:
 
-When the schemas are not reachable those tests **fail** with a clear
-diagnostic, because a run that could not read them has verified
-nothing. Where they are genuinely absent — a standalone checkout of
-this kit, or a packaging test — opt out with the same switch the Rust
-and TypeScript kits use:
+```sh
+go build ./...
+go test ./...
+```
+
+Two groups of tests read files that live in sibling repositories rather
+than in this one: the schema round-trip tests read the JSON Schemas at
+`../../../../aggrega-schemas/json/` (relative to `pkg/aggrega/`), and the
+wire tests read the shared payload vectors at
+`../../../../aggrega-abi/testdata/`. Each group runs when that repository is
+checked out beside this one (`aggrega-pdk/`, `aggrega-schemas/` and
+`aggrega-abi/` as siblings) and is reported as skipped, with the missing
+checkout named, when it is not.
+
+Where the `aggrega-schemas` checkout is present but its schemas cannot be
+read, the schema tests **fail** with a clear diagnostic, because a run
+that could not read them has verified nothing. To skip them in that case
+instead, use the same switch the Rust and TypeScript kits use:
 
 ```sh
 AGGREGA_SKIP_SCHEMA_TESTS=1 go test ./...
 ```
 
-Each affected test is then reported as skipped, with the reason
-stated. The switch keys on the schemas being unreachable: with them in
-place it changes nothing, so it cannot quietly turn a real run into a
-skipped one.
+Each affected test is then reported as skipped, with the reason stated.
+The switch keys on the schemas being unreachable: with them in place it
+changes nothing, so it cannot quietly turn a real run into a skipped
+one.

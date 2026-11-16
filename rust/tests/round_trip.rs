@@ -16,16 +16,15 @@
 //!
 //! Schemas are read from the `aggrega-schemas` repository checked out beside
 //! this one, at `../../aggrega-schemas/json/` relative to this crate root. A
-//! run that could not read them has verified nothing, so these tests **refuse** with a clear
-//! diagnostic rather than passing quietly. Where the schemas are genuinely
-//! absent — a standalone checkout of this kit, or a packaging test — opt out
-//! with:
+//! clone of this repository with no aggrega-schemas checkout beside it skips
+//! these tests, saying why. Where the checkout is present, a run that could not
+//! read the schemas has verified nothing, so these tests **refuse** with a clear
+//! diagnostic rather than passing quietly; this turns that refusal into a skip
+//! that states its reason:
 //!
 //! ```text
 //! AGGREGA_SKIP_SCHEMA_TESTS=1 cargo test
 //! ```
-//!
-//! Each affected test then reports that it was skipped and why.
 
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -37,22 +36,25 @@ use aggrega_pdk_rust::{
     PolicyOutput, PrecalculatedPath, API_VERSION,
 };
 
-/// Names the environment switch that opts out of the tests which validate
-/// against the JSON Schemas published alongside this kit. Set it to any
-/// non-empty value where those schemas are genuinely absent — a standalone
-/// checkout of this kit, or a packaging test — and each affected test reports
+/// Names the environment switch that turns the refusal over unreadable schemas
+/// into a skip. Set it to any non-empty value and each affected test reports
 /// that it was skipped and why.
 const SKIP_SCHEMA_TESTS_ENV: &str = "AGGREGA_SKIP_SCHEMA_TESTS";
+
+/// schemas_checkout resolves the absolute path to the aggrega-schemas
+/// repository checked out beside this one.
+fn schemas_checkout() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("..")
+        .join("..")
+        .join("aggrega-schemas")
+}
 
 /// schema_dir resolves the absolute path to the sibling aggrega-schemas
 /// repository's json directory. Resolution only: whether that path can be read
 /// is decided in one place, by `schema_path_or_reason`.
 fn schema_dir() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("..")
-        .join("..")
-        .join("aggrega-schemas")
-        .join("json")
+    schemas_checkout().join("json")
 }
 
 /// schema_path_or_reason resolves the absolute path to a named JSON Schema
@@ -80,6 +82,8 @@ fn skip_schema_tests() -> bool {
 }
 
 /// announce_skip states, on the process stderr, that a test was skipped and why.
+/// The reason is the whole explanation; the line adds the test's name and that
+/// it verified nothing.
 ///
 /// Three details are deliberate.
 ///
@@ -101,22 +105,21 @@ fn skip_schema_tests() -> bool {
 fn announce_skip(reason: &str) {
     let thread = std::thread::current();
     let test = thread.name().unwrap_or("test").to_string();
-    let line = format!(
-        "SKIP {test}: {reason}; {SKIP_SCHEMA_TESTS_ENV} is set — this test verified nothing.\n"
-    );
+    let line = format!("SKIP {test}: {reason} — this test verified nothing.\n");
     let _ = std::io::stderr().write_all(line.as_bytes());
 }
 
 /// require_schema resolves a named JSON Schema, or ends the calling test.
 ///
-/// The default is refusal. A harness that could not reach its inputs has
-/// verified nothing, so reporting that is strictly more informative than
-/// passing quietly — and a suite that skips by default cannot tell "everything
-/// agrees" apart from "nothing was checked".
+/// A clone of this repository with no aggrega-schemas checkout beside it skips,
+/// saying so: the schemas are not part of this repository, and a lone clone has
+/// nothing to validate against.
 ///
-/// Setting `AGGREGA_SKIP_SCHEMA_TESTS` turns the refusal into a skip that
-/// states the reason it was taken, so a deliberate run without the schemas
-/// stays clean while an accidental one stays loud.
+/// Where the checkout is present but a schema cannot be read, the default is
+/// refusal. A harness that could not reach its inputs has verified nothing, so
+/// reporting that is strictly more informative than passing quietly. Setting
+/// `AGGREGA_SKIP_SCHEMA_TESTS` turns that refusal into a skip that states the
+/// reason it was taken.
 ///
 /// It expands to an early `return`, so it is written at the top of a test
 /// rather than inside a helper.
@@ -124,9 +127,17 @@ macro_rules! require_schema {
     ($name:expr) => {
         match schema_path_or_reason($name) {
             Ok(path) => path,
+            Err(_) if !schemas_checkout().exists() => {
+                announce_skip(&format!(
+                    "aggrega-schemas is not checked out beside aggrega-pdk (looked for {}); \
+                     the JSON Schemas these tests validate against live there",
+                    schemas_checkout().display()
+                ));
+                return;
+            }
             Err(reason) => {
                 if skip_schema_tests() {
-                    announce_skip(&reason);
+                    announce_skip(&format!("{reason}; {SKIP_SCHEMA_TESTS_ENV} is set"));
                     return;
                 }
                 panic!(

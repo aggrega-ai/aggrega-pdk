@@ -16,11 +16,11 @@
  *
  * Schemas are read from the `aggrega-schemas` repository checked out beside
  * this one, at `../../aggrega-schemas/json/` relative to this package root. A
- * run that could not read them has verified nothing, so these tests refuse with a clear
- * diagnostic rather than passing quietly. Where the schemas are genuinely
- * absent — a standalone checkout of this kit, or a packaging test — opt out
- * with `AGGREGA_SKIP_SCHEMA_TESTS=1`, and each affected test reports that it
- * was skipped and why.
+ * clone of this repository with no aggrega-schemas checkout beside it skips
+ * these tests, saying why. Where the checkout is present, a run that could not
+ * read the schemas has verified nothing, so these tests refuse with a clear
+ * diagnostic rather than passing quietly; `AGGREGA_SKIP_SCHEMA_TESTS=1` turns
+ * that refusal into a skip that states its reason.
  */
 
 import { test, type TestContext } from "node:test";
@@ -53,14 +53,15 @@ import {
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-// Names the environment switch that opts out of the tests which validate
-// against the JSON Schemas published alongside this kit. Set it to any
-// non-empty value where those schemas are genuinely absent — a standalone
-// checkout of this kit, or a packaging test — and each affected test reports
-// that it was skipped and why.
+// Names the environment switch that turns the refusal over unreadable schemas
+// into a skip. Set it to any non-empty value and each affected test reports that
+// it was skipped and why.
 const SKIP_SCHEMA_TESTS_ENV = "AGGREGA_SKIP_SCHEMA_TESTS";
 
-const schemaDir = join(__dirname, "..", "..", "..", "aggrega-schemas", "json");
+// The aggrega-schemas repository checked out beside this one.
+const schemasCheckout = join(__dirname, "..", "..", "..", "aggrega-schemas");
+
+const schemaDir = join(schemasCheckout, "json");
 
 // schemasUnreachableReason returns the reason the named JSON Schema cannot be
 // read, or undefined when it can. This is the one place that decides
@@ -87,15 +88,23 @@ function skipSchemaTests(): boolean {
 // requireSchemas ends the calling test when the named JSON Schema cannot be
 // read, and reports whether the caller should return immediately.
 //
-// The default is refusal. A harness that could not reach its inputs has
-// verified nothing, so reporting that is strictly more informative than passing
-// quietly — and a suite that skips by default cannot tell "everything agrees"
-// apart from "nothing was checked".
+// A clone of this repository with no aggrega-schemas checkout beside it skips,
+// saying so: the schemas are not part of this repository, and a lone clone has
+// nothing to validate against.
 //
-// Setting AGGREGA_SKIP_SCHEMA_TESTS turns the refusal into a skip that states
-// the reason it was taken, so a deliberate run without the schemas stays clean
-// while an accidental one stays loud.
+// Where the checkout is present but a schema cannot be read, the default is
+// refusal. A harness that could not reach its inputs has verified nothing, so
+// reporting that is strictly more informative than passing quietly. Setting
+// AGGREGA_SKIP_SCHEMA_TESTS turns that refusal into a skip that states the
+// reason it was taken.
 function requireSchemas(t: TestContext, schemaName: string): boolean {
+  if (!existsSync(schemasCheckout)) {
+    t.skip(
+      `aggrega-schemas is not checked out beside aggrega-pdk (looked for ${schemasCheckout}); ` +
+        `the JSON Schemas these tests validate against live there`,
+    );
+    return true;
+  }
   const reason = schemasUnreachableReason(schemaName);
   if (reason === undefined) {
     return false;

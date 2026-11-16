@@ -52,6 +52,8 @@ Destination resolution:
 
 ## Source-level dependency
 
-This example consumes the PDK through a `replace` directive in `go.mod`
-pointing at the sibling PDK source at `../../`, and the ABI module the same
-way, from the `aggrega-abi` repository checked out beside this repository.
+This fixture consumes the PDK via a `replace` directive in `go.mod`
+pointing at the PDK source in this repository at `../../`. The ABI module
+it depends on resolves from the module proxy at the released version its
+`go.mod` names. A plugin copied out of this repository drops the `replace`
+and requires the published `github.com/aggrega-ai/aggrega-pdk/go` instead.

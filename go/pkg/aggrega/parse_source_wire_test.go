@@ -29,18 +29,27 @@ import (
 // invalidate a cached result for this package. Run with -count=1 when the
 // vectors are what changed.
 
+// abiCheckout is the aggrega-abi repository checked out beside this one.
+var abiCheckout = filepath.Join("..", "..", "..", "..", "aggrega-abi")
+
 // vectorDir resolves the directory holding the shared payload vectors.
 // Resolution only; whether the directory can be read is decided in one place, by
 // readVector.
 func vectorDir() string {
-	return filepath.Join("..", "..", "..", "..", "aggrega-abi", "testdata")
+	return filepath.Join(abiCheckout, "testdata")
 }
 
-// readVector reads one shared vector file and returns its contents. A run that
-// could not read the vectors has verified nothing, so this refuses with a clear
-// diagnostic naming the path rather than skipping quietly.
+// readVector reads one shared vector file and returns its contents. A clone of
+// this repository with no aggrega-abi checkout beside it skips, saying so: the
+// vectors are not part of this repository. Where the checkout is present, a run
+// that could not read a vector has verified nothing, so this refuses with a
+// clear diagnostic naming the path rather than skipping quietly.
 func readVector(t *testing.T, name string) []byte {
 	t.Helper()
+	if _, statErr := os.Stat(abiCheckout); os.IsNotExist(statErr) {
+		t.Skipf("skipped: aggrega-abi is not checked out beside aggrega-pdk (looked for %s); "+
+			"its shared test vectors live there", abiCheckout)
+	}
 	path := filepath.Join(vectorDir(), name)
 	b, err := os.ReadFile(path)
 	if err != nil {

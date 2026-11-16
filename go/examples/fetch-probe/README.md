@@ -26,9 +26,7 @@ Destination resolution:
 ## Source-level dependency
 
 This fixture consumes the PDK via a `replace` directive in `go.mod`
-pointing at the sibling PDK source at `../../`, plus a matching
-`replace` for the ABI sibling (a dependency module's own replace
-directives do not apply from a consuming main module). That second
-`replace` resolves from the `aggrega-abi` repository checked out beside
-this repository. Standalone reuse by end users is gated on PDK
-publication.
+pointing at the PDK source in this repository at `../../`. The ABI module
+it depends on resolves from the module proxy at the released version its
+`go.mod` names. A plugin copied out of this repository drops the `replace`
+and requires the published `github.com/aggrega-ai/aggrega-pdk/go` instead.

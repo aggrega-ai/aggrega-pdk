@@ -252,35 +252,43 @@ the gates that hold it.
 
 ## Standalone reuse
 
-The Rust PDK's tests reference the JSON Schemas at relative path
-`../../aggrega-schemas/json/` (relative to this crate root).
-This assumes the `aggrega-schemas` repository is checked out beside
-this repository. Only the tests read the schemas: the published crate
-carries the kit's sources alone, and a plugin that depends on it needs
-nothing checked out beside it.
+A clone of this repository builds and tests on its own: the crate takes
+`aggrega-abi` from crates.io at the released version its manifest names.
+From `rust/`:
 
-When running `cargo test` from a checkout that does not have the
-schemas alongside, the schema-dependent tests **fail** with a clear
-diagnostic, because a run that could not read them has verified
-nothing. Where they are genuinely absent — a standalone checkout of
-this kit, or a packaging test — opt out with the same switch the Go
-and TypeScript kits use:
+```sh
+cargo build --release
+cargo test
+```
+
+Two groups of tests read files that live in sibling repositories rather
+than in this one: the schema round-trip tests read the JSON Schemas at
+`../../aggrega-schemas/json/` (relative to this crate root), and the
+wire tests read the shared payload vectors at
+`../../aggrega-abi/testdata/`. Each group runs when that repository is
+checked out beside this one (`aggrega-pdk/`, `aggrega-schemas/` and
+`aggrega-abi/` as siblings); when it is not, each affected test prints a
+line naming the test and the missing checkout. Only the tests read these
+files: the published crate carries the kit's sources alone, and a plugin
+that depends on it needs nothing checked out beside it.
+
+Rust's stable test framework has no dynamic-skip result, so a test that
+decided at run time not to check anything is still counted as passing;
+the printed line says plainly that it verified nothing, which is what
+keeps that count from being read as a verified pass.
+
+Where the `aggrega-schemas` checkout is present but its schemas cannot be
+read, the schema tests **fail** with a clear diagnostic, because a run
+that could not read them has verified nothing. To skip them in that case
+instead, use the same switch the Go and TypeScript kits use:
 
 ```sh
 AGGREGA_SKIP_SCHEMA_TESTS=1 cargo test
 ```
 
-Each affected test then prints the reason it was skipped. Rust's
-stable test framework has no dynamic-skip result, so a test that
-decided at run time not to check anything is still counted as
-passing; the printed line names the test and says plainly that it
-verified nothing, which is what keeps that count from being read as a
-verified pass. The switch keys on the schemas being unreachable: with
-them in place it changes nothing, so it cannot quietly turn a real run
-into a skipped one.
-
-A checkout with `aggrega-schemas` beside it has the schemas in place,
-so neither the refusal nor the skip fires there.
+The switch keys on the schemas being unreachable: with them in place it
+changes nothing, so it cannot quietly turn a real run into a skipped
+one.
 
 ## Toolchain pin requirements
 

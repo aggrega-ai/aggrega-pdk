@@ -27,19 +27,24 @@ const skipSchemaTestsEnv = "AGGREGA_SKIP_SCHEMA_TESTS"
 // refuseOrSkipUnreachableSchemas ends the calling test when the JSON Schemas
 // these tests validate against cannot be read.
 //
-// The default is refusal. A harness that could not reach its inputs has
+// A clone of this repository with no aggrega-schemas checkout beside it skips,
+// saying so: the schemas are not part of this repository, and a lone clone has
+// nothing to validate against.
+//
+// Where the aggrega-schemas checkout is present but the schemas cannot be read,
+// the default is refusal. A harness that could not reach its inputs has
 // verified nothing, so reporting that is strictly more informative than passing
-// quietly — and a suite that skips by default cannot tell "everything agrees"
-// apart from "nothing was checked".
+// quietly. Setting skipSchemaTestsEnv turns that refusal into a skip that
+// states the reason it was taken.
 //
-// Setting skipSchemaTestsEnv turns the refusal into a skip that states the
-// reason it was taken, so a deliberate run without the schemas stays clean
-// while an accidental one stays loud.
-//
-// This is the one place that decides between the two, so every call site
+// This is the one place that decides among the three, so every call site
 // reaches the same verdict on the same condition.
 func refuseOrSkipUnreachableSchemas(t *testing.T, path string, err error) {
 	t.Helper()
+	if _, statErr := os.Stat(schemasCheckout); os.IsNotExist(statErr) {
+		t.Skipf("skipped: aggrega-schemas is not checked out beside aggrega-pdk (looked for %s); "+
+			"the JSON Schemas these tests validate against live there", schemasCheckout)
+	}
 	if os.Getenv(skipSchemaTestsEnv) != "" {
 		t.Skipf("skipped: schemas not reachable at %s (%v); %s is set", path, err, skipSchemaTestsEnv)
 	}
@@ -70,8 +75,11 @@ func loadSchema(t *testing.T, schemaFile string) *jsonschema.Schema {
 	return compileSchemaAt(t, schemaFile, "")
 }
 
+// schemasCheckout is the aggrega-schemas repository checked out beside this one.
+var schemasCheckout = filepath.Join("..", "..", "..", "..", "aggrega-schemas")
+
 // schemaDir is the sibling aggrega-schemas repository's json directory.
-var schemaDir = filepath.Join("..", "..", "..", "..", "aggrega-schemas", "json")
+var schemaDir = filepath.Join(schemasCheckout, "json")
 
 // exportTableKeyword is the top-level keyword under which a socket schema maps
 // each export the host calls a guest with to the definition of its input and the
@@ -205,8 +213,7 @@ func jsonInstance(t *testing.T, v any) any {
 // switch.
 func schemaDeclaredABIVersion(t *testing.T) string {
 	t.Helper()
-	path := filepath.Join("..", "..", "..", "..", "aggrega-schemas", "json",
-		"wasm-describe-v1beta1.schema.json")
+	path := filepath.Join(schemaDir, "wasm-describe-v1beta1.schema.json")
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		refuseOrSkipUnreachableSchemas(t, path, err)
