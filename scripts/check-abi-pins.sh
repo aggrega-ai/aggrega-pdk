@@ -64,10 +64,20 @@ NPM_PACKAGE=@aggrega-ai/aggrega-abi
 CRATES_IO=registry+https://github.com/rust-lang/crates.io-index
 
 # manifests DIR NAME — every file NAME under DIR, outside build output and
-# installed dependencies, in a stable order.
+# installed dependencies, in a stable order, into the array FILES. A directory
+# find cannot read is refused, as a manifest in it would go unread.
 manifests() {
-  find "$1" \( -name target -o -name node_modules \) -prune -o -type f -name "$2" -print | LC_ALL=C sort
+  local out
+  FILES=()
+  if ! out="$(find "$1" \( -name target -o -name node_modules \) -prune -o -type f -name "$2" -print 2>&1)"; then
+    REFUSALS+=("could not list every $2 under $1: $out")
+    return
+  fi
+  [ -z "$out" ] || mapfile -t FILES < <(LC_ALL=C sort <<<"$out")
 }
+
+# first_error TEXT — the first line of TEXT naming an error, else its first line.
+first_error() { grep -m1 -i 'error' <<<"$1" || head -n1 <<<"$1"; }
 
 # Each pin is one line in PINS: "<manifest><TAB><what it says><TAB><X.Y.Z or empty>",
 # the version empty when the pin names no single release. REFUSALS holds every
@@ -97,9 +107,13 @@ go_pins() {
   ' "$1"
 }
 
-while IFS= read -r f; do
-  f="${f#./}"
+manifests go go.mod
+for f in "${FILES[@]}"; do
   seen=0
+  if ! go_out="$(go_pins "$f" 2>&1)"; then
+    REFUSALS+=("could not read $f: $(first_error "$go_out")")
+    continue
+  fi
   while read -r kind version; do
     case "$kind" in
       require)
@@ -113,11 +127,11 @@ while IFS= read -r f; do
         REFUSALS+=("$f replaces $GO_MODULE, so it does not build against a released aggrega-abi; map a local checkout in a go.work instead")
         ;;
     esac
-  done < <(go_pins "$f")
+  done <<<"$go_out"
   if [ "$f" = go/go.mod ] && [ "$seen" = 0 ]; then
     REFUSALS+=("go/go.mod requires no version of $GO_MODULE")
   fi
-done < <(manifests go go.mod)
+done
 
 # --- Rust -------------------------------------------------------------------------
 # cargo metadata reports a whole workspace from any of its manifests, so each
@@ -126,18 +140,17 @@ done < <(manifests go go.mod)
 rust_lines=()
 declare -A RUST_SEEN=()
 kit_has_dep=0
-while IFS= read -r f; do
-  f="${f#./}"
+manifests rust Cargo.toml
+for f in "${FILES[@]}"; do
   [ -z "${RUST_SEEN[$f]:-}" ] || continue
+  # --no-deps reads the manifests alone and resolves nothing, so --offline holds
+  # on a machine with no registry cache.
   if ! metadata="$(cargo metadata --no-deps --offline --format-version 1 --manifest-path "$f" 2>&1)"; then
-    REFUSALS+=("cargo metadata could not read $f: $(printf '%s' "$metadata" | grep -m1 -i 'error' || printf '%s' "$metadata" | head -1)")
+    REFUSALS+=("cargo metadata could not read $f: $(first_error "$metadata")")
     RUST_SEEN[$f]=1
     continue
   fi
-  while IFS=$'\t' read -r manifest package kind req source; do
-    if [ "$package" = "-" ]; then RUST_SEEN[$manifest]=1; continue; fi
-    rust_lines+=("$manifest"$'\t'"$package"$'\t'"$kind"$'\t'"$req"$'\t'"$source")
-  done < <(node -e '
+  if ! rust_out="$(node -e '
 const path = require("path");
 const [root, crate] = process.argv.slice(1);
 const m = JSON.parse(require("fs").readFileSync(0, "utf8"));
@@ -149,8 +162,16 @@ for (const p of m.packages) {
     console.log([rel, p.name, d.kind || "normal", d.req, source].join("\t"));
   }
 }
-' "$(pwd -P)" "$CRATE" <<<"$metadata")
-done < <(manifests rust Cargo.toml)
+' "$(pwd -P)" "$CRATE" <<<"$metadata" 2>&1)"; then
+    REFUSALS+=("could not read the cargo metadata of $f: $(first_error "$rust_out")")
+    RUST_SEEN[$f]=1
+    continue
+  fi
+  while IFS=$'\t' read -r manifest package kind req source; do
+    if [ "$package" = "-" ]; then RUST_SEEN[$manifest]=1; continue; fi
+    rust_lines+=("$manifest"$'\t'"$package"$'\t'"$kind"$'\t'"$req"$'\t'"$source")
+  done <<<"$rust_out"
+done
 
 for line in "${rust_lines[@]}"; do
   IFS=$'\t' read -r manifest package kind req source <<<"$line"
@@ -172,8 +193,20 @@ fi
 
 # --- TypeScript -------------------------------------------------------------------
 kit_npm_dep=0
-while IFS= read -r f; do
-  f="${f#./}"
+manifests typescript package.json
+for f in "${FILES[@]}"; do
+  if ! npm_out="$(node -e '
+const [file, name] = process.argv.slice(1);
+const pkg = JSON.parse(require("fs").readFileSync(file, "utf8"));
+for (const list of ["dependencies", "devDependencies", "peerDependencies", "optionalDependencies"]) {
+  const spec = (pkg[list] || {})[name];
+  if (spec !== undefined) console.log(list + "\t" + spec);
+}
+' "$f" "$NPM_PACKAGE" 2>&1)"; then
+    REFUSALS+=("could not read $f: $(first_error "$npm_out")")
+    continue
+  fi
+  [ -n "$npm_out" ] || continue
   while IFS=$'\t' read -r list spec; do
     v="${spec#=}"
     is_release "$v" || v=""
@@ -182,15 +215,8 @@ while IFS= read -r f; do
       KIT_PIN[$f]="${v:-$spec}"
     fi
     pin "$f" "$list names $NPM_PACKAGE \"$spec\"" "$v"
-  done < <(node -e '
-const [file, name] = process.argv.slice(1);
-const pkg = JSON.parse(require("fs").readFileSync(file, "utf8"));
-for (const list of ["dependencies", "devDependencies", "peerDependencies", "optionalDependencies"]) {
-  const spec = (pkg[list] || {})[name];
-  if (spec !== undefined) console.log(list + "\t" + spec);
-}
-' "$f" "$NPM_PACKAGE")
-done < <(manifests typescript package.json)
+  done <<<"$npm_out"
+done
 if [ "$kit_npm_dep" = 0 ]; then
   REFUSALS+=("typescript/package.json names no $NPM_PACKAGE in its dependencies")
 fi
