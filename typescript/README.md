@@ -268,7 +268,11 @@ wire tests read the shared payload vectors at
 `../../aggrega-abi/testdata/`. Each group runs when that repository is
 checked out beside this one (`aggrega-pdk/`, `aggrega-schemas/` and
 `aggrega-abi/` as siblings) and is reported as skipped, with the missing
-checkout named, when it is not. Only the tests read these files: the
+checkout named, when it is not. Check out `aggrega-abi` at the release tag
+of the version `package.json` names for `@aggrega-ai/aggrega-abi`, and
+`aggrega-schemas` at the release tag the `schemas-ref` line of
+`.github/workflows/pdk.yml` names, so the files the tests read are the
+ones the kit is built against. Only the tests read these files: the
 published package carries the kit's compiled sources alone, and a plugin
 that depends on it needs nothing checked out beside it.
 

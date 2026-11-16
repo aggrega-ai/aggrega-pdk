@@ -253,7 +253,8 @@ the gates that hold it.
 ## Standalone reuse
 
 A clone of this repository builds and tests on its own: the crate takes
-`aggrega-abi` from crates.io at the released version its manifest names.
+`aggrega-abi` from crates.io at the released version `Cargo.toml` names
+in its `[workspace.dependencies]`.
 From `rust/`:
 
 ```sh
@@ -268,7 +269,11 @@ wire tests read the shared payload vectors at
 `../../aggrega-abi/testdata/`. Each group runs when that repository is
 checked out beside this one (`aggrega-pdk/`, `aggrega-schemas/` and
 `aggrega-abi/` as siblings); when it is not, each affected test prints a
-line naming the test and the missing checkout. Only the tests read these
+line naming the test and the missing checkout. Check out `aggrega-abi` at
+the release tag of the version `Cargo.toml` names for it, and
+`aggrega-schemas` at the release tag the `schemas-ref` line of
+`.github/workflows/pdk.yml` names, so the files the tests read are the
+ones the kit is built against. Only the tests read these
 files: the published crate carries the kit's sources alone, and a plugin
 that depends on it needs nothing checked out beside it.
 

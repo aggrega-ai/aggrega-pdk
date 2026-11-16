@@ -517,7 +517,11 @@ wire tests read the shared payload vectors at
 `../../../../aggrega-abi/testdata/`. Each group runs when that repository is
 checked out beside this one (`aggrega-pdk/`, `aggrega-schemas/` and
 `aggrega-abi/` as siblings) and is reported as skipped, with the missing
-checkout named, when it is not.
+checkout named, when it is not. Check out `aggrega-abi` at the release tag
+of the version `go.mod` requires of `github.com/aggrega-ai/aggrega-abi/go`,
+and `aggrega-schemas` at the release tag the `schemas-ref` line of
+`.github/workflows/pdk.yml` names, so the files the tests read are the
+ones the kit is built against.
 
 Where the `aggrega-schemas` checkout is present but its schemas cannot be
 read, the schema tests **fail** with a clear diagnostic, because a run
