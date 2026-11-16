@@ -76,8 +76,11 @@ jobs:
         run: aggrega-pdk/scripts/prepare-publish.sh rust "${TAG#v}"
 
       - name: Package the crate
+        # --allow-dirty admits the dependency rewrite above; prepare-publish.sh
+        # has refused the run if anything but rust/Cargo.toml and rust/Cargo.lock
+        # differs from the release tag.
         working-directory: aggrega-pdk/rust
-        run: cargo package --locked --package aggrega-pdk-rust
+        run: cargo package --locked --allow-dirty --package aggrega-pdk-rust
 
       - name: Refuse a packed crate without the licence text
         # rust/LICENSE is a symbolic link to the repository's LICENSE; the packed
@@ -98,10 +101,11 @@ jobs:
         uses: rust-lang/crates-io-auth-action@3268eb413133e2960fa4ae0e963ca76380c54cd9 # v1.0.6
 
       - name: Publish to crates.io
+        # --allow-dirty for the same reason as when packaging.
         working-directory: aggrega-pdk/rust
         env:
           CARGO_REGISTRY_TOKEN: ${{ steps.crates-io-auth.outputs.token }}
-        run: cargo publish --locked --package aggrega-pdk-rust
+        run: cargo publish --locked --allow-dirty --package aggrega-pdk-rust
 
   npm:
     name: Publish the TypeScript kit to npm

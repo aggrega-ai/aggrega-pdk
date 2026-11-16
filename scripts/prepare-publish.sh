@@ -30,8 +30,12 @@ In order, for the KIT's manifest:
      filesystem or a git repository rather than the registry: a Cargo path or
      git dependency, an npm file:, link:, workspace:, portal: or path spec.
      Each one is named.
+  4. rust only: refuses when the git checkout differs from its commit anywhere
+     but rust/Cargo.toml and rust/Cargo.lock (untracked files included), so
+     cargo package and cargo publish may run with --allow-dirty and still
+     publish the release tag plus the dependency rewrite and nothing else.
 
-Run from anywhere; paths resolve against the repository root. Needs cargo (rust)
+Run from anywhere; paths resolve against the repository root. Needs cargo and git (rust)
 or npm (typescript), and node, on PATH. The manifest is edited in place.
 
 Exit status:
@@ -103,6 +107,23 @@ for (const d of local) {
 if (local.length) process.exit(1);
 console.log("rust/Cargo.toml names every dependency from crates.io");
 ' <<<"$metadata"
+
+  # cargo package and cargo publish refuse a checkout with uncommitted changes
+  # unless given --allow-dirty, and the rewrite above is such a change. The
+  # publish runs with --allow-dirty only because this check holds: the manifest
+  # and its lock file are the only paths that differ from the release tag.
+  local dirty unexpected path
+  if ! dirty="$(git status --porcelain --untracked-files=all 2>/dev/null)"; then
+    echo "error: $(pwd) is not a git checkout; the crate is published from a checkout of its release tag" >&2
+    return 1
+  fi
+  unexpected="$(cut -c4- <<<"$dirty" | grep -vxE 'rust/Cargo\.(toml|lock)' || true)"
+  if [ -n "$unexpected" ]; then
+    echo "error: the checkout differs from the release tag beyond rust/Cargo.toml and rust/Cargo.lock; refusing to publish it with --allow-dirty:" >&2
+    while IFS= read -r path; do echo "  $path" >&2; done <<<"$unexpected"
+    return 1
+  fi
+  echo "the checkout differs from the release tag only in rust/Cargo.toml and rust/Cargo.lock, if at all"
 }
 
 prepare_typescript() {
