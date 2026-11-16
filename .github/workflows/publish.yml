@@ -6,12 +6,15 @@ name: Publish
 # Go module tag (go/vX.Y.Z) publish nothing; the Go kit is served from its tag by
 # the Go module proxy.
 #
-# The kits are released together with aggrega-abi at the same version, and each
-# one depends on it from its registry. Before publishing, each job confirms that
-# aggrega-abi carries the same release tag, waits until that aggrega-abi version
-# is visible on the registry the kit is published to, and has
-# scripts/prepare-publish.sh set the kit's aggrega-abi dependency to exactly that
-# version and refuse any dependency a registry user could not install.
+# The kits and aggrega-abi carry version numbers of their own, and each kit
+# depends on the aggrega-abi release its manifests name, from its registry:
+# rust/Cargo.toml's [workspace.dependencies] and typescript/package.json name the
+# same version. Before publishing, each job has scripts/prepare-publish.sh confirm
+# the kit carries the release version, read that aggrega-abi version (refusing
+# manifests that disagree on it, or any dependency a registry user could not
+# install), confirms that aggrega-abi's release tag for that version carries it,
+# and waits until that aggrega-abi version is visible on the registry the kit is
+# published to. The checkout is published as tagged: nothing rewrites it.
 #
 # Both registries authenticate this workflow by trusted publishing: each one
 # trusts this repository's publish.yml running in the "release" environment and
@@ -46,41 +49,41 @@ jobs:
           path: aggrega-pdk
           persist-credentials: false
 
-      - name: Check out aggrega-abi at the same release tag
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          repository: aggrega-ai/aggrega-abi
-          ref: ${{ github.ref_name }}
-          path: aggrega-abi
-          persist-credentials: false
-
       - name: Install Rust
         # The kit's toolchain floor (rust-version in rust/Cargo.toml).
         run: |
           rustup toolchain install 1.85 --profile minimal
           rustup default 1.85
 
-      - name: Refuse an aggrega-abi release tag whose packages carry another version
+      - name: Confirm the release version and read the aggrega-abi release the kits name
+        id: abi
         env:
           TAG: ${{ github.ref_name }}
-        run: aggrega-abi/scripts/check-release-version.sh "${TAG#v}"
+        run: |
+          version="$(aggrega-pdk/scripts/prepare-publish.sh rust "${TAG#v}")"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Check out aggrega-abi at the release tag the kits name
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: aggrega-ai/aggrega-abi
+          ref: v${{ steps.abi.outputs.version }}
+          path: aggrega-abi
+          persist-credentials: false
+
+      - name: Refuse an aggrega-abi release tag whose packages carry another version
+        env:
+          ABI_VERSION: ${{ steps.abi.outputs.version }}
+        run: aggrega-abi/scripts/check-release-version.sh "$ABI_VERSION"
 
       - name: Wait until aggrega-abi is visible on crates.io
         env:
-          TAG: ${{ github.ref_name }}
-        run: aggrega-pdk/scripts/wait-for-abi.sh crates.io "${TAG#v}"
-
-      - name: Name aggrega-abi at the release version and refuse local dependencies
-        env:
-          TAG: ${{ github.ref_name }}
-        run: aggrega-pdk/scripts/prepare-publish.sh rust "${TAG#v}"
+          ABI_VERSION: ${{ steps.abi.outputs.version }}
+        run: aggrega-pdk/scripts/wait-for-abi.sh crates.io "$ABI_VERSION"
 
       - name: Package the crate
-        # --allow-dirty admits the dependency rewrite above; prepare-publish.sh
-        # has refused the run if anything but rust/Cargo.toml and rust/Cargo.lock
-        # differs from the release tag.
         working-directory: aggrega-pdk/rust
-        run: cargo package --locked --allow-dirty --package aggrega-pdk-rust
+        run: cargo package --locked --package aggrega-pdk-rust
 
       - name: Refuse a packed crate without the licence text
         # rust/LICENSE is a symbolic link to the repository's LICENSE; the packed
@@ -101,11 +104,10 @@ jobs:
         uses: rust-lang/crates-io-auth-action@3268eb413133e2960fa4ae0e963ca76380c54cd9 # v1.0.6
 
       - name: Publish to crates.io
-        # --allow-dirty for the same reason as when packaging.
         working-directory: aggrega-pdk/rust
         env:
           CARGO_REGISTRY_TOKEN: ${{ steps.crates-io-auth.outputs.token }}
-        run: cargo publish --locked --allow-dirty --package aggrega-pdk-rust
+        run: cargo publish --locked --package aggrega-pdk-rust
 
   npm:
     name: Publish the TypeScript kit to npm
@@ -123,39 +125,42 @@ jobs:
           path: aggrega-pdk
           persist-credentials: false
 
-      - name: Check out aggrega-abi at the same release tag
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          repository: aggrega-ai/aggrega-abi
-          ref: ${{ github.ref_name }}
-          path: aggrega-abi
-          persist-credentials: false
-
       - name: Install Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           # Bundles npm 11.19.0; trusted publishing needs npm 11.5.1 or later.
           node-version: '24.21.0'
 
-      - name: Refuse an aggrega-abi release tag whose packages carry another version
+      - name: Confirm the release version and read the aggrega-abi release the kits name
+        # Reads rust/Cargo.toml through cargo, which the runner image provides.
+        id: abi
         env:
           TAG: ${{ github.ref_name }}
-        run: aggrega-abi/scripts/check-release-version.sh "${TAG#v}"
+        run: |
+          version="$(aggrega-pdk/scripts/prepare-publish.sh typescript "${TAG#v}")"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Check out aggrega-abi at the release tag the kits name
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: aggrega-ai/aggrega-abi
+          ref: v${{ steps.abi.outputs.version }}
+          path: aggrega-abi
+          persist-credentials: false
+
+      - name: Refuse an aggrega-abi release tag whose packages carry another version
+        env:
+          ABI_VERSION: ${{ steps.abi.outputs.version }}
+        run: aggrega-abi/scripts/check-release-version.sh "$ABI_VERSION"
 
       - name: Wait until aggrega-abi is visible on npm
         env:
-          TAG: ${{ github.ref_name }}
-        run: aggrega-pdk/scripts/wait-for-abi.sh npm "${TAG#v}"
-
-      - name: Name aggrega-abi at the release version and refuse local dependencies
-        env:
-          TAG: ${{ github.ref_name }}
-        run: aggrega-pdk/scripts/prepare-publish.sh typescript "${TAG#v}"
+          ABI_VERSION: ${{ steps.abi.outputs.version }}
+        run: aggrega-pdk/scripts/wait-for-abi.sh npm "$ABI_VERSION"
 
       - name: Install dependencies
-        # Brings package-lock.json in line with the dependency the step above set.
         working-directory: aggrega-pdk/typescript
-        run: npm install --no-audit --no-fund
+        run: npm ci --no-audit --no-fund
 
       - name: Build
         # Also copies the repository's LICENSE into the package directory.
