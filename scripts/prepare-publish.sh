@@ -20,15 +20,13 @@ VERSION is a final release version, X.Y.Z with no pre-release or build suffix
 Reads the manifests and changes nothing. In order:
   1. Refuses when the KIT's manifest does not carry VERSION as its own
      version.
-  2. Reads the aggrega-abi release the kits depend on: the version
-     rust/Cargo.toml requires of the crate aggrega-abi (written once, in its
-     [workspace.dependencies]) and the version typescript/package.json names
-     for @aggrega-ai/aggrega-abi. Both are read whichever KIT is given.
-     Refuses when either names no single X.Y.Z version (a leading ^ or = is
-     accepted), resolves from the local filesystem or a git repository, or
-     disagrees with the other. The kits and aggrega-abi carry version numbers
-     of their own: a kit release names the aggrega-abi release it is built
-     against, and this script never changes that dependency.
+  2. Reads the aggrega-abi release the kits depend on with
+     scripts/check-abi-pins.sh, whichever KIT is given: it refuses unless the
+     Go, Rust and TypeScript manifests all pin the same single X.Y.Z release
+     from their registries (see its --help). The kits and aggrega-abi carry
+     version numbers of their own: a kit release names the aggrega-abi
+     release it is built against, and this script never changes that
+     dependency.
   3. Refuses when any dependency of the KIT (of every kind) resolves from the
      local filesystem or a git repository rather than the registry: a Cargo
      path or git dependency, an npm file:, link:, workspace:, portal: or path
@@ -79,27 +77,19 @@ NPM_MANIFEST=typescript/package.json
 
 metadata="$(cargo metadata --no-deps --format-version 1 --manifest-path "$CARGO_MANIFEST")"
 
-# Prints "<own version> <abi requirement> <abi source>", the last two "-" when
-# the crate has no normal dependency on aggrega-abi; the source, which may hold
-# spaces, comes last so read gives it the rest of the line. cargo metadata reports a
-# dependency inherited from [workspace.dependencies] as the package's own.
-read -r rust_own rust_req rust_source < <(node -e '
+# Prints the version of the package aggrega-pdk-rust, "-" when the manifest
+# declares none.
+rust_own="$(node -e '
 const m = JSON.parse(require("fs").readFileSync(0, "utf8"));
 const p = m.packages.find((p) => p.name === "aggrega-pdk-rust");
-if (!p) { console.log("- - -"); process.exit(0); }
-const d = p.dependencies.find((d) => d.name === "aggrega-abi" && d.kind === null);
-const source = d ? (d.path ? "the local path " + d.path : (d.source || "-")) : "-";
-console.log(p.version, d ? d.req : "-", source.replace(/ /g, " "));
-' <<<"$metadata")
-rust_source="${rust_source//$' '/ }"
+console.log(p ? p.version : "-");
+' <<<"$metadata")"
 
-# Prints "<own version> <abi spec>", the last "-" when the package has no runtime
-# dependency on aggrega-abi.
-read -r npm_own npm_spec < <(node -e '
+# Prints the package's own version, "-" when it declares none.
+npm_own="$(node -e '
 const pkg = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
-const spec = (pkg.dependencies || {})["@aggrega-ai/aggrega-abi"];
-console.log(pkg.version || "-", spec === undefined ? "-" : spec);
-' "$NPM_MANIFEST")
+console.log(pkg.version || "-");
+' "$NPM_MANIFEST")"
 
 if [ "$rust_own" = "-" ]; then
   echo "error: $CARGO_MANIFEST declares no aggrega-pdk-rust package" >&2
@@ -117,44 +107,8 @@ if [ "$own" != "$version" ]; then
 fi
 echo "$manifest carries the release version $version" >&2
 
-# 2. The aggrega-abi release both kits name.
-
-# exact_version SPEC -> the X.Y.Z SPEC names, a leading ^ or = dropped; nothing
-# when SPEC names no single X.Y.Z version.
-exact_version() {
-  local v="$1"
-  v="${v#^}"
-  v="${v#=}"
-  if [[ "$v" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then printf '%s' "$v"; fi
-}
-
-refused=0
-if [ "$rust_req" = "-" ]; then
-  echo "error: $CARGO_MANIFEST declares no dependency on aggrega-abi" >&2
-  refused=1
-elif [ "$rust_source" != "registry+https://github.com/rust-lang/crates.io-index" ]; then
-  echo "error: $CARGO_MANIFEST takes aggrega-abi from $rust_source, not from crates.io" >&2
-  refused=1
-fi
-rust_abi="$(exact_version "$rust_req")"
-if [ "$rust_req" != "-" ] && [ -z "$rust_abi" ]; then
-  echo "error: $CARGO_MANIFEST requires aggrega-abi '$rust_req', which names no single X.Y.Z release" >&2
-  refused=1
-fi
-npm_abi="$(exact_version "$npm_spec")"
-if [ "$npm_spec" = "-" ]; then
-  echo "error: $NPM_MANIFEST declares no dependency on @aggrega-ai/aggrega-abi" >&2
-  refused=1
-elif [ -z "$npm_abi" ]; then
-  echo "error: $NPM_MANIFEST names @aggrega-ai/aggrega-abi as \"$npm_spec\", which names no single X.Y.Z release on the npm registry" >&2
-  refused=1
-fi
-if [ -n "$rust_abi" ] && [ -n "$npm_abi" ] && [ "$rust_abi" != "$npm_abi" ]; then
-  echo "error: the kits name different aggrega-abi releases: $CARGO_MANIFEST requires $rust_abi, $NPM_MANIFEST names $npm_abi; make them name the same release" >&2
-  refused=1
-fi
-[ "$refused" -eq 0 ] || exit 1
-echo "both kits name aggrega-abi $rust_abi" >&2
+# 2. The aggrega-abi release the kits pin, the same in every manifest.
+abi="$(scripts/check-abi-pins.sh)" || exit 1
 
 # 3. Every dependency of the KIT from its registry.
 case "$kit" in
@@ -189,4 +143,4 @@ console.error(process.argv[1] + " names every dependency from the npm registry")
     ;;
 esac
 
-echo "$rust_abi"
+echo "$abi"

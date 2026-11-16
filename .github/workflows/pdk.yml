@@ -6,6 +6,7 @@ on:
       - 'go/**'
       - 'rust/**'
       - 'typescript/**'
+      - 'scripts/**'
       - '.github/workflows/pdk.yml'
   # No paths filter on pushes: a release's push to main needs a check result on every push tip main can receive.
   push:
@@ -35,10 +36,11 @@ concurrency:
 
 jobs:
   pins:
-    # The sibling revisions the test jobs check out, held in one place. The
-    # aggrega-abi tag is read from the version go/go.mod requires, so it moves
-    # with the kits' manifests; the aggrega-schemas tag is declared here, the one
-    # place it is named.
+    # The sibling revisions the test jobs check out, held in one place, and the
+    # gate every other job waits on. scripts/check-abi-pins.sh refuses the run when
+    # the Go, Rust and TypeScript manifests pin different aggrega-abi releases, and
+    # otherwise prints the one release they pin, whose tag the test jobs check out;
+    # the aggrega-schemas tag is declared here, the one place it is named.
     # Shared self-hosted-runner switch: set the AGGREGA_RUNNER org/repo variable to route here.
     runs-on: ${{ vars.AGGREGA_RUNNER || 'ubuntu-latest' }}
     outputs:
@@ -48,21 +50,25 @@ jobs:
       - name: Checkout PDK
         uses: actions/checkout@v5
         with:
-          sparse-checkout: go/go.mod
-          sparse-checkout-cone-mode: false
           persist-credentials: false
 
-      - name: Read the sibling revisions
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: '1.85'
+
+      - name: Install Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+
+      - name: Refuse kits that pin different aggrega-abi releases, and read the sibling revisions
         id: pins
         run: |
-          abi_ref="$(awk '$1 == "github.com/aggrega-ai/aggrega-abi/go" { print $2; exit }' go/go.mod)"
-          if [ -z "$abi_ref" ]; then
-            echo "ERROR: go/go.mod requires no version of github.com/aggrega-ai/aggrega-abi/go, so the aggrega-abi tag to test against is unknown."
-            exit 1
-          fi
-          echo "aggrega-abi tag: $abi_ref"
+          abi_version="$(scripts/check-abi-pins.sh)"
+          echo "aggrega-abi tag: v$abi_version"
           {
-            echo "abi-ref=$abi_ref"
+            echo "abi-ref=v$abi_version"
             # The aggrega-schemas release the round-trip tests are checked against.
             echo "schemas-ref=v0.13.1"
           } >> "$GITHUB_OUTPUT"
@@ -229,6 +235,7 @@ jobs:
     # [workspace.dependencies] through cargo metadata, cross-checked with
     # typescript/package.json — and refuses manifests that disagree on it. It pins and installs its own tools, and the Rust toolchain
     # whose rustdoc it reads, into the per-run directory it is given.
+    needs: pins
     if: github.ref_name == 'dev' || github.base_ref == 'dev'
     # Shared self-hosted-runner switch: set the AGGREGA_RUNNER org/repo variable to route here.
     runs-on: ${{ vars.AGGREGA_RUNNER || 'ubuntu-latest' }}
