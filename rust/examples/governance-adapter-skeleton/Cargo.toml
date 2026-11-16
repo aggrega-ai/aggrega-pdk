@@ -18,7 +18,7 @@ path = "src/lib.rs"
 aggrega-pdk-rust = { path = "../.." }
 # Reached directly for the governance payload types the kit does not re-export.
 # Both spellings name the identical generated type.
-aggrega-abi = "0.9.0"
+aggrega-abi = { workspace = true }
 extism-pdk = "1.4"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

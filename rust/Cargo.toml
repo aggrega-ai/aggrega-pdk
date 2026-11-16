@@ -26,13 +26,9 @@ serde_json = "1"
 # line extism-pdk already pins transitively, so no new code enters the
 # dependency tree.
 base64 = "0.22"
-# Portable ABI codec — the aggrega-abi crate, resolved from crates.io by its
-# released version. The version is kept equal to the version aggrega-abi's
-# manifests carry: publishing needs it, and the API compatibility check reads it
-# at a release tag to choose the aggrega-abi tag it compares with, which is the
-# release that tag was built on only under the precondition the check's --help
-# states under PAIRING.
-aggrega-abi = "0.9.0"
+# Portable ABI codec — the aggrega-abi crate, resolved from crates.io by the
+# released version [workspace.dependencies] below names.
+aggrega-abi = { workspace = true }
 
 [dev-dependencies]
 # JSON Schema 2020-12 validator. Selected over the `jsonschema` crate
@@ -87,3 +83,10 @@ exclude = [
     "examples/policy-regorus-render",
     "examples/policy-opa-wasm",
 ]
+
+# The aggrega-abi release the kit and the example plugins in this workspace build
+# against, from crates.io. It is the one place this workspace names that version:
+# the kit's publish workflow reads it to choose the aggrega-abi release tag it
+# checks and waits for, and typescript/package.json names the same version.
+[workspace.dependencies]
+aggrega-abi = "0.9.0"
