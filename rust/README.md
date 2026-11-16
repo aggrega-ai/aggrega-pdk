@@ -15,7 +15,20 @@ Rust-specific quickstart; the guide is the single home for the concepts.
 
 A plugin is a small Cargo crate that depends on `aggrega-pdk-rust`
 for the typed socket payloads and the Aggrega host-function bindings,
-plus `extism-pdk` for the plugin-function macro.
+plus `extism-pdk` for the plugin-function macro. Both install from
+crates.io:
+
+```sh
+cargo add aggrega-pdk-rust extism-pdk
+```
+
+The plugin crate builds as a dynamic library, which is the form a
+`.wasm` module takes:
+
+```toml
+[lib]
+crate-type = ["cdylib"]
+```
 
 Build the plugin to a `.wasm` artifact with Cargo's
 `wasm32-unknown-unknown` target:
@@ -242,9 +255,9 @@ the gates that hold it.
 The Rust PDK's tests reference the JSON Schemas at relative path
 `../../aggrega-schemas/json/` (relative to this crate root).
 This assumes the `aggrega-schemas` repository is checked out beside
-this repository. Standalone consumption (after publication to
-`crates.io`) bundles the schemas in the release artifact; the
-file-relative reference becomes publication-bundled.
+this repository. Only the tests read the schemas: the published crate
+carries the kit's sources alone, and a plugin that depends on it needs
+nothing checked out beside it.
 
 When running `cargo test` from a checkout that does not have the
 schemas alongside, the schema-dependent tests **fail** with a clear

@@ -17,6 +17,12 @@ A plugin is a small TypeScript project that depends on
 `@aggrega-ai/aggrega-pdk-typescript` for the typed socket payloads
 and `@extism/js-pdk` for the TypeScript declarations of the Extism
 plugin runtime (`Host`, `Memory`, the `extism:host` ambient module).
+Both install from npm:
+
+```sh
+npm install @aggrega-ai/aggrega-pdk-typescript
+npm install --save-dev @extism/js-pdk
+```
 
 The plugin entry follows the Extism JS PDK CommonJS convention:
 
@@ -247,9 +253,9 @@ tools manually per those pointers.
 The PDK's tests reference the JSON Schemas at relative path
 `../../aggrega-schemas/json/` (relative to this package
 root). This assumes the `aggrega-schemas` repository is checked out
-beside this repository. Standalone consumption (after publication to
-npm) bundles the schemas in the release artifact; the file-relative
-reference becomes publication-bundled.
+beside this repository. Only the tests read the schemas: the published
+package carries the kit's compiled sources alone, and a plugin that
+depends on it needs nothing checked out beside it.
 
 When running `npm test` from a checkout that does not have the
 schemas alongside, the schema-dependent tests **fail** with a clear

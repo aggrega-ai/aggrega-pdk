@@ -16,8 +16,8 @@ on:
 # ts: file:../../aggrega-abi/typescript). Standalone CI has no sibling,
 # so each job recreates the side-by-side layout under $GITHUB_WORKSPACE:
 # this repo at aggrega-pdk/ and the ABI at aggrega-abi/, then builds from
-# aggrega-pdk/<lang>/ so ../../aggrega-abi/<lang> resolves. The ABI is a
-# private repo, so it is cloned with a short-lived org GitHub App token.
+# aggrega-pdk/<lang>/ so ../../aggrega-abi/<lang> resolves. The sibling
+# checkouts use a short-lived org GitHub App token.
 
 env:
   # The branch every sibling checkout reads. The siblings follow the branch
@@ -37,7 +37,7 @@ jobs:
     # Shared self-hosted-runner switch: set the AGGREGA_RUNNER org/repo variable to route here.
     runs-on: ${{ vars.AGGREGA_RUNNER || 'ubuntu-latest' }}
     steps:
-      - name: Mint org app token for private-ABI access
+      - name: Mint org app token for the sibling checkouts
         id: app-token
         uses: actions/create-github-app-token@v3
         with:
@@ -99,7 +99,7 @@ jobs:
     # Shared self-hosted-runner switch: set the AGGREGA_RUNNER org/repo variable to route here.
     runs-on: ${{ vars.AGGREGA_RUNNER || 'ubuntu-latest' }}
     steps:
-      - name: Mint org app token for private-ABI access
+      - name: Mint org app token for the sibling checkouts
         id: app-token
         uses: actions/create-github-app-token@v3
         with:
@@ -194,7 +194,7 @@ jobs:
     # Shared self-hosted-runner switch: set the AGGREGA_RUNNER org/repo variable to route here.
     runs-on: ${{ vars.AGGREGA_RUNNER || 'ubuntu-latest' }}
     steps:
-      - name: Mint org app token for private-ABI access
+      - name: Mint org app token for the sibling checkouts
         id: app-token
         uses: actions/create-github-app-token@v3
         with:
@@ -247,7 +247,7 @@ jobs:
     # Shared self-hosted-runner switch: set the AGGREGA_RUNNER org/repo variable to route here.
     runs-on: ${{ vars.AGGREGA_RUNNER || 'ubuntu-latest' }}
     steps:
-      - name: Mint org app token for private-ABI access
+      - name: Mint org app token for the sibling checkouts
         id: app-token
         uses: actions/create-github-app-token@v3
         with:

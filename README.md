@@ -4,12 +4,20 @@ This repository holds the Plugin Development Kits for authoring
 [Aggrega](https://aggrega.ai) Wasm plugins, one per supported source
 language.
 
-- **`go/`** — Go PDK; targets publication to `pkg.go.dev` as
+- **`go/`** — Go PDK, published as the Go module
   `github.com/aggrega-ai/aggrega-pdk/go`.
-- **`rust/`** — Rust PDK; targets publication to `crates.io` as
+- **`rust/`** — Rust PDK, published to crates.io as
   `aggrega-pdk-rust`.
-- **`typescript/`** — TypeScript PDK; targets publication to npm as
+- **`typescript/`** — TypeScript PDK, published to npm as
   `@aggrega-ai/aggrega-pdk-typescript`.
+
+Each installs with its language's own tool:
+
+```sh
+go get github.com/aggrega-ai/aggrega-pdk/go
+cargo add aggrega-pdk-rust
+npm install @aggrega-ai/aggrega-pdk-typescript
+```
 
 Each PDK is a thin wrapper over the corresponding upstream
 [Extism](https://extism.org) PDK (`extism-pdk-<language>`), adding

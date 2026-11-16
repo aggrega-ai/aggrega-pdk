@@ -3,16 +3,23 @@
   "version": "0.9.0",
   "description": "Plugin Development Kit for authoring Aggrega Wasm plugins in TypeScript.",
   "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/aggrega-ai/aggrega-pdk.git",
+    "directory": "typescript"
+  },
+  "homepage": "https://aggrega.ai",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "files": [
-    "dist/"
+    "dist/",
+    "LICENSE"
   ],
   "scripts": {
-    "build": "npm --prefix ../../aggrega-abi/typescript install && npm --prefix ../../aggrega-abi/typescript run build && tsc && npm run typecheck",
+    "build": "node -e \"require('fs').copyFileSync('../LICENSE','LICENSE')\" && npm --prefix ../../aggrega-abi/typescript install && npm --prefix ../../aggrega-abi/typescript run build && tsc && npm run typecheck",
     "typecheck": "tsc -p tsconfig.test.json && ./scripts/typecheck-examples.sh",
     "prepack": "npm run build",
-    "check-pack-contents": "node -e \"const {execFileSync}=require('child_process');const pkg=require('./package.json');const want=[pkg.main,pkg.types].map(p=>p.replace('./',''));const have=JSON.parse(execFileSync('npm',['pack','--dry-run','--json','--ignore-scripts'],{encoding:'utf8'}))[0].files.map(f=>f.path);const missing=want.filter(p=>!have.includes(p));if(missing.length){console.error('packed tarball omits its declared entry point: '+missing.join(', '));process.exit(1);}console.log('packed tarball carries '+want.join(' and ')+' ('+have.length+' files)');\"",
+    "check-pack-contents": "node -e \"const {execFileSync}=require('child_process');const pkg=require('./package.json');const want=[pkg.main,pkg.types].map(p=>p.replace('./','')).concat('LICENSE');const have=JSON.parse(execFileSync('npm',['pack','--dry-run','--json','--ignore-scripts'],{encoding:'utf8'}))[0].files.map(f=>f.path);const missing=want.filter(p=>!have.includes(p));if(missing.length){console.error('packed tarball omits its declared entry point or licence text: '+missing.join(', '));process.exit(1);}console.log('packed tarball carries '+want.join(' and ')+' ('+have.length+' files)');\"",
     "pretest": "npm run build",
     "test": "npm run check-pack-contents && node --test --experimental-strip-types tests/round_trip.test.ts tests/describe.test.ts tests/parse_source_wire.test.ts tests/source_wire.test.ts tests/fetch_wire.test.ts"
   },
@@ -25,5 +32,8 @@
     "ajv": "^8.17.0",
     "ajv-formats": "^3.0.0",
     "typescript": "^5.6.0"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

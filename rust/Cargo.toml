@@ -4,7 +4,16 @@ version = "0.9.0"
 edition = "2021"
 description = "Plugin Development Kit for authoring Aggrega Wasm plugins in Rust."
 license = "Apache-2.0"
-repository = "https://github.com/aggrega-ai/aggrega-pdk-rust"
+repository = "https://github.com/aggrega-ai/aggrega-pdk"
+homepage = "https://aggrega.ai"
+documentation = "https://docs.rs/aggrega-pdk-rust"
+readme = "README.md"
+keywords = ["aggrega", "wasm", "plugin", "extism", "pdk"]
+categories = ["wasm", "development-tools", "api-bindings"]
+rust-version = "1.85"
+# The published crate carries the sources, the README and the licence text;
+# the tests and the example plugins stay in the repository.
+include = ["src/**/*.rs", "README.md", "LICENSE"]
 
 [lib]
 path = "src/lib.rs"
