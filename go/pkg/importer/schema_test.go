@@ -76,3 +76,16 @@ func TestSchemaNodeWritesHostileDescriptions(t *testing.T) {
 		}
 	}
 }
+
+// TestSingleLine holds text carrying line breaks and control characters to one
+// line of text a YAML reader reads as a comment.
+func TestSingleLine(t *testing.T) {
+	for in, want := range map[string]string{
+		"a\r\nb": "a b", "a\nb\rc": "a b c", "nel\u0085x": "nel x", "ls ps ": "ls ps ",
+		"ctl\x01\x7f": "ctl��", "tab\tkept": "tab\tkept", "plain": "plain",
+	} {
+		if got := singleLine(in); got != want {
+			t.Errorf("singleLine(%q) = %q, want %q", in, got, want)
+		}
+	}
+}

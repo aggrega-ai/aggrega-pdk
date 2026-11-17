@@ -195,10 +195,7 @@ func render(settings importSettings, entities []aggrega.EmittedEntity, decisions
 // composes — emits no body file, since it names an existing entity, so only its
 // reference in the drafted Aggregate records it.
 func renderHuman(settings importSettings, entities []aggrega.EmittedEntity, decisions []aggrega.ImportDecision) []aggrega.ScaffoldFile {
-	byDecisionRef := map[string]aggrega.ImportDecision{}
-	for _, d := range decisions {
-		byDecisionRef["decision:"+d.SourceNode.ID] = d
-	}
+	byDecisionRef := decisionsByRef(decisions)
 
 	var files []aggrega.ScaffoldFile
 	for _, e := range entities {
@@ -210,16 +207,32 @@ func renderHuman(settings importSettings, entities []aggrega.EmittedEntity, deci
 		case e.Kind == "Manifest" && e.Mode == "draft":
 			files = append(files, aggrega.ScaffoldFile{Path: ManifestFileName, Content: e.Body})
 		case e.Kind == "Component" && e.Mode == "draft":
-			content := e.Body
-			if settings.emitInlineHints() {
-				if d, ok := byDecisionRef[e.DecisionRef]; ok && d.SwapHint != "" && hintIsInline(d.Chosen) {
-					content = "# " + d.SwapHint + "\n" + content
-				}
-			}
-			files = append(files, aggrega.ScaffoldFile{Path: "components/" + fileSlug(e.Name) + ".yaml", Content: content})
+			files = append(files, aggrega.ScaffoldFile{Path: "components/" + fileSlug(e.Name) + ".yaml", Content: withInlineHint(settings, byDecisionRef, e)})
 		}
 	}
 	return files
+}
+
+// decisionsByRef indexes decisions by the reference an emitted entity carries
+// to the decision that produced it.
+func decisionsByRef(decisions []aggrega.ImportDecision) map[string]aggrega.ImportDecision {
+	byDecisionRef := map[string]aggrega.ImportDecision{}
+	for _, d := range decisions {
+		byDecisionRef["decision:"+d.SourceNode.ID] = d
+	}
+	return byDecisionRef
+}
+
+// withInlineHint returns the body of a drafted entity, the resemblance hint of
+// its decision written above it as a comment when the settings allow inline
+// hints and the hint is loud enough.
+func withInlineHint(settings importSettings, byDecisionRef map[string]aggrega.ImportDecision, e aggrega.EmittedEntity) string {
+	if settings.emitInlineHints() {
+		if d, ok := byDecisionRef[e.DecisionRef]; ok && d.SwapHint != "" && hintIsInline(d.Chosen) {
+			return "# " + d.SwapHint + "\n" + e.Body
+		}
+	}
+	return e.Body
 }
 
 // hintIsInline reports whether a decision's hint is loud enough to write into the

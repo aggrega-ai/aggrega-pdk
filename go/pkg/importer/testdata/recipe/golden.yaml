@@ -1,0 +1,33 @@
+apiVersion: aggrega.ai/v1beta1
+kind: Recipe
+metadata:
+  name: bucket-acme
+  version: 0.1.0
+  description: A bucket drafted as a Terraform module.
+spec:
+  # Drafted from a vendor schema; review before use.
+  capability: terraform
+  implements: acme/resource/bucket:0.1.0
+  source: ./module
+  locals:
+    # The resource's logical id.
+    logical_id: "{{ capitalizedWords .context.instance_id }}"
+  provides:
+    arn: "{{ .locals.logical_id }}.arn"
+  assertions:
+    name_required: "{{ if not .values.name }}values.name is required{{ end }}"
+  artifacts:
+    main.tf.json: "{{ toJson .values.main }}"
+    notes.txt: |
+      first line
+      second line
+  boundary:
+    artifacts:
+      # Read once for the whole boundary.
+      provider.tf: |
+        provider "acme" {
+          features {}
+        }
+  valuesMapping: |
+    name: {{ toJson .values.name }}
+    versioning: {{ toJson .values.versioning }}

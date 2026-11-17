@@ -164,8 +164,25 @@ func enumValue(raw json.RawMessage) string {
 	return compact.String()
 }
 
-// singleLine writes text with every line break as a space, so it stays on the
-// one comment line it is written to.
+// singleLine writes text with every line break — a line feed, a carriage
+// return, U+0085, U+2028 and U+2029, a CR LF pair as one — as a space, and every
+// control character a YAML document may not hold, or a byte that is not UTF-8,
+// as U+FFFD, so text stays on the one comment line it is written to and the
+// line reads as YAML.
 func singleLine(text string) string {
-	return strings.NewReplacer("\r\n", " ", "\r", " ", "\n", " ").Replace(text)
+	var b strings.Builder
+	prevCR := false
+	for _, r := range text {
+		switch {
+		case r == '\n' && prevCR:
+		case r == '\n', r == '\r', r == 0x85, r == 0x2028, r == 0x2029:
+			b.WriteByte(' ')
+		case (r < 0x20 && r != '\t') || r == 0x7f || (r >= 0x80 && r <= 0x9f), r == 0xfffe, r == 0xffff:
+			b.WriteRune('\uFFFD')
+		default:
+			b.WriteRune(r)
+		}
+		prevCR = r == '\r'
+	}
+	return b.String()
 }

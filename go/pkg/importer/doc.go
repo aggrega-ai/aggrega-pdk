@@ -193,6 +193,30 @@
 // infrastructure, the operator's affirmation that the cluster enforces network
 // policy included.
 //
+// # Catalog entities
+//
+// An importer drafting a Component and a Recipe from a vendor's resource schema
+// writes them through this package. [DraftComponent] drafts a Component from a
+// [ComponentDraft]: its labels, the values, infra and provides pillars of its
+// schema as [SchemaNode] trees, its featuresSchema slots and its inject
+// mechanisms. [DraftRecipe] drafts a Recipe from a [RecipeDraft]: the capability
+// it is written for, the Component it implements, an optional source, and its
+// locals, provides, assertions, artifacts, boundary artifacts and valuesMapping
+// as ordered [Entry] values, a single-line value quoted and a multi-line one a
+// literal block, written as given since a Recipe's values are template text the
+// caller composes. Each writes its keys in a fixed order, omits what is empty and
+// returns a [CatalogDraft], which carries a Recipe's files, such as a module
+// vendored beside it, along with the entity.
+//
+// [CatalogFiles] lays the drafts out the way the standard library's catalog is
+// laid out, under catalog/: a Component at
+// catalog/component/<name>/<version>/component.yaml, a Recipe at
+// catalog/recipe/<capability>/<name>/<version>/recipe.yaml with its files beside
+// it, a HIGH or MEDIUM match's hint written above a drafted Component unless
+// emit_hints is false, in the order the drafts are given. Under render_mode llm
+// it writes the decision record alone, as one JSON document, the same as [Render].
+// [Render] and the components/<name>.yaml layout it writes are unchanged.
+//
 // # Settings
 //
 // The importer reads the settings document an import attachment hands it. The
