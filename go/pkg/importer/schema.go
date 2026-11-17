@@ -37,7 +37,8 @@ type SchemaNode struct {
 	MinLength, MaxLength *int
 	// Format is written as a quoted scalar.
 	Format string
-	// Items describes the elements of an array; its Name is not written.
+	// Items describes the elements of an array; it writes neither its Name nor
+	// its Comment.
 	Items *SchemaNode
 	// Properties are written under properties:, and the node is closed unless
 	// Open is set.

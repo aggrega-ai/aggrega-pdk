@@ -8,6 +8,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"gopkg.in/yaml.v3"
 )
 
 // TestDraftComponentBodyUnchanged holds the body drafted for a source node to
@@ -55,8 +57,6 @@ func goldenComponentDraft() ComponentDraft {
 		Inject: []string{"env", "file"},
 	}
 }
-
-func one2(n int) []int { return []int{n} }
 
 // TestDraftComponentGolden holds a draft carrying every pillar, a secret slot
 // and an open object to the file in testdata/component.
@@ -111,6 +111,40 @@ func TestEditDistance(t *testing.T) {
 	}{{"kitten", "sitting", 3}, {"", "abc", 3}, {"same", "same", 0}, {"é", "e", 1}} {
 		if got := EditDistance(c.a, c.b); got != c.want {
 			t.Errorf("EditDistance(%q, %q) = %d, want %d", c.a, c.b, got, c.want)
+		}
+	}
+}
+
+// TestDraftComponentDescriptionsReadBack holds Component and slot descriptions,
+// those the plain-scalar rule accepts and those it refuses, to reading back
+// through a YAML reader as the text written.
+func TestDraftComponentDescriptionsReadBack(t *testing.T) {
+	for _, text := range []string{
+		"a - b", "x , y", "Name of the thing", "Version 1.2 of it",
+		"yes please", "null value", "- leading dash", "a: b", "a #b", "Quoted \"text\" here", "line\nbreak", "{{ x }} y", "",
+	} {
+		d := DraftComponent(ComponentDraft{
+			Name: "a/b/c", Version: "1.0.0", Description: text,
+			Slots: []ComponentSlot{{Name: "s", Description: text}},
+		})
+		var got struct {
+			Metadata struct {
+				Description string `yaml:"description"`
+			} `yaml:"metadata"`
+			Spec struct {
+				FeaturesSchema map[string]struct {
+					Description string `yaml:"description"`
+				} `yaml:"featuresSchema"`
+			} `yaml:"spec"`
+		}
+		if err := yaml.Unmarshal([]byte(d.Entity.Body), &got); err != nil {
+			t.Fatalf("description %q: %v\n%s", text, err, d.Entity.Body)
+		}
+		if got.Metadata.Description != text {
+			t.Errorf("Component description %q read back as %q", text, got.Metadata.Description)
+		}
+		if got.Spec.FeaturesSchema["s"].Description != text {
+			t.Errorf("slot description %q read back as %q", text, got.Spec.FeaturesSchema["s"].Description)
 		}
 	}
 }
