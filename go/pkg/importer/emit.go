@@ -142,9 +142,9 @@ func draftComponentName(settings importSettings, table mappingTable, node Node) 
 // draftComponentBody renders a drafted component as deterministic YAML: the
 // author's namespace-qualified name, the ontology type inferred from its category,
 // its category label, its value fields as string value slots, and the fields the
-// source marks as credentials as blackbox secret slots. The body is hand-built
-// rather than marshalled so key order is fixed and the output is byte-identical
-// across runs.
+// source marks as credentials as blackbox secret slots. It is written through
+// DraftComponent, so key order is fixed and the output is byte-identical across
+// runs.
 //
 // The value slots are always written as a closed object whose fields sit under
 // an explicit properties block. A source field may carry any name, including one
@@ -154,43 +154,25 @@ func draftComponentName(settings importSettings, table mappingTable, node Node) 
 // the compact form writes for fields that collide with no keyword.
 func draftComponentBody(name string, node Node) string {
 	category := categoryFromName(name)
-	var b strings.Builder
-	b.WriteString("apiVersion: " + apiVersion + "\n")
-	b.WriteString("kind: Component\n")
-	b.WriteString("metadata:\n")
-	b.WriteString("  name: " + name + "\n")
-	b.WriteString("  version: 0.1.0\n")
-	b.WriteString("  labels:\n")
-	b.WriteString("    component.aggrega.ai/type: " + categoryOntology(category) + "\n")
+	d := ComponentDraft{
+		Name:    name,
+		Version: "0.1.0",
+		Labels:  []Label{{Key: "component.aggrega.ai/type", Value: categoryOntology(category)}},
+	}
 	if category != "component" {
-		b.WriteString("    " + categoryLabel + ": " + category + "\n")
+		d.Labels = append(d.Labels, Label{Key: categoryLabel, Value: category})
 	}
-
-	if len(node.Fields) == 0 && len(node.Secrets) == 0 {
-		b.WriteString("spec: {}\n")
-		return b.String()
+	for _, s := range node.Secrets {
+		d.Slots = append(d.Slots, ComponentSlot{
+			Name:        s,
+			Required:    true,
+			Description: "Credential slot inferred from the source node; the recipe controls delivery.",
+		})
 	}
-	b.WriteString("spec:\n")
-	if len(node.Secrets) > 0 {
-		b.WriteString("  featuresSchema:\n")
-		for _, s := range node.Secrets {
-			b.WriteString("    " + s + ":\n")
-			b.WriteString("      required: true\n")
-			b.WriteString("      inject: []\n")
-			b.WriteString("      description: Credential slot inferred from the source node; the recipe controls delivery.\n")
-		}
+	for _, f := range node.Fields {
+		d.Values = append(d.Values, SchemaNode{Name: f, Type: []string{"string"}})
 	}
-	if len(node.Fields) > 0 {
-		b.WriteString("  schema:\n")
-		b.WriteString("    values:\n")
-		b.WriteString("      type: object\n")
-		b.WriteString("      properties:\n")
-		for _, f := range node.Fields {
-			b.WriteString("        " + f + ": { type: string }\n")
-		}
-		b.WriteString("      additionalProperties: false\n")
-	}
-	return b.String()
+	return DraftComponent(d).Entity.Body
 }
 
 // render turns the shared decision record and the emitted entities into files
@@ -320,6 +302,11 @@ func categoryFromName(name string) string {
 func fileSlug(name string) string {
 	return strings.ReplaceAll(name, "/", "-")
 }
+
+// Slug lowercases name and writes every run of other characters than a-z and 0-9
+// as one hyphen, trimmed of hyphens at both ends: the key and name segment an
+// importer gives a source identifier, written one way by every importer.
+func Slug(name string) string { return kebab(name) }
 
 // kebab lowercases a source identifier and replaces every run of characters
 // outside [a-z0-9] with a single hyphen, trimming leading and trailing hyphens,

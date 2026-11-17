@@ -58,6 +58,10 @@ func levenshteinRatio(a, b string) float64 {
 	return 1 - float64(d)/float64(longest)
 }
 
+// EditDistance is the Levenshtein distance between a and b, counted in
+// characters.
+func EditDistance(a, b string) int { return levenshtein(a, b) }
+
 func levenshtein(a, b string) int {
 	ra, rb := []rune(a), []rune(b)
 	prev := make([]int, len(rb)+1)

@@ -1,0 +1,21 @@
+apiVersion: aggrega.ai/v1beta1
+kind: Component
+metadata:
+  name: acme/ai-tool/search
+  version: 0.1.0
+  labels:
+    component.aggrega.ai/type: function
+    component.aggrega.ai/category: ai-tool
+spec:
+  featuresSchema:
+    api_key:
+      required: true
+      inject: []
+      description: Credential slot inferred from the source node; the recipe controls delivery.
+  schema:
+    values:
+      type: object
+      properties:
+        endpoint: { type: string }
+        limit: { type: string }
+      additionalProperties: false

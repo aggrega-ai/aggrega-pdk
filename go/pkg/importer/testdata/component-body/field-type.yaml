@@ -1,0 +1,16 @@
+apiVersion: aggrega.ai/v1beta1
+kind: Component
+metadata:
+  name: acme/ai-model/typed
+  version: 0.1.0
+  labels:
+    component.aggrega.ai/type: resource
+    component.aggrega.ai/category: ai-model
+spec:
+  schema:
+    values:
+      type: object
+      properties:
+        type: { type: string }
+        name: { type: string }
+      additionalProperties: false

@@ -1,0 +1,51 @@
+apiVersion: aggrega.ai/v1beta1
+kind: Component
+metadata:
+  name: acme/resource/bucket
+  version: 0.1.0
+  description: A storage bucket.
+  labels:
+    component.aggrega.ai/type: resource
+    component.aggrega.ai/category: storage
+spec:
+  featuresSchema:
+    credential:
+      selector: "feature.aggrega.ai/kind=secret"
+      sensitive: true
+      required: true
+      inject: []
+      description: Credential slot.
+    network:
+      selector: "feature.aggrega.ai/kind=network"
+      inject: ["env"]
+  inject: ["env", "file"]
+  schema:
+    values:
+      type: object
+      properties:
+        name:
+          type: string
+          description: "[vendor schema text] The bucket name."
+          required: true
+          pattern: "^[a-z0-9-]+$"
+          maxLength: 63
+        versioning: { type: boolean }
+      additionalProperties: false
+    infra:
+      type: object
+      properties:
+        # free-form {{`{{`}} settings
+        overrides:
+          type: object
+          additionalProperties: true
+        replicas:
+          type: [integer, string]
+          min: 1
+      additionalProperties: false
+    provides:
+      type: object
+      properties:
+        arn:
+          type: string
+          sensitive: true
+      additionalProperties: false

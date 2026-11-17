@@ -1,0 +1,19 @@
+apiVersion: aggrega.ai/v1beta1
+kind: Component
+metadata:
+  name: acme/component/thing
+  version: 0.1.0
+  labels:
+    component.aggrega.ai/type: resource
+spec:
+  featuresSchema:
+    password:
+      required: true
+      inject: []
+      description: Credential slot inferred from the source node; the recipe controls delivery.
+  schema:
+    values:
+      type: object
+      properties:
+        size: { type: string }
+      additionalProperties: false
