@@ -89,4 +89,4 @@ exclude = [
 # the kit's publish workflow reads it to choose the aggrega-abi release tag it
 # checks and waits for, and typescript/package.json names the same version.
 [workspace.dependencies]
-aggrega-abi = "0.9.0"
+aggrega-abi = "0.9.1"

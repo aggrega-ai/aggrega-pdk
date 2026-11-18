@@ -24,7 +24,7 @@
     "test": "npm run check-pack-contents && node --test --experimental-strip-types tests/round_trip.test.ts tests/describe.test.ts tests/parse_source_wire.test.ts tests/source_wire.test.ts tests/fetch_wire.test.ts"
   },
   "dependencies": {
-    "@aggrega-ai/aggrega-abi": "0.9.0"
+    "@aggrega-ai/aggrega-abi": "0.9.1"
   },
   "devDependencies": {
     "@extism/js-pdk": "1.1.1",

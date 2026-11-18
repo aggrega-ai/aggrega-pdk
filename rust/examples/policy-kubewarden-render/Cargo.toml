@@ -26,7 +26,7 @@ path = "src/lib.rs"
 # guest); RenderPolicyInput comes from the ABI codec crate, which is
 # the render-stage input's definitional home.
 aggrega-pdk-rust = { path = "../.." }
-aggrega-abi = "0.9.0"
+aggrega-abi = "0.9.1"
 # The describe()/verdict_render() export macros for our ABI. Our own extism export is
 # the sole entry point.
 extism-pdk = "1.4"

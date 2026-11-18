@@ -7,7 +7,7 @@ require (
 	github.com/extism/go-pdk v1.1.3
 )
 
-require github.com/aggrega-ai/aggrega-abi/go v0.9.0
+require github.com/aggrega-ai/aggrega-abi/go v0.9.1
 
 replace (
 	github.com/aggrega-ai/aggrega-pdk/go => ../../
