@@ -1,6 +1,6 @@
 module github.com/aggrega-ai/aggrega-pdk/go
 
-go 1.24.0
+go 1.25.0
 
 require (
 	github.com/aggrega-ai/aggrega-abi/go v0.9.1
@@ -9,4 +9,4 @@ require (
 	gopkg.in/yaml.v3 v3.0.1
 )
 
-require golang.org/x/text v0.14.0 // indirect
+require golang.org/x/text v0.41.0 // indirect

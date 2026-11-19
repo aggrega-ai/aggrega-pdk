@@ -53,7 +53,7 @@ anyhow = "1"
 # three is a workspace root of its own, so no shared dependency table can hold
 # the list for all of them, and an example is meant to be readable and buildable
 # on its own. Change the three together.
-regorus = { version = "0.10.1", default-features = false, features = [
+regorus = { version = "0.12.0", default-features = false, features = [
     "arc",
     "base64",
     "base64url",
