@@ -130,6 +130,9 @@ jobs:
         with:
           # Bundles npm 11.19.0; trusted publishing needs npm 11.5.1 or later.
           node-version: '24.21.0'
+          # No package manager cache: this job publishes what it builds, so it restores
+          # nothing from the Actions cache, which other workflow runs can write.
+          package-manager-cache: false
 
       - name: Confirm the release version and read the aggrega-abi release the kits name
         # Reads rust/Cargo.toml through cargo, which the runner image provides.

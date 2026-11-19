@@ -20,7 +20,13 @@ on:
 # this repository (this repo at aggrega-pdk/, the others at aggrega-abi/ and
 # aggrega-schemas/) at the release tags matching the versions the kits build
 # against, so the tests run. The sibling checkouts use a short-lived org GitHub
-# App token.
+# App token, minted for the sibling repositories alone and asking to read their
+# contents alone.
+
+# Every job reads this repository's contents and nothing else; the sibling
+# checkouts read through the App token, not through this one.
+permissions:
+  contents: read
 
 env:
   # The branch the API check's aggrega-abi checkout reads; that job runs only for
@@ -43,6 +49,8 @@ jobs:
     # the aggrega-schemas tag is declared here, the one place it is named.
     # Shared self-hosted-runner switch: set the AGGREGA_RUNNER org/repo variable to route here.
     runs-on: ${{ vars.AGGREGA_RUNNER || 'ubuntu-latest' }}
+    permissions:
+      contents: read
     outputs:
       abi-ref: ${{ steps.pins.outputs.abi-ref }}
       schemas-ref: ${{ steps.pins.outputs.schemas-ref }}
@@ -77,6 +85,8 @@ jobs:
     needs: pins
     # Shared self-hosted-runner switch: set the AGGREGA_RUNNER org/repo variable to route here.
     runs-on: ${{ vars.AGGREGA_RUNNER || 'ubuntu-latest' }}
+    permissions:
+      contents: read
     steps:
       - name: Mint org app token for the sibling checkouts
         id: app-token
@@ -85,11 +95,16 @@ jobs:
           client-id: ${{ secrets.SUBMODULE_APP_CLIENT_ID }}
           private-key: ${{ secrets.SUBMODULE_APP_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
+          repositories: |
+            aggrega-abi
+            aggrega-schemas
+          permission-contents: read
 
       - name: Checkout PDK
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           path: aggrega-pdk
+          persist-credentials: false
 
       - name: Checkout ABI (sibling, for the shared payload vectors)
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
@@ -98,6 +113,7 @@ jobs:
           ref: ${{ needs.pins.outputs.abi-ref }}
           path: aggrega-abi
           token: ${{ steps.app-token.outputs.token }}
+          persist-credentials: false
 
       - name: Checkout schemas (sibling, for round-trip schema validation)
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
@@ -106,6 +122,7 @@ jobs:
           ref: ${{ needs.pins.outputs.schemas-ref }}
           path: aggrega-schemas
           token: ${{ steps.app-token.outputs.token }}
+          persist-credentials: false
 
       - name: Install Go
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
@@ -140,6 +157,8 @@ jobs:
     needs: pins
     # Shared self-hosted-runner switch: set the AGGREGA_RUNNER org/repo variable to route here.
     runs-on: ${{ vars.AGGREGA_RUNNER || 'ubuntu-latest' }}
+    permissions:
+      contents: read
     steps:
       - name: Mint org app token for the sibling checkouts
         id: app-token
@@ -148,11 +167,16 @@ jobs:
           client-id: ${{ secrets.SUBMODULE_APP_CLIENT_ID }}
           private-key: ${{ secrets.SUBMODULE_APP_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
+          repositories: |
+            aggrega-abi
+            aggrega-schemas
+          permission-contents: read
 
       - name: Checkout PDK
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           path: aggrega-pdk
+          persist-credentials: false
 
       - name: Checkout ABI (sibling, for the shared payload vectors)
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
@@ -161,6 +185,7 @@ jobs:
           ref: ${{ needs.pins.outputs.abi-ref }}
           path: aggrega-abi
           token: ${{ steps.app-token.outputs.token }}
+          persist-credentials: false
 
       - name: Checkout schemas (sibling, for round-trip schema validation)
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
@@ -169,6 +194,7 @@ jobs:
           ref: ${{ needs.pins.outputs.schemas-ref }}
           path: aggrega-schemas
           token: ${{ steps.app-token.outputs.token }}
+          persist-credentials: false
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
@@ -239,6 +265,8 @@ jobs:
     if: github.ref_name == 'dev' || github.base_ref == 'dev'
     # Shared self-hosted-runner switch: set the AGGREGA_RUNNER org/repo variable to route here.
     runs-on: ${{ vars.AGGREGA_RUNNER || 'ubuntu-latest' }}
+    permissions:
+      contents: read
     steps:
       - name: Mint org app token for the sibling checkouts
         id: app-token
@@ -247,6 +275,8 @@ jobs:
           client-id: ${{ secrets.SUBMODULE_APP_CLIENT_ID }}
           private-key: ${{ secrets.SUBMODULE_APP_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
+          repositories: aggrega-abi
+          permission-contents: read
 
       - name: Checkout PDK, with its tags
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
@@ -293,6 +323,8 @@ jobs:
     needs: pins
     # Shared self-hosted-runner switch: set the AGGREGA_RUNNER org/repo variable to route here.
     runs-on: ${{ vars.AGGREGA_RUNNER || 'ubuntu-latest' }}
+    permissions:
+      contents: read
     steps:
       - name: Mint org app token for the sibling checkouts
         id: app-token
@@ -301,11 +333,16 @@ jobs:
           client-id: ${{ secrets.SUBMODULE_APP_CLIENT_ID }}
           private-key: ${{ secrets.SUBMODULE_APP_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
+          repositories: |
+            aggrega-abi
+            aggrega-schemas
+          permission-contents: read
 
       - name: Checkout PDK
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           path: aggrega-pdk
+          persist-credentials: false
 
       - name: Checkout ABI (sibling, for the shared payload vectors)
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
@@ -314,6 +351,7 @@ jobs:
           ref: ${{ needs.pins.outputs.abi-ref }}
           path: aggrega-abi
           token: ${{ steps.app-token.outputs.token }}
+          persist-credentials: false
 
       - name: Checkout schemas (sibling, for round-trip schema validation)
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
@@ -322,6 +360,7 @@ jobs:
           ref: ${{ needs.pins.outputs.schemas-ref }}
           path: aggrega-schemas
           token: ${{ steps.app-token.outputs.token }}
+          persist-credentials: false
 
       - name: Install Node
         uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
