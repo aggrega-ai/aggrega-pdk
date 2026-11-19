@@ -48,17 +48,17 @@ jobs:
       schemas-ref: ${{ steps.pins.outputs.schemas-ref }}
     steps:
       - name: Checkout PDK
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           persist-credentials: false
 
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
         with:
           toolchain: '1.85'
 
       - name: Install Node
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: '22'
 
@@ -80,19 +80,19 @@ jobs:
     steps:
       - name: Mint org app token for the sibling checkouts
         id: app-token
-        uses: actions/create-github-app-token@v3
+        uses: actions/create-github-app-token@f418cff399f7aef4c2f0ad47e25ca7a6abbdd6fc # v3.4.0
         with:
           client-id: ${{ secrets.SUBMODULE_APP_CLIENT_ID }}
           private-key: ${{ secrets.SUBMODULE_APP_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
 
       - name: Checkout PDK
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           path: aggrega-pdk
 
       - name: Checkout ABI (sibling, for the shared payload vectors)
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           repository: aggrega-ai/aggrega-abi
           ref: ${{ needs.pins.outputs.abi-ref }}
@@ -100,7 +100,7 @@ jobs:
           token: ${{ steps.app-token.outputs.token }}
 
       - name: Checkout schemas (sibling, for round-trip schema validation)
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           repository: aggrega-ai/aggrega-schemas
           ref: ${{ needs.pins.outputs.schemas-ref }}
@@ -108,7 +108,7 @@ jobs:
           token: ${{ steps.app-token.outputs.token }}
 
       - name: Install Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
           go-version: '1.26'
           # 🔴 CACHING OFF, consistent with every other workflow here. setup-go
@@ -143,19 +143,19 @@ jobs:
     steps:
       - name: Mint org app token for the sibling checkouts
         id: app-token
-        uses: actions/create-github-app-token@v3
+        uses: actions/create-github-app-token@f418cff399f7aef4c2f0ad47e25ca7a6abbdd6fc # v3.4.0
         with:
           client-id: ${{ secrets.SUBMODULE_APP_CLIENT_ID }}
           private-key: ${{ secrets.SUBMODULE_APP_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
 
       - name: Checkout PDK
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           path: aggrega-pdk
 
       - name: Checkout ABI (sibling, for the shared payload vectors)
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           repository: aggrega-ai/aggrega-abi
           ref: ${{ needs.pins.outputs.abi-ref }}
@@ -163,7 +163,7 @@ jobs:
           token: ${{ steps.app-token.outputs.token }}
 
       - name: Checkout schemas (sibling, for round-trip schema validation)
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           repository: aggrega-ai/aggrega-schemas
           ref: ${{ needs.pins.outputs.schemas-ref }}
@@ -171,13 +171,13 @@ jobs:
           token: ${{ steps.app-token.outputs.token }}
 
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
         with:
           toolchain: '1.85'
           targets: wasm32-unknown-unknown
 
       - name: Cache Rust build
-        uses: Swatinem/rust-cache@v2
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           workspaces: aggrega-pdk/rust
 
@@ -242,21 +242,21 @@ jobs:
     steps:
       - name: Mint org app token for the sibling checkouts
         id: app-token
-        uses: actions/create-github-app-token@v3
+        uses: actions/create-github-app-token@f418cff399f7aef4c2f0ad47e25ca7a6abbdd6fc # v3.4.0
         with:
           client-id: ${{ secrets.SUBMODULE_APP_CLIENT_ID }}
           private-key: ${{ secrets.SUBMODULE_APP_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
 
       - name: Checkout PDK, with its tags
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           path: aggrega-pdk
           fetch-depth: 0
           persist-credentials: false
 
       - name: Checkout ABI (sibling, with its tags and the check)
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           repository: aggrega-ai/aggrega-abi
           ref: ${{ env.SIBLING_REF }}
@@ -266,19 +266,19 @@ jobs:
           persist-credentials: false
 
       - name: Install Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
           go-version: '1.26'
           # Caching off, as in go-pdk above and for the same reason.
           cache: false
 
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
         with:
           toolchain: '1.85'
 
       - name: Install Node
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: '22'
 
@@ -296,19 +296,19 @@ jobs:
     steps:
       - name: Mint org app token for the sibling checkouts
         id: app-token
-        uses: actions/create-github-app-token@v3
+        uses: actions/create-github-app-token@f418cff399f7aef4c2f0ad47e25ca7a6abbdd6fc # v3.4.0
         with:
           client-id: ${{ secrets.SUBMODULE_APP_CLIENT_ID }}
           private-key: ${{ secrets.SUBMODULE_APP_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
 
       - name: Checkout PDK
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           path: aggrega-pdk
 
       - name: Checkout ABI (sibling, for the shared payload vectors)
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           repository: aggrega-ai/aggrega-abi
           ref: ${{ needs.pins.outputs.abi-ref }}
@@ -316,7 +316,7 @@ jobs:
           token: ${{ steps.app-token.outputs.token }}
 
       - name: Checkout schemas (sibling, for round-trip schema validation)
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           repository: aggrega-ai/aggrega-schemas
           ref: ${{ needs.pins.outputs.schemas-ref }}
@@ -324,7 +324,7 @@ jobs:
           token: ${{ steps.app-token.outputs.token }}
 
       - name: Install Node
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: '22'
           # 🔴 NO PACKAGE CACHE. npm's cache lives in the user's home directory, and
