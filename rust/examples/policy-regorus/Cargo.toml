@@ -52,7 +52,8 @@ anyhow = "1"
 # the compiler's own Rego governance plugin. That is deliberate: each of the
 # three is a workspace root of its own, so no shared dependency table can hold
 # the list for all of them, and an example is meant to be readable and buildable
-# on its own. Change the three together.
+# on its own. Change the three lists together; each of the three declares
+# its own regorus version, so the version is chosen per crate.
 regorus = { version = "0.12.0", default-features = false, features = [
     "arc",
     "base64",
