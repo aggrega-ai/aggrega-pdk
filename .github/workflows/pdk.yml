@@ -19,12 +19,12 @@ on:
 # those checkouts the tests skip, saying so; here each job checks both out beside
 # this repository (this repo at aggrega-pdk/, the others at aggrega-abi/ and
 # aggrega-schemas/) at the release tags matching the versions the kits build
-# against, so the tests run. The sibling checkouts use a short-lived org GitHub
-# App token, minted for the sibling repositories alone and asking to read their
-# contents alone.
+# against, so the tests run. Both sibling repositories are public, so the
+# checkouts read them with the run's own token, which a Dependabot or fork pull
+# request run receives too.
 
-# Every job reads this repository's contents and nothing else; the sibling
-# checkouts read through the App token, not through this one.
+# Every job reads contents and nothing else; the sibling checkouts read through
+# the run's own token under that grant.
 permissions:
   contents: read
 
@@ -88,18 +88,6 @@ jobs:
     permissions:
       contents: read
     steps:
-      - name: Mint org app token for the sibling checkouts
-        id: app-token
-        uses: actions/create-github-app-token@f418cff399f7aef4c2f0ad47e25ca7a6abbdd6fc # v3.4.0
-        with:
-          client-id: ${{ secrets.SUBMODULE_APP_CLIENT_ID }}
-          private-key: ${{ secrets.SUBMODULE_APP_PRIVATE_KEY }}
-          owner: ${{ github.repository_owner }}
-          repositories: |
-            aggrega-abi
-            aggrega-schemas
-          permission-contents: read
-
       - name: Checkout PDK
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
@@ -112,7 +100,6 @@ jobs:
           repository: aggrega-ai/aggrega-abi
           ref: ${{ needs.pins.outputs.abi-ref }}
           path: aggrega-abi
-          token: ${{ steps.app-token.outputs.token }}
           persist-credentials: false
 
       - name: Checkout schemas (sibling, for round-trip schema validation)
@@ -121,7 +108,6 @@ jobs:
           repository: aggrega-ai/aggrega-schemas
           ref: ${{ needs.pins.outputs.schemas-ref }}
           path: aggrega-schemas
-          token: ${{ steps.app-token.outputs.token }}
           persist-credentials: false
 
       - name: Install Go
@@ -160,18 +146,6 @@ jobs:
     permissions:
       contents: read
     steps:
-      - name: Mint org app token for the sibling checkouts
-        id: app-token
-        uses: actions/create-github-app-token@f418cff399f7aef4c2f0ad47e25ca7a6abbdd6fc # v3.4.0
-        with:
-          client-id: ${{ secrets.SUBMODULE_APP_CLIENT_ID }}
-          private-key: ${{ secrets.SUBMODULE_APP_PRIVATE_KEY }}
-          owner: ${{ github.repository_owner }}
-          repositories: |
-            aggrega-abi
-            aggrega-schemas
-          permission-contents: read
-
       - name: Checkout PDK
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
@@ -184,7 +158,6 @@ jobs:
           repository: aggrega-ai/aggrega-abi
           ref: ${{ needs.pins.outputs.abi-ref }}
           path: aggrega-abi
-          token: ${{ steps.app-token.outputs.token }}
           persist-credentials: false
 
       - name: Checkout schemas (sibling, for round-trip schema validation)
@@ -193,7 +166,6 @@ jobs:
           repository: aggrega-ai/aggrega-schemas
           ref: ${{ needs.pins.outputs.schemas-ref }}
           path: aggrega-schemas
-          token: ${{ steps.app-token.outputs.token }}
           persist-credentials: false
 
       - name: Install Rust
@@ -268,16 +240,6 @@ jobs:
     permissions:
       contents: read
     steps:
-      - name: Mint org app token for the sibling checkouts
-        id: app-token
-        uses: actions/create-github-app-token@f418cff399f7aef4c2f0ad47e25ca7a6abbdd6fc # v3.4.0
-        with:
-          client-id: ${{ secrets.SUBMODULE_APP_CLIENT_ID }}
-          private-key: ${{ secrets.SUBMODULE_APP_PRIVATE_KEY }}
-          owner: ${{ github.repository_owner }}
-          repositories: aggrega-abi
-          permission-contents: read
-
       - name: Checkout PDK, with its tags
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
@@ -292,7 +254,6 @@ jobs:
           ref: ${{ env.SIBLING_REF }}
           path: aggrega-abi
           fetch-depth: 0
-          token: ${{ steps.app-token.outputs.token }}
           persist-credentials: false
 
       - name: Install Go
@@ -326,18 +287,6 @@ jobs:
     permissions:
       contents: read
     steps:
-      - name: Mint org app token for the sibling checkouts
-        id: app-token
-        uses: actions/create-github-app-token@f418cff399f7aef4c2f0ad47e25ca7a6abbdd6fc # v3.4.0
-        with:
-          client-id: ${{ secrets.SUBMODULE_APP_CLIENT_ID }}
-          private-key: ${{ secrets.SUBMODULE_APP_PRIVATE_KEY }}
-          owner: ${{ github.repository_owner }}
-          repositories: |
-            aggrega-abi
-            aggrega-schemas
-          permission-contents: read
-
       - name: Checkout PDK
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
@@ -350,7 +299,6 @@ jobs:
           repository: aggrega-ai/aggrega-abi
           ref: ${{ needs.pins.outputs.abi-ref }}
           path: aggrega-abi
-          token: ${{ steps.app-token.outputs.token }}
           persist-credentials: false
 
       - name: Checkout schemas (sibling, for round-trip schema validation)
@@ -359,7 +307,6 @@ jobs:
           repository: aggrega-ai/aggrega-schemas
           ref: ${{ needs.pins.outputs.schemas-ref }}
           path: aggrega-schemas
-          token: ${{ steps.app-token.outputs.token }}
           persist-credentials: false
 
       - name: Install Node
