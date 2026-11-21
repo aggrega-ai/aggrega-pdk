@@ -23,8 +23,8 @@ on:
 # checkouts read them with the run's own token, which a Dependabot or fork pull
 # request run receives too.
 
-# Every job reads contents and nothing else; the sibling checkouts read through
-# the run's own token under that grant.
+# Every job reads this repository's contents and nothing else; the run's own
+# token reads the public sibling repositories whatever its grants.
 permissions:
   contents: read
 
