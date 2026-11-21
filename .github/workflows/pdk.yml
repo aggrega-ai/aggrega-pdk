@@ -56,7 +56,7 @@ jobs:
       schemas-ref: ${{ steps.pins.outputs.schemas-ref }}
     steps:
       - name: Checkout PDK
-        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
@@ -66,7 +66,7 @@ jobs:
           toolchain: '1.85'
 
       - name: Install Node
-        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '22'
 
@@ -101,13 +101,13 @@ jobs:
           permission-contents: read
 
       - name: Checkout PDK
-        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           path: aggrega-pdk
           persist-credentials: false
 
       - name: Checkout ABI (sibling, for the shared payload vectors)
-        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: aggrega-ai/aggrega-abi
           ref: ${{ needs.pins.outputs.abi-ref }}
@@ -116,7 +116,7 @@ jobs:
           persist-credentials: false
 
       - name: Checkout schemas (sibling, for round-trip schema validation)
-        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: aggrega-ai/aggrega-schemas
           ref: ${{ needs.pins.outputs.schemas-ref }}
@@ -125,7 +125,7 @@ jobs:
           persist-credentials: false
 
       - name: Install Go
-        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: '1.26'
           # 🔴 CACHING OFF, consistent with every other workflow here. setup-go
@@ -173,13 +173,13 @@ jobs:
           permission-contents: read
 
       - name: Checkout PDK
-        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           path: aggrega-pdk
           persist-credentials: false
 
       - name: Checkout ABI (sibling, for the shared payload vectors)
-        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: aggrega-ai/aggrega-abi
           ref: ${{ needs.pins.outputs.abi-ref }}
@@ -188,7 +188,7 @@ jobs:
           persist-credentials: false
 
       - name: Checkout schemas (sibling, for round-trip schema validation)
-        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: aggrega-ai/aggrega-schemas
           ref: ${{ needs.pins.outputs.schemas-ref }}
@@ -279,14 +279,14 @@ jobs:
           permission-contents: read
 
       - name: Checkout PDK, with its tags
-        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           path: aggrega-pdk
           fetch-depth: 0
           persist-credentials: false
 
       - name: Checkout ABI (sibling, with its tags and the check)
-        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: aggrega-ai/aggrega-abi
           ref: ${{ env.SIBLING_REF }}
@@ -296,7 +296,7 @@ jobs:
           persist-credentials: false
 
       - name: Install Go
-        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: '1.26'
           # Caching off, as in go-pdk above and for the same reason.
@@ -308,7 +308,7 @@ jobs:
           toolchain: '1.85'
 
       - name: Install Node
-        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '22'
 
@@ -339,13 +339,13 @@ jobs:
           permission-contents: read
 
       - name: Checkout PDK
-        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           path: aggrega-pdk
           persist-credentials: false
 
       - name: Checkout ABI (sibling, for the shared payload vectors)
-        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: aggrega-ai/aggrega-abi
           ref: ${{ needs.pins.outputs.abi-ref }}
@@ -354,7 +354,7 @@ jobs:
           persist-credentials: false
 
       - name: Checkout schemas (sibling, for round-trip schema validation)
-        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: aggrega-ai/aggrega-schemas
           ref: ${{ needs.pins.outputs.schemas-ref }}
@@ -363,7 +363,7 @@ jobs:
           persist-credentials: false
 
       - name: Install Node
-        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '22'
           # 🔴 NO PACKAGE CACHE. npm's cache lives in the user's home directory, and
