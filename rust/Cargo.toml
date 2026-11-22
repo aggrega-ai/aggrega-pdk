@@ -1,6 +1,6 @@
 [package]
 name = "aggrega-pdk-rust"
-version = "0.9.3"
+version = "0.9.4"
 edition = "2021"
 description = "Plugin Development Kit for authoring Aggrega Wasm plugins in Rust."
 license = "Apache-2.0"

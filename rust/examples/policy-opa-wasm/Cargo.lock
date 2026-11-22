@@ -14,7 +14,7 @@ dependencies = [
 
 [[package]]
 name = "aggrega-pdk-rust"
-version = "0.9.3"
+version = "0.9.4"
 dependencies = [
  "aggrega-abi",
  "base64",
