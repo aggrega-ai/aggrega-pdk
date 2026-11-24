@@ -186,6 +186,25 @@
 // no target shows them in a comment where they belong, commented out, for an
 // author building for that target to uncomment ([Secret.Declaration]).
 //
+// A secret is attached in the form its target takes. For helm it is
+// core/referenced-secret naming a Kubernetes Secret, realized by
+// helm/k8s-existing-secret. For arm it is core/referenced-secret realized by
+// arm/key-vault-secret, whose origin is a Key Vault secret's resource ID: the
+// locator the source states ([Secret.Origin]), or an empty origin the Release
+// fills, its comment naming the template parameter whose value goes into that
+// Key Vault secret. For terraform a value is core/secret-value realized by
+// terraform/variable-secret, which delivers its origin as written into the
+// consumer's .context.inject.env under the key the attachment names, so the
+// variable reference ${Variable} reaches the Terraform configuration as that
+// text and no file carries a value; a Referenced secret is
+// core/referenced-secret realized by the FeatureRecipe [Secret.Realization]
+// names, none where it names none. For cloudformation a Referenced secret, or
+// one stating an Origin, is core/referenced-secret and any other is
+// core/secret-value, the drafted Manifest mapping neither type. Every other
+// target, and none, writes the variable reference. [Secret.Realization], where
+// an importer sets it, is the realization the drafted Manifest maps the secret's
+// type to on any target.
+//
 // Where the attach_egress_allowlist setting is true, each instance carries
 // core/egress-allowlist under features, the decision of each wired part says
 // that attachment admits its connection, and the import reports the attachment

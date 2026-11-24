@@ -7,6 +7,8 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/aggrega-ai/aggrega-pdk/go/pkg/aggrega"
 )
 
 // TestAnInstancesDeclarationsOpenOneFeaturesKey pins DeclarationsText over an
@@ -104,13 +106,13 @@ func TestASecretsFormAndDeclarationAreDecidedOncePerTarget(t *testing.T) {
 			SecretDeclaration{Lines: credentialLines, Target: "compose", Live: true, Slot: "credential"}},
 		{"helm", "helm", keyed, byNameOnHelm, SecretDeclaration{}},
 		{"no target", "", keyed, value, SecretDeclaration{Lines: adminLines, Target: "compose", Slot: "admin"}},
-		{"another target", "terraform", keyed, value, SecretDeclaration{}},
+		{"another target", "cloudformation", keyed, value, SecretDeclaration{}},
 		{"referenced, compose", "compose", referenced, referencedValue, SecretDeclaration{}},
 		{"referenced, no target", "", referenced, referencedValue, SecretDeclaration{}},
 		{"referenced, helm", "helm", referenced, byNameOnHelm, SecretDeclaration{}},
 		{"a set, compose", "compose", set, setForm, SecretDeclaration{}},
 		{"a set, no target", "", set, setForm, SecretDeclaration{}},
-		{"a set, another target", "terraform", set, setForm, SecretDeclaration{}},
+		{"a set, another target", "cloudformation", set, setForm, SecretDeclaration{}},
 		{"a set, helm", "helm", set, byNameOnHelm, SecretDeclaration{}},
 	} {
 		if got := row.secret.Form(row.target); got != row.form {
@@ -118,6 +120,155 @@ func TestASecretsFormAndDeclarationAreDecidedOncePerTarget(t *testing.T) {
 		}
 		if got := row.secret.Declaration(row.target); !reflect.DeepEqual(got, row.declaration) {
 			t.Errorf("%s: Declaration is %+v, want %+v", row.scenario, got, row.declaration)
+		}
+	}
+}
+
+// TestSecretFormOnArm pins Secret.Form for arm: every secret is
+// core/referenced-secret realized by arm/key-vault-secret, named by its resource
+// (the origin left for the Release) unless the source states an Origin; a set
+// stays a set.
+//
+// 🔴 PLANTED DEFECT: in Secret.form (secret.go), drop the arm case: the value row
+// fails, core/secret-value written by variable reference.
+func TestSecretFormOnArm(t *testing.T) {
+	t.Parallel()
+	value := Secret{Path: "features.password", Variable: "DB_PASSWORD", Text: "the password"}
+	byReference := SecretForm{Type: "core/referenced-secret", ByName: true, Realization: "arm/key-vault-secret"}
+	located := SecretForm{Type: "core/referenced-secret", Realization: "arm/key-vault-secret"}
+	referenced := value
+	referenced.Referenced = true
+	stated := value
+	stated.Origin = "/subscriptions/s/resourceGroups/g/providers/Microsoft.KeyVault/vaults/v/secrets/p"
+	set := Secret{Path: "features.env", Entries: []SecretEntry{{Key: "A", Value: "${A}"}}}
+	for _, row := range []struct {
+		scenario string
+		secret   Secret
+		want     SecretForm
+	}{
+		{"a value", value, byReference},
+		{"referenced", referenced, byReference},
+		{"with an origin", stated, located},
+		{"a set", set, SecretForm{Type: "core/referenced-secret-set"}},
+	} {
+		if got := row.secret.Form("arm"); got != row.want {
+			t.Errorf("%s: Form is %+v, want %+v", row.scenario, got, row.want)
+		}
+		if decl := row.secret.Declaration("arm"); len(decl.Lines) != 0 {
+			t.Errorf("%s: Declaration is %+v, want none", row.scenario, decl)
+		}
+	}
+}
+
+// TestSecretFormOnCloudFormation pins Secret.Form for cloudformation: a Referenced
+// secret, or one stating an Origin, is core/referenced-secret; any other is
+// core/secret-value; neither names a realization.
+//
+// 🔴 PLANTED DEFECT: in Secret.form (secret.go), drop the Origin case: the origin
+// row fails, core/secret-value.
+func TestSecretFormOnCloudFormation(t *testing.T) {
+	t.Parallel()
+	value := Secret{Path: "features.password", Variable: "DB_PASSWORD", Text: "the password"}
+	referenced, stated := value, value
+	referenced.Referenced = true
+	stated.Origin = "arn:aws:secretsmanager:eu-west-1:1:secret:p"
+	for _, row := range []struct {
+		scenario string
+		secret   Secret
+		want     SecretForm
+	}{
+		{"a value", value, SecretForm{Type: "core/secret-value"}},
+		{"referenced", referenced, SecretForm{Type: "core/referenced-secret"}},
+		{"with an origin", stated, SecretForm{Type: "core/referenced-secret"}},
+	} {
+		if got := row.secret.Form("cloudformation"); got != row.want {
+			t.Errorf("%s: Form is %+v, want %+v", row.scenario, got, row.want)
+		}
+	}
+}
+
+// TestSecretFormOnTerraform pins Secret.Form for terraform: a value is
+// core/secret-value realized by terraform/variable-secret, keyed, its origin the
+// variable reference; a Referenced secret is core/referenced-secret named by its
+// resource, realized only by what Secret.Realization names.
+//
+// 🔴 PLANTED DEFECT: in Secret.form (secret.go), drop terraform from the keyed
+// targets: the value row fails, and its key is not declared.
+func TestSecretFormOnTerraform(t *testing.T) {
+	t.Parallel()
+	value := Secret{Path: "features.password", Variable: "DB_PASSWORD", Text: "the password"}
+	referenced, named := value, value
+	referenced.Referenced = true
+	named.Referenced, named.Realization = true, "terraform/key-vault-secret"
+	for _, row := range []struct {
+		scenario string
+		secret   Secret
+		want     SecretForm
+	}{
+		{"a value", value, SecretForm{Type: "core/secret-value", Keyed: true, Realization: "terraform/variable-secret"}},
+		{"referenced", referenced, SecretForm{Type: "core/referenced-secret", ByName: true}},
+		{"referenced, realization named", named, SecretForm{Type: "core/referenced-secret", ByName: true,
+			Realization: "terraform/key-vault-secret"}},
+	} {
+		if got := row.secret.Form("terraform"); got != row.want {
+			t.Errorf("%s: Form is %+v, want %+v", row.scenario, got, row.want)
+		}
+	}
+	if decl := value.Declaration("terraform"); !decl.Live || decl.Target != "terraform" || decl.Slot != "password" {
+		t.Errorf("Declaration is %+v, want the key declared live for terraform", decl)
+	}
+}
+
+// TestSecretRealizationOverridesTheForm pins that Secret.Realization is the
+// form's Realization on every target, and that the Manifest DraftRelease writes
+// maps the secret's type to it.
+//
+// 🔴 PLANTED DEFECT: in Secret.Form (secret.go), drop the override: every row fails.
+func TestSecretRealizationOverridesTheForm(t *testing.T) {
+	t.Parallel()
+	for _, target := range []string{"", "helm", "compose", "arm", "cloudformation", "terraform"} {
+		s := Secret{Path: "features.password", Variable: "P", Text: "the password", Referenced: true,
+			Realization: "chosen-secret"}
+		form := s.Form(target)
+		if form.Realization != "chosen-secret" {
+			t.Errorf("%q: Form realization is %q, want the secret's own", target, form.Realization)
+		}
+		out := DraftRelease(aggrega.ImportInput{Format: testFormatName, Target: target}, draftedAggregate("imported/flow"),
+			ReleaseDraft{Entries: []ReleaseEntry{{Key: "flow", Secrets: []Secret{s}}}})
+		want := "        " + form.Type + ": chosen-secret\n"
+		if len(out) != 2 || !strings.HasSuffix(out[1].Body, want) {
+			t.Errorf("%q: DraftRelease wrote %+v, want a Manifest ending %q", target, out, want)
+		}
+	}
+}
+
+// TestADraftedReleaseWritesAKnownOriginOrAsksForOne pins the origin a Release
+// writes on arm: the locator a secret's Origin states, as it is; otherwise an
+// empty origin beneath a comment asking for the Key Vault secret's resource ID and
+// naming the parameter whose value goes into it.
+//
+// 🔴 PLANTED DEFECT: in secretNode (secret.go), drop the Origin case: the first
+// row writes an empty origin.
+func TestADraftedReleaseWritesAKnownOriginOrAsksForOne(t *testing.T) {
+	t.Parallel()
+	id := "/subscriptions/s/resourceGroups/g/providers/Microsoft.KeyVault/vaults/v/secrets/p"
+	for _, row := range []struct {
+		scenario, origin, want string
+	}{
+		{"known", id, `origin: "` + id + `"`},
+		{"asked", "", `origin: ""`},
+	} {
+		s := Secret{Path: "features.password", Variable: "DB_PASSWORD", Text: "the password", Origin: row.origin}
+		out := DraftRelease(aggrega.ImportInput{Format: testFormatName, Target: "arm"}, draftedAggregate("imported/flow"),
+			ReleaseDraft{Entries: []ReleaseEntry{{Key: "flow", Secrets: []Secret{s}}}})
+		body := out[0].Body
+		if !strings.Contains(body, row.want+"\n") {
+			t.Errorf("%s: Release lacks %q:\n%s", row.scenario, row.want, body)
+		}
+		asks := strings.Contains(body, "the resource ID of the Azure Key Vault secret holding the password") &&
+			strings.Contains(body, "the template parameter DB_PASSWORD")
+		if asks != (row.origin == "") {
+			t.Errorf("%s: the comment asking for the resource ID is present: %v", row.scenario, asks)
 		}
 	}
 }

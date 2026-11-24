@@ -40,6 +40,15 @@ type Secret struct {
 	// as every secret there is, and elsewhere by the variable reference, which the
 	// compose realization of that type delivers as written.
 	Referenced bool
+	// Realization, where set, is the FeatureRecipe realizing the secret's feature
+	// type on the import's target, chosen by an importer where the target offers
+	// several; it overrides the form's own.
+	Realization string
+	// Origin, where set, is a locator the source states for the secret, such as a
+	// Key Vault secret's resource ID; the Release writes it as the attachment's
+	// infra.origin, never a value, and attaches the secret by reference whatever
+	// the target.
+	Origin string
 	// Entries, where set, make the secret a set of variables rather than one
 	// value: each one the consumer reads under its own name, as a server's
 	// environment is. Variable and Key are not read for a set.
@@ -74,12 +83,15 @@ func ConnectionCredential(key, socket, alias, target, variable string) Secret {
 
 // The targets whose secrets a draft writes apart from every other: helm, where a
 // secret is named by its Kubernetes Secret, since Kubernetes substitutes no
-// variable reference; and compose, whose Recipes deliver every secret a component
-// is attached into one environment, under the key its attachment names, so each
-// is declared with a key of its own.
+// variable reference; compose and terraform, whose Recipes deliver every secret a
+// component is attached into one environment, under the key its attachment
+// names, so each is declared with a key of its own; and arm, where a secret is
+// an Azure Key Vault secret's resource ID.
 const (
-	helmTarget    = "helm"
-	composeTarget = "compose"
+	helmTarget      = "helm"
+	composeTarget   = "compose"
+	terraformTarget = "terraform"
+	armTarget       = "arm"
 )
 
 // The feature types a drafted secret is attached with, and the realization a
@@ -92,6 +104,9 @@ const (
 	referencedSecretType      = "core/referenced-secret"
 	secretSetType             = "core/referenced-secret-set"
 	helmReferencedRealization = "helm/k8s-existing-secret"
+	armReferencedRealization  = "arm/key-vault-secret"
+
+	terraformValueRealization = "terraform/variable-secret"
 )
 
 // SecretForm is how a draft attaches one secret for one target, as
@@ -101,7 +116,8 @@ type SecretForm struct {
 	Type string
 	// ByName says the Release names the secret resource holding the value, its
 	// infra.origin written empty for the Release to supply; otherwise the Release
-	// writes its infra.origin as the variable reference ${Variable}.
+	// writes its infra.origin as the variable reference ${Variable}. A
+	// [Secret.Origin] is written as it is whatever the form.
 	ByName bool
 	// Keyed says the drafted Aggregate declares the attachment with its key, so
 	// the value arrives under a key of its own.
@@ -117,30 +133,59 @@ type SecretForm struct {
 //   - for helm, with core/referenced-secret, named by its secret resource, a
 //     Kubernetes Secret, since Kubernetes substitutes no variable reference; a
 //     drafted Manifest maps that type to helm/k8s-existing-secret;
+//   - for arm, with core/referenced-secret, realized by arm/key-vault-secret,
+//     whose origin is a Key Vault secret's resource ID: the [Secret.Origin] where
+//     the source states one, otherwise left for the Release, the Key Vault secret
+//     taking the value the template parameter Variable receives;
+//   - for terraform, a value with core/secret-value, realized by
+//     terraform/variable-secret, which delivers its origin as written into the
+//     consumer's .context.inject.env under the key the attachment names, so the
+//     origin ${Variable} reaches the Terraform configuration as that text and no
+//     file carries a value, and the drafted Aggregate declares the key; a
+//     Referenced secret with core/referenced-secret, named by its resource, the
+//     realization [Secret.Realization] names, none where it names none;
 //   - for every other target, and for none, by the variable reference
 //     ${Variable} as its origin, which a target substituting variable
 //     references, as Docker Compose does when a stack starts, reads from the
 //     environment of whoever starts it, so no file carries the value: where s is
-//     Referenced, with core/referenced-secret, whose compose realization delivers
-//     the origin as written, and which the drafted Aggregate does not declare,
-//     the slot being the catalog's; otherwise with core/secret-value, which for
-//     compose the drafted Aggregate declares with its key;
+//     Referenced, or states an Origin, with core/referenced-secret, whose compose
+//     realization delivers the origin as written, and which the drafted
+//     Aggregate does not declare, the slot being the catalog's; otherwise with
+//     core/secret-value, which for compose the drafted Aggregate declares with
+//     its key;
 //   - a set ([Secret.Entries]), for every target but helm, with
 //     core/referenced-secret-set, its entries written as their values are, each
 //     under its own name, so neither a key nor a declaration is needed; for helm,
 //     as every secret there is, by its Secret, which holds one data key per
 //     variable.
 //
+// [Secret.Realization], where set, is the form's Realization whatever the target.
 // This is the one place the target decides a secret's form, so a secret a draft
 // attaches and a secret it passes down as a module's parameter are written alike.
 func (s Secret) Form(target string) SecretForm {
+	form := s.form(target)
+	if s.Realization != "" {
+		form.Realization = s.Realization
+	}
+	return form
+}
+
+// form is [Secret.Form] before the secret's own realization overrides.
+func (s Secret) form(target string) SecretForm {
 	switch {
 	case target == helmTarget:
 		return SecretForm{Type: referencedSecretType, ByName: true, Realization: helmReferencedRealization}
+	case target == armTarget && len(s.Entries) == 0:
+		return SecretForm{Type: referencedSecretType, ByName: s.Origin == "", Realization: armReferencedRealization}
 	case s.Referenced:
-		return SecretForm{Type: referencedSecretType}
+		return SecretForm{Type: referencedSecretType, ByName: target == terraformTarget && s.Origin == ""}
 	case len(s.Entries) > 0:
 		return SecretForm{Type: secretSetType}
+	case s.Origin != "":
+		return SecretForm{Type: referencedSecretType}
+	}
+	if target == terraformTarget {
+		return SecretForm{Type: secretValueType, Keyed: true, Realization: terraformValueRealization}
 	}
 	return SecretForm{Type: secretValueType, Keyed: target == composeTarget}
 }
@@ -297,7 +342,15 @@ func secretNode(s Secret, target string) *bodyNode {
 	}
 	origin, comment := variableReference(s.Variable), "Attached by reference, never as a value: "+s.Text+", "+
 		readFromVariable(s.Variable)+"."
-	if form.ByName {
+	switch {
+	case s.Origin != "":
+		origin, comment = QuotedString(s.Origin), "Attached by reference, never as a value: "+s.Text+", at the "+
+			"locator the source states."
+	case form.ByName && target == armTarget:
+		origin, comment = `""`, leftHeading+" the resource ID of the Azure Key Vault secret holding "+s.Text+
+			", /subscriptions/<subscription>/resourceGroups/<group>/providers/Microsoft.KeyVault/vaults/<vault>/secrets/<secret>"+
+			"; the value the template parameter "+s.Variable+" receives goes into that secret."
+	case form.ByName:
 		holds := "the name of the secret resource holding " + s.Text + ", as the Manifest's realization of " +
 			form.Type + " reads it"
 		switch {
@@ -323,6 +376,10 @@ func secretNode(s Secret, target string) *bodyNode {
 // read from.
 func secretParameterNodes(s Secret, target string) []*bodyNode {
 	item := LeftItem{Path: s.Path, Text: s.Text}
+	if s.Origin != "" {
+		return append(commentNodes("Passed by reference, never as a value: "+leftLine(item)+"; it is at the locator "+
+			"the source states."), &bodyNode{text: s.Path + ": " + QuotedString(s.Origin)})
+	}
 	if s.Form(target).ByName {
 		return leftParameterNodes(item)
 	}
