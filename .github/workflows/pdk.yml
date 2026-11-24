@@ -10,7 +10,7 @@ on:
       - '.github/workflows/pdk.yml'
   # No paths filter on pushes: a release's push to main needs a check result on every push tip main can receive.
   push:
-    branches: [main, dev]
+    branches: [main, 'release/**']
 
 # Each kit resolves aggrega-abi from its registry by the released version its
 # manifest names, so a checkout of this repository builds on its own. Two tests
@@ -27,14 +27,6 @@ on:
 # token reads the public sibling repositories whatever its grants.
 permissions:
   contents: read
-
-env:
-  # The branch the API check's aggrega-abi checkout reads; that job runs only for
-  # a push to dev or a pull request into it, so it reads dev, where the check
-  # itself is maintained. The extension's package-and-publish.yml in
-  # aggrega-vscode-extension keeps the same value, so a change here is made there
-  # too.
-  SIBLING_REF: ${{ (github.ref_name == 'dev' || github.base_ref == 'dev') && 'dev' || 'main' }}
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -69,6 +61,8 @@ jobs:
         uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: '22'
+          # No package manager cache, as in typescript-pdk below.
+          package-manager-cache: false
 
       - name: Refuse kits that pin different aggrega-abi releases, and read the sibling revisions
         id: pins
@@ -175,6 +169,7 @@ jobs:
           targets: wasm32-unknown-unknown
 
       - name: Cache Rust build
+        # zizmor: ignore[cache-poisoning] this job publishes nothing: a push to main or to a release branch only runs the checks, and restores only what runs of its own branch or of main saved
         uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           workspaces: aggrega-pdk/rust
@@ -220,21 +215,22 @@ jobs:
 
   api-compat:
     # Refuses a breaking change to a kit's exported API that the version being
-    # prepared does not mark, judged against the newest release tag. Runs where the
-    # next release is prepared: a push to dev and a pull request into it.
+    # prepared does not mark, judged against the newest release tag. Runs on a push
+    # to main or to a release branch, and on every pull request.
     #
     # The check is aggrega-abi's scripts/check-api-compat.sh (its --help is the
-    # contract), taken from the ABI sibling's dev, so a change here cannot weaken the
-    # check that judges it. It lays the release-tag trees out side by side as the
-    # manifests expect, pairing this repository's tag with the ABI tag that tag's
-    # rust/Cargo.toml declares on its aggrega-abi dependency; so both checkouts
-    # carry their tags. It reads the aggrega-abi release this checkout names from
-    # the manifests, as the publish workflow does — rust/Cargo.toml's
-    # [workspace.dependencies] through cargo metadata, cross-checked with
-    # typescript/package.json — and refuses manifests that disagree on it. It pins and installs its own tools, and the Rust toolchain
-    # whose rustdoc it reads, into the per-run directory it is given.
+    # contract), taken from the ABI sibling's main, where the check is maintained,
+    # so a change here cannot weaken the check that judges it. It lays the
+    # release-tag trees out side by side as the manifests expect, pairing this
+    # repository's tag with the ABI tag that tag's rust/Cargo.toml declares on its
+    # aggrega-abi dependency; so both checkouts carry their tags. It reads the
+    # aggrega-abi release this checkout names from the manifests, as the publish
+    # workflow does — rust/Cargo.toml's [workspace.dependencies] through cargo
+    # metadata, cross-checked with typescript/package.json — and refuses manifests
+    # that disagree on it. It pins and installs its own tools, and the Rust
+    # toolchain whose rustdoc it reads, into the per-run directory it is given.
     needs: pins
-    if: github.ref_name == 'dev' || github.base_ref == 'dev'
+    if: github.event_name == 'pull_request' || github.ref_name == 'main' || startsWith(github.ref_name, 'release/')
     # Shared self-hosted-runner switch: set the AGGREGA_RUNNER org/repo variable to route here.
     runs-on: ${{ vars.AGGREGA_RUNNER || 'ubuntu-latest' }}
     permissions:
@@ -251,7 +247,7 @@ jobs:
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           repository: aggrega-ai/aggrega-abi
-          ref: ${{ env.SIBLING_REF }}
+          ref: main
           path: aggrega-abi
           fetch-depth: 0
           persist-credentials: false
@@ -272,6 +268,8 @@ jobs:
         uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: '22'
+          # No package manager cache, as in typescript-pdk below.
+          package-manager-cache: false
 
       - name: Refuse an unmarked breaking change to a kit's exported API
         run: >-
@@ -327,6 +325,7 @@ jobs:
           #
           # Reverse this if the job ever moves to a hosted runner, where the home
           # directory is fresh each time and the npm cache is not redundant.
+          package-manager-cache: false
 
       # 🔴 NEITHER TOOL IS INSTALLED WITH sudo. A hosted runner grants passwordless
       # sudo; a self-hosted one does not, and `sudo tar` there fails the whole job
