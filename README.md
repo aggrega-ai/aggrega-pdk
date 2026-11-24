@@ -167,7 +167,7 @@ each kit's version constant carries: within one ABI version a socket gains only
 descriptions and optional fields, so a plugin built against it keeps
 loading.
 
-A check holds the rule on the development branch.
+A check holds the rule on `main` and on each `release/vX.Y` branch.
 `aggrega-abi/scripts/check-api-compat.sh` compares the exported API of
 each kit with the newest release tag and refuses a removed or changed
 item unless the version being prepared marks a breaking change — Go
@@ -175,9 +175,9 @@ with `apidiff`, Rust with `cargo-semver-checks`, TypeScript by
 comparing the declaration files the package emits. A change that has
 to break raises the version in `rust/Cargo.toml` and
 `typescript/package.json` in the same change. The workflow runs the
-check on every push to `dev` and every pull request into it that
-changes a kit; to run it locally, from the directory holding both
-checkouts:
+check on every push to `main` or to a `release/vX.Y` branch and on
+every pull request that changes a kit; to run it locally, from the
+directory holding both checkouts:
 
 ```sh
 aggrega-abi/scripts/check-api-compat.sh --tools .api-tools --sibling aggrega-abi aggrega-pdk
