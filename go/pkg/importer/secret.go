@@ -46,8 +46,10 @@ type Secret struct {
 	Realization string
 	// Origin, where set, is a locator the source states for the secret, such as a
 	// Key Vault secret's resource ID; the Release writes it as the attachment's
-	// infra.origin, never a value, and attaches the secret by reference whatever
-	// the target.
+	// infra.origin, never a value, and attaches the secret by reference. Only a
+	// target whose referenced form reads a locator takes it: arm, cloudformation
+	// and terraform. helm, whose origin is a Kubernetes Secret's name, compose, and
+	// an import naming no target ignore it.
 	Origin string
 	// Entries, where set, make the secret a set of variables rather than one
 	// value: each one the consumer reads under its own name, as a server's
@@ -117,7 +119,7 @@ type SecretForm struct {
 	// ByName says the Release names the secret resource holding the value, its
 	// infra.origin written empty for the Release to supply; otherwise the Release
 	// writes its infra.origin as the variable reference ${Variable}. A
-	// [Secret.Origin] is written as it is whatever the form.
+	// [Secret.Origin] is written as it is where the target reads a locator.
 	ByName bool
 	// Keyed says the drafted Aggregate declares the attachment with its key, so
 	// the value arrives under a key of its own.
@@ -148,8 +150,8 @@ type SecretForm struct {
 //     ${Variable} as its origin, which a target substituting variable
 //     references, as Docker Compose does when a stack starts, reads from the
 //     environment of whoever starts it, so no file carries the value: where s is
-//     Referenced, or states an Origin, with core/referenced-secret, whose compose
-//     realization delivers the origin as written, and which the drafted
+//     Referenced, or states an Origin where the target reads one, with
+//     core/referenced-secret, whose compose realization delivers the origin as written, and which the drafted
 //     Aggregate does not declare, the slot being the catalog's; otherwise with
 //     core/secret-value, which for compose the drafted Aggregate declares with
 //     its key;
@@ -170,18 +172,27 @@ func (s Secret) Form(target string) SecretForm {
 	return form
 }
 
+// locator is the origin s states where target reads one, otherwise empty.
+func (s Secret) locator(target string) string {
+	switch target {
+	case armTarget, "cloudformation", terraformTarget:
+		return s.Origin
+	}
+	return ""
+}
+
 // form is [Secret.Form] before the secret's own realization overrides.
 func (s Secret) form(target string) SecretForm {
 	switch {
 	case target == helmTarget:
 		return SecretForm{Type: referencedSecretType, ByName: true, Realization: helmReferencedRealization}
 	case target == armTarget && len(s.Entries) == 0:
-		return SecretForm{Type: referencedSecretType, ByName: s.Origin == "", Realization: armReferencedRealization}
+		return SecretForm{Type: referencedSecretType, ByName: s.locator(target) == "", Realization: armReferencedRealization}
 	case s.Referenced:
-		return SecretForm{Type: referencedSecretType, ByName: target == terraformTarget && s.Origin == ""}
+		return SecretForm{Type: referencedSecretType, ByName: target == terraformTarget && s.locator(target) == ""}
 	case len(s.Entries) > 0:
 		return SecretForm{Type: secretSetType}
-	case s.Origin != "":
+	case s.locator(target) != "":
 		return SecretForm{Type: referencedSecretType}
 	}
 	if target == terraformTarget {
@@ -343,7 +354,7 @@ func secretNode(s Secret, target string) *bodyNode {
 	origin, comment := variableReference(s.Variable), "Attached by reference, never as a value: "+s.Text+", "+
 		readFromVariable(s.Variable)+"."
 	switch {
-	case s.Origin != "":
+	case s.locator(target) != "":
 		origin, comment = QuotedString(s.Origin), "Attached by reference, never as a value: "+s.Text+", at the "+
 			"locator the source states."
 	case form.ByName && target == armTarget:
@@ -376,7 +387,7 @@ func secretNode(s Secret, target string) *bodyNode {
 // read from.
 func secretParameterNodes(s Secret, target string) []*bodyNode {
 	item := LeftItem{Path: s.Path, Text: s.Text}
-	if s.Origin != "" {
+	if s.locator(target) != "" {
 		return append(commentNodes("Passed by reference, never as a value: "+leftLine(item)+"; it is at the locator "+
 			"the source states."), &bodyNode{text: s.Path + ": " + QuotedString(s.Origin)})
 	}

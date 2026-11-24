@@ -182,8 +182,8 @@
 // [Secret.Form] gives it: on a target reading every secret the Release alone
 // attaches under one default key, the Aggregate declares it with a key of its own,
 // inside the instance or on its connection, so no two secrets arrive under one
-// key; an import for another target leaves those lines out, and an import naming
-// no target shows them in a comment where they belong, commented out, for an
+// key; an import for a target whose form of a secret declares no key leaves those lines
+// out, and an import naming no target shows them in a comment where they belong, commented out, for an
 // author building for that target to uncomment ([Secret.Declaration]).
 //
 // A secret is attached in the form its target takes. For helm it is

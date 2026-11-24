@@ -200,6 +200,8 @@ func TestSecretFormOnTerraform(t *testing.T) {
 	referenced, named := value, value
 	referenced.Referenced = true
 	named.Referenced, named.Realization = true, "terraform/key-vault-secret"
+	withOrigin := value
+	withOrigin.Origin = "projects/p/secrets/s"
 	for _, row := range []struct {
 		scenario string
 		secret   Secret
@@ -207,6 +209,7 @@ func TestSecretFormOnTerraform(t *testing.T) {
 	}{
 		{"a value", value, SecretForm{Type: "core/secret-value", Keyed: true, Realization: "terraform/variable-secret"}},
 		{"referenced", referenced, SecretForm{Type: "core/referenced-secret", ByName: true}},
+		{"an origin, not referenced", withOrigin, SecretForm{Type: "core/referenced-secret"}},
 		{"referenced, realization named", named, SecretForm{Type: "core/referenced-secret", ByName: true,
 			Realization: "terraform/key-vault-secret"}},
 	} {
@@ -269,6 +272,31 @@ func TestADraftedReleaseWritesAKnownOriginOrAsksForOne(t *testing.T) {
 			strings.Contains(body, "the template parameter DB_PASSWORD")
 		if asks != (row.origin == "") {
 			t.Errorf("%s: the comment asking for the resource ID is present: %v", row.scenario, asks)
+		}
+	}
+}
+
+// TestAnOriginIsIgnoredWhereTheTargetReadsNone pins that helm, compose and an
+// import naming no target write a secret exactly as they do without an Origin.
+//
+// 🔴 PLANTED DEFECT: in Secret.locator (secret.go), return Origin for every
+// target: the helm form row fails.
+func TestAnOriginIsIgnoredWhereTheTargetReadsNone(t *testing.T) {
+	t.Parallel()
+	plain := Secret{Path: "features.password", Variable: "P", Text: "the password"}
+	stated := plain
+	stated.Origin = "/subscriptions/s/resourceGroups/g/providers/Microsoft.KeyVault/vaults/v/secrets/p"
+	for _, target := range []string{"helm", "compose", ""} {
+		if got, want := stated.Form(target), plain.Form(target); got != want {
+			t.Errorf("%q: Form with an Origin is %+v, want %+v", target, got, want)
+		}
+		in := aggrega.ImportInput{Format: testFormatName, Target: target}
+		draft := func(s Secret) string {
+			return DraftRelease(in, draftedAggregate("imported/flow"),
+				ReleaseDraft{Entries: []ReleaseEntry{{Key: "flow", Secrets: []Secret{s}}}})[0].Body
+		}
+		if got, want := draft(stated), draft(plain); got != want {
+			t.Errorf("%q: the Release with an Origin is\n%s\nwant\n%s", target, got, want)
 		}
 	}
 }
