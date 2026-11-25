@@ -45,7 +45,10 @@ constant and stay coordinated at every socket-shape change.
 aggrega-pdk/
 ├── README.md           (this file)
 ├── .github/workflows/
-│   └── pdk.yml         (per-language build + test gates, and the API compatibility check)
+│   ├── pdk.yml         (per-language build + test gates, and the API compatibility check)
+│   ├── workflow-audit.yml (the audit of the workflows themselves)
+│   ├── dependency-review.yml (dependency review on pull requests)
+│   └── publish.yml     (publishing on a release tag)
 ├── go/                 (Go PDK + examples + tests)
 ├── rust/               (Rust PDK + examples + tests)
 └── typescript/         (TypeScript PDK + examples + tests)
