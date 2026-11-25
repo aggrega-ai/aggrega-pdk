@@ -125,13 +125,25 @@ jobs:
         working-directory: aggrega-pdk/go
         run: go test ./...
 
-      - name: Build Go fixture — mutator
-        working-directory: aggrega-pdk/go/examples/mutator
-        run: bash build.sh
-
-      - name: Build Go fixture — policy
-        working-directory: aggrega-pdk/go/examples/policy
-        run: bash build.sh
+      - name: Build every Go example
+        # Each example's own build.sh, against the kit in this checkout (each
+        # names it by a local path); the modules are written under the runner's
+        # temporary directory, never into the checkout.
+        env:
+          AGGREGA_PDK_WASM_OUT: ${{ runner.temp }}/wasm
+        run: |
+          set -euo pipefail
+          status=0
+          for build in aggrega-pdk/go/examples/*/build.sh; do
+            example="$(dirname "$build")"
+            echo "::group::$example"
+            if ! (cd "$example" && bash build.sh); then
+              echo "::error::$example did not build"
+              status=1
+            fi
+            echo "::endgroup::"
+          done
+          exit "$status"
 
   rust-pdk:
     needs: pins
@@ -166,7 +178,16 @@ jobs:
         uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
         with:
           toolchain: '1.85'
-          targets: wasm32-unknown-unknown
+          targets: wasm32-unknown-unknown, wasm32-wasip1
+
+      - name: Install the release each example's rust-toolchain.toml names
+        # rustup reads the file in the directory it runs in; RUSTUP_TOOLCHAIN
+        # would outrank it, so it is cleared.
+        run: |
+          set -euo pipefail
+          for file in aggrega-pdk/rust/examples/*/rust-toolchain.toml; do
+            (cd "$(dirname "$file")" && env -u RUSTUP_TOOLCHAIN rustup toolchain install --profile minimal)
+          done
 
       - name: Cache Rust build
         # zizmor: ignore[cache-poisoning] this job publishes nothing: a push to main or to a release branch only runs the checks, and restores only what runs of its own branch or of main saved
@@ -205,13 +226,25 @@ jobs:
         working-directory: aggrega-pdk/rust
         run: cargo test
 
-      - name: Build Rust fixture — mutator
-        working-directory: aggrega-pdk/rust/examples/mutator
-        run: bash build.sh
-
-      - name: Build Rust fixture — policy
-        working-directory: aggrega-pdk/rust/examples/policy
-        run: bash build.sh
+      - name: Build every Rust example
+        # Each example's own build.sh, against the kit in this checkout (each
+        # names it by a local path); the modules are written under the runner's
+        # temporary directory, never into the checkout.
+        env:
+          AGGREGA_PDK_WASM_OUT: ${{ runner.temp }}/wasm
+        run: |
+          set -euo pipefail
+          status=0
+          for build in aggrega-pdk/rust/examples/*/build.sh; do
+            example="$(dirname "$build")"
+            echo "::group::$example"
+            if ! (cd "$example" && bash build.sh); then
+              echo "::error::$example did not build"
+              status=1
+            fi
+            echo "::endgroup::"
+          done
+          exit "$status"
 
   api-compat:
     # Refuses a breaking change to a kit's exported API that the version being
@@ -369,10 +402,22 @@ jobs:
         working-directory: aggrega-pdk/typescript
         run: npm test
 
-      - name: Build TS fixture — mutator
-        working-directory: aggrega-pdk/typescript/examples/mutator
-        run: bash build.sh
-
-      - name: Build TS fixture — policy
-        working-directory: aggrega-pdk/typescript/examples/policy
-        run: bash build.sh
+      - name: Build every TypeScript example
+        # Each example's own build.sh, against the kit in this checkout (each
+        # names it by a local path); the modules are written under the runner's
+        # temporary directory, never into the checkout.
+        env:
+          AGGREGA_PDK_WASM_OUT: ${{ runner.temp }}/wasm
+        run: |
+          set -euo pipefail
+          status=0
+          for build in aggrega-pdk/typescript/examples/*/build.sh; do
+            example="$(dirname "$build")"
+            echo "::group::$example"
+            if ! (cd "$example" && bash build.sh); then
+              echo "::error::$example did not build"
+              status=1
+            fi
+            echo "::endgroup::"
+          done
+          exit "$status"
