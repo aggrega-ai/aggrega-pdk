@@ -280,7 +280,8 @@ func TestADraftedReleaseWritesAKnownOriginOrAsksForOne(t *testing.T) {
 // import naming no target write a secret exactly as they do without an Origin.
 //
 // 🔴 PLANTED DEFECT: in Secret.locator (secret.go), return Origin for every
-// target: the helm form row fails.
+// target: the compose and no-target rows fail on their form, and every row,
+// helm's included, on its Release, which writes the stated origin.
 func TestAnOriginIsIgnoredWhereTheTargetReadsNone(t *testing.T) {
 	t.Parallel()
 	plain := Secret{Path: "features.password", Variable: "P", Text: "the password"}
